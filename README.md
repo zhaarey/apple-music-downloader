@@ -1,4 +1,5 @@
-# Apple Music ALAC Downloader
+# Apple Music ALAC / Dolby Atmos Downloader
+
 Original script by Sorrow. Modified by me to include some fixes and improvements.
 
 ## How to use
