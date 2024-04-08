@@ -1005,7 +1005,7 @@ func writeCover(sanAlbumFolder, url string) error {
 	if exists {
 		return nil
 	}
-	url = strings.Replace(url, "{w}x{h}", "1200x12000", 1)
+	url = strings.Replace(url, "{w}x{h}", "10000x10000", 1)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
