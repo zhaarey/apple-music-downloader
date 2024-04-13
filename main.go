@@ -1114,7 +1114,7 @@ func main() {
 	for albumNum, url := range os.Args[1:] {
 		fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
 		var storefront, albumId string
-		if strings.Contains(url, "playlist") {
+		if strings.Contains(url, "/playlist/") {
 			storefront, albumId = checkUrlPlaylist(url)
 		} else {
 			storefront, albumId = checkUrl(url)
