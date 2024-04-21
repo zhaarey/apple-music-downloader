@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -32,6 +33,8 @@ const (
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
 )
+var oktrackNum int = 0
+var trackTotalnum int = 0
 
 type SampleInfo struct {
 	data      []byte
@@ -1039,12 +1042,18 @@ func rip(albumId string, token string, storefront string) error {
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	albumFolder := fmt.Sprintf("%s - %s", meta.Data[0].Attributes.ArtistName, meta.Data[0].Attributes.Name)
+	singerFoldername := fmt.Sprintf("%s", meta.Data[0].Attributes.ArtistName)
+	if strings.HasSuffix(singerFoldername, ".") {
+		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+	}
+	singerFolder := filepath.Join("AM-DL-Atmos downloads", forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	albumFolder := fmt.Sprintf("%s [Atmos]", meta.Data[0].Attributes.Name)
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
 	}
-	sanAlbumFolder := filepath.Join("AM-DL downloads", forbiddenNames.ReplaceAllString(albumFolder, "_"))
+	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
+	fmt.Println(singerFoldername)
 	fmt.Println(albumFolder)
 	err = writeCover(sanAlbumFolder, meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
@@ -1053,6 +1062,7 @@ func rip(albumId string, token string, storefront string) error {
 	trackTotal := len(meta.Data[0].Relationships.Tracks.Data)
 	for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
 		trackNum++
+		trackTotalnum += 1
 		fmt.Printf("Track %d of %d:\n", trackNum, trackTotal)
 		manifest, err := getInfoFromAdam(track.ID, token, storefront)
 		if err != nil {
@@ -1064,13 +1074,20 @@ func rip(albumId string, token string, storefront string) error {
 			continue
 		}
 		filename := fmt.Sprintf("%02d. %s.ec3", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
+		m4afilename := fmt.Sprintf("%02d. %s.m4a", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		trackPath := filepath.Join(sanAlbumFolder, filename)
+		m4atrackPath := filepath.Join(sanAlbumFolder, m4afilename)
 		exists, err := fileExists(trackPath)
+		m4aexists, errs := fileExists(m4atrackPath)
 		if err != nil {
 			fmt.Println("Failed to check if track exists.")
 		}
-		if exists {
-			fmt.Println("Track already exists locally.")
+		if errs != nil {
+			fmt.Println("Failed to check if m4atrack exists.")
+		}
+		if exists || m4aexists {
+			fmt.Println("Track or M4atrack already exists locally.")
+			oktrackNum += 1
 			continue
 		}
 		trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
@@ -1101,9 +1118,41 @@ func rip(albumId string, token string, storefront string) error {
 			fmt.Println("Failed to decrypt track.\n", err)
 			continue
 		}
+		index := trackNum - 1
+		tags := []string{
+			"tool=",
+			fmt.Sprintf("title=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name),
+			fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name),
+			fmt.Sprintf("artist=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ArtistName),
+			fmt.Sprintf("genre=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.GenreNames[0]),
+			fmt.Sprintf("created=%s", meta.Data[0].Attributes.ReleaseDate),
+			fmt.Sprintf("album_artist=%s", meta.Data[0].Attributes.ArtistName),
+			fmt.Sprintf("composer=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ComposerName),
+			fmt.Sprintf("copyright=%s", meta.Data[0].Attributes.Copyright),
+			fmt.Sprintf("ISRC=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Isrc),
+			fmt.Sprintf("UPC=%s", meta.Data[0].Attributes.Upc),
+			fmt.Sprintf("track=%d/%d", trackNum, trackTotal),
+		}
+		
+		tagsString := strings.Join(tags, ":")
+		cmd := exec.Command("MP4Box", "-add", trackPath,"-name",fmt.Sprintf("1=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name),"-itags",tagsString, "-brand", "mp42", "-ab", "dby1", m4atrackPath)
+		fmt.Printf("Encapsulating %s into %s\n", filepath.Base(trackPath), filepath.Base(m4atrackPath))
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Error encapsulating file: %v\n", err)
+			continue
+		}
+		fmt.Printf("Deleting original EC3 file: %s\n", filepath.Base(trackPath))
+		if err := os.Remove(trackPath); err != nil {
+			fmt.Printf("Error deleting file: %v\n", err)
+			continue
+		}
+		fmt.Printf("Successfully processed and deleted %s\n", filepath.Base(trackPath))
+		oktrackNum += 1
+
 	}
 	return err
 }
+
 
 func main() {
 	token, err := getToken()
@@ -1130,6 +1179,7 @@ func main() {
 			fmt.Println(err)
 		}
 	}
+	fmt.Printf("=======  Completed %d/%d ###### %d errors!! =======\n", oktrackNum, trackTotalnum, trackTotalnum-oktrackNum)
 }
 
 func extractMedia(b string) (string, []string, error) {

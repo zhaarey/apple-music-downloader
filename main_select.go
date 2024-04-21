@@ -1047,12 +1047,18 @@ func rip(albumId string, token string, storefront string) error {
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	albumFolder := fmt.Sprintf("%s - %s", meta.Data[0].Attributes.ArtistName, meta.Data[0].Attributes.Name)
+	singerFoldername := fmt.Sprintf("%s", meta.Data[0].Attributes.ArtistName)
+	if strings.HasSuffix(singerFoldername, ".") {
+		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+	}
+	singerFolder := filepath.Join("AM-DL downloads", forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	albumFolder := fmt.Sprintf("%s", meta.Data[0].Attributes.Name)
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
 	}
-	sanAlbumFolder := filepath.Join("AM-DL downloads", forbiddenNames.ReplaceAllString(albumFolder, "_"))
+	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
+	fmt.Println(singerFoldername)
 	fmt.Println(albumFolder)
 	err = writeCover(sanAlbumFolder, meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {

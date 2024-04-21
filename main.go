@@ -32,6 +32,8 @@ const (
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
 )
+var oktrackNum int = 0
+var trackTotalnum int = 0
 
 type SampleInfo struct {
 	data      []byte
@@ -1038,12 +1040,18 @@ func rip(albumId string, token string, storefront string) error {
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	albumFolder := fmt.Sprintf("%s - %s", meta.Data[0].Attributes.ArtistName, meta.Data[0].Attributes.Name)
+	singerFoldername := fmt.Sprintf("%s", meta.Data[0].Attributes.ArtistName)
+	if strings.HasSuffix(singerFoldername, ".") {
+		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+	}
+	singerFolder := filepath.Join("AM-DL downloads", forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	albumFolder := fmt.Sprintf("%s", meta.Data[0].Attributes.Name)
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
 	}
-	sanAlbumFolder := filepath.Join("AM-DL downloads", forbiddenNames.ReplaceAllString(albumFolder, "_"))
+	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
+	fmt.Println(singerFoldername)
 	fmt.Println(albumFolder)
 	err = writeCover(sanAlbumFolder, meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
@@ -1052,6 +1060,7 @@ func rip(albumId string, token string, storefront string) error {
 	trackTotal := len(meta.Data[0].Relationships.Tracks.Data)
 	for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
 		trackNum++
+		trackTotalnum += 1
 		fmt.Printf("Track %d of %d:\n", trackNum, trackTotal)
 		manifest, err := getInfoFromAdam(track.ID, token, storefront)
 		if err != nil {
@@ -1070,6 +1079,7 @@ func rip(albumId string, token string, storefront string) error {
 		}
 		if exists {
 			fmt.Println("Track already exists locally.")
+			oktrackNum += 1
 			continue
 		}
 		trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
@@ -1100,6 +1110,7 @@ func rip(albumId string, token string, storefront string) error {
 			fmt.Println("Failed to decrypt track.\n", err)
 			continue
 		}
+		oktrackNum += 1
 	}
 	return err
 }
@@ -1130,6 +1141,7 @@ func main() {
 			fmt.Println(err)
 		}
 	}
+	fmt.Printf("=======  Completed %d/%d ###### %d errors!! =======\n", oktrackNum, trackTotalnum, trackTotalnum-oktrackNum)
 }
 
 func extractMedia(b string) (string, []string, error) {
