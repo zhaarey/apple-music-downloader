@@ -1111,7 +1111,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		filename := fmt.Sprintf("%02d. %s.ec3", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		m4afilename := fmt.Sprintf("%02d. %s.m4a", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
-		lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
+		//lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		trackPath := filepath.Join(sanAlbumFolder, filename)
 		m4atrackPath := filepath.Join(sanAlbumFolder, m4afilename)
 		exists, err := fileExists(trackPath)
