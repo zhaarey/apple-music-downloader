@@ -4,7 +4,7 @@
 1. 调用外部MP4Box自动封装ec3为m4a
 2. 更改目录结构为 歌手名\专辑名  ;Atmos下载文件则另外移动到AM-DL-Atmos downloads，并更改目录结构为 歌手名\专辑名 [Atmos]
 3. 运行结束后显示总体完成情况
-4. 自动内嵌LRC歌词（需要media-user-token，获取方式看最后的说明）和封面
+4. 自动内嵌封面和LRC歌词（需要media-user-token，获取方式看最后的说明）
 
 
 
