@@ -1,10 +1,10 @@
-### ！！封装杜比全景声必须先安装[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)，并确认[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)已正确添加到环境变量
+### ！！必须先安装[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)，并确认[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)已正确添加到环境变量
 
 ### 添加功能
 1. 调用外部MP4Box自动封装ec3为m4a
 2. 更改目录结构为 歌手名\专辑名  ;Atmos下载文件则另外移动到AM-DL-Atmos downloads，并更改目录结构为 歌手名\专辑名 [Atmos]
 3. 运行结束后显示总体完成情况
-4. 下载LRC歌词
+4. 自动内嵌LRC歌词（需要media-user-token）和封面
 
 
 
