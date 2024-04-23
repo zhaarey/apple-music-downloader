@@ -7,4 +7,7 @@ require (
 	github.com/grafov/m3u8 v0.11.1
 )
 
-require github.com/google/uuid v1.1.2 // indirect
+require (
+	github.com/beevik/etree v1.3.0 // indirect
+	github.com/google/uuid v1.1.2 // indirect
+)
