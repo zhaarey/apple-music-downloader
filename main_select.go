@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -1139,21 +1140,16 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				continue
 			}
 			filename := fmt.Sprintf("%02d. %s.m4a", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
-			lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 			trackPath := filepath.Join(sanAlbumFolder, filename)
+			var lrc string = ""
 			if userToken != "" {
 				ttml, err := getSongLyrics(track.ID, storefront, token, userToken)
 				if err != nil {
 					fmt.Println("Failed to get lyrics")
 				} else {
-					lrc, err := conventTTMLToLRC(ttml)
+					lrc, err = conventTTMLToLRC(ttml)
 					if err != nil {
 						fmt.Printf("Failed to parse lyrics: %s \n", err)
-					} else {
-						err := writeLyrics(sanAlbumFolder, lrcFilename, lrc)
-						if err != nil {
-							fmt.Printf("Failed to write lyrics")
-						}
 					}
 				}
 			}
@@ -1191,6 +1187,16 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			err = decryptSong(info, keys, meta, trackPath, trackNum, trackTotal)
 			if err != nil {
 				fmt.Println("Failed to decrypt track.\n", err)
+				continue
+			}
+			tags := []string{
+				fmt.Sprintf("lyrics=%s", lrc),
+				fmt.Sprintf("cover=%s/cover.jpg", sanAlbumFolder),
+			}
+			tagsString := strings.Join(tags, ":")
+			cmd := exec.Command("MP4Box","-itags", tagsString, trackPath)
+			if err := cmd.Run(); err != nil {
+				fmt.Printf("Embed failed: %v\n", err)
 				continue
 			}
 		}
