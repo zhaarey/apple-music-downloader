@@ -4,6 +4,7 @@
 1. 调用外部MP4Box自动封装ec3为m4a
 2. 更改目录结构为 歌手名\专辑名  ;Atmos下载文件则另外移动到AM-DL-Atmos downloads，并更改目录结构为 歌手名\专辑名 [Atmos]
 3. 运行结束后显示总体完成情况
+4. 下载LRC歌词
 
 
 
@@ -24,3 +25,11 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
 10. For dolby atmos: `go run main_atmos.go https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
 
 [中文教程-详见方法三](https://telegra.ph/Apple-Music-Alac高解析度无损音乐下载教程-04-02-2)
+
+## Downloading lyrics
+1. Open [Apple Music](https://music.apple.com) and log in
+2. Open the Developer tools, Click `Application -> Storage -> Cookies -> https://music.apple.com`
+3. Find the cookie named `media-user-token` and copy its value
+4. Create a file named `media-user-token.txt` in the project root directory
+5. Paste the cookie value obtained in step 3 into the file and save it
+6. Start the script as usual
