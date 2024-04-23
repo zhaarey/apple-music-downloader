@@ -1153,7 +1153,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		if !samplesOk {
 			continue
 		}
-		// err = decryptSong(info, keys, meta, trackPath, trackNum, trackTotal)
+		err = decryptSong(info, keys, meta, trackPath, trackNum, trackTotal)
 		if err != nil {
 			fmt.Println("Failed to decrypt track.\n", err)
 			continue
