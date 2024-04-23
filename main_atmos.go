@@ -1137,7 +1137,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				if err != nil {
 					fmt.Printf("Failed to parse lyrics: %s \n", err)
 				}
-				}
 			}
 		}
 		trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
