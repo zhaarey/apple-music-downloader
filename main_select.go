@@ -1198,7 +1198,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				fmt.Sprintf("cover=%s/cover.jpg", sanAlbumFolder),
 			}
 			tagsString := strings.Join(tags, ":")
-			cmd := exec.Command("MP4Box","-itags", tagsString, trackPath)
+			cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
 			if err := cmd.Run(); err != nil {
 				fmt.Printf("Embed failed: %v\n", err)
 				continue

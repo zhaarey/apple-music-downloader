@@ -1177,7 +1177,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Sprintf("lyrics=%s", lrc),
 			fmt.Sprintf("cover=%s/cover.jpg", sanAlbumFolder),
 			fmt.Sprintf("title=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name),
-			fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name),
 			fmt.Sprintf("artist=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ArtistName),
 			fmt.Sprintf("genre=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.GenreNames[0]),
 			fmt.Sprintf("created=%s", meta.Data[0].Attributes.ReleaseDate),
