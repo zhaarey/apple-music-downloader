@@ -1218,15 +1218,20 @@ func conventTTMLToLRC(ttml string) (string, error) {
 	var lrcLines []string
 	for _, item := range parsedTTML.FindElement("tt").FindElement("body").ChildElements() {
 		for _, lyric := range item.ChildElements() {
-			var m, s, ms int
+			var h, m, s, ms int
 			if lyric.SelectAttr("begin") == nil {
 				return "", errors.New("no synchronised lyrics")
 			}
 			if strings.Contains(lyric.SelectAttr("begin").Value, ":") {
-				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d.%d", &m, &s, &ms)
-			} else {
-				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d.%d", &s, &ms)
-				m = 0
+				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d:%d.%d", &h, &m, &s, &ms)
+				if err != nil {
+					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d.%d", &m, &s, &ms)
+					h = 0
+				}
+				if err != nil {
+					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d.%d", &s, &ms)
+					h, m = 0, 0
+				}
 			}
 			if err != nil {
 				return "", err
@@ -1245,6 +1250,7 @@ func conventTTMLToLRC(ttml string) (string, error) {
 			} else {
 				text = lyric.SelectAttr("text").Value
 			}
+			m += h * 60
 			lrcLines = append(lrcLines, fmt.Sprintf("[%02d:%02d.%03d]%s", m, s, ms, text))
 		}
 	}
