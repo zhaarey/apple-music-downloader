@@ -1261,11 +1261,10 @@ func conventTTMLToLRC(ttml string) (string, error) {
 				if err != nil {
 					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d.%d", &m, &s, &ms)
 					h = 0
-				}
-				if err != nil {
-					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d.%d", &s, &ms)
-					h, m = 0, 0
-				}
+				} 
+			} else {
+				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d.%d", &s, &ms)
+				h, m = 0, 0
 			}
 			if err != nil {
 				return "", err
