@@ -1013,7 +1013,11 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 	defer do.Body.Close()
 	obj := new(SongLyrics)
 	err = json.NewDecoder(do.Body).Decode(&obj)
-	return obj.Data[0].Attributes.Ttml, nil
+	if obj.Data != nil {
+		return obj.Data[0].Attributes.Ttml, nil
+	} else {
+		return "", errors.New("failed to get lyrics")
+	}
 }
 
 func writeCover(sanAlbumFolder, url string) error {
@@ -1159,7 +1163,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Sprintf("cover=%s/cover.jpg", sanAlbumFolder),
 		}
 		tagsString := strings.Join(tags, ":")
-		cmd := exec.Command("MP4Box","-itags", tagsString, trackPath)
+		cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
 		if err := cmd.Run(); err != nil {
 			fmt.Printf("Embed failed: %v\n", err)
 			continue
