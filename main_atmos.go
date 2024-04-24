@@ -1019,7 +1019,11 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 	defer do.Body.Close()
 	obj := new(SongLyrics)
 	err = json.NewDecoder(do.Body).Decode(&obj)
-	return obj.Data[0].Attributes.Ttml, nil
+	if obj.Data != nil {
+		return obj.Data[0].Attributes.Ttml, nil
+	} else {
+		return "", errors.New("failed to get lyrics")
+	}
 }
 
 func writeCover(sanAlbumFolder, url string) error {
