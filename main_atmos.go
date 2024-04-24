@@ -1111,7 +1111,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		filename := fmt.Sprintf("%02d. %s.ec3", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		m4afilename := fmt.Sprintf("%02d. %s.m4a", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
-		lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
+		//lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		trackPath := filepath.Join(sanAlbumFolder, filename)
 		m4atrackPath := filepath.Join(sanAlbumFolder, m4afilename)
 		exists, err := fileExists(trackPath)
@@ -1127,19 +1127,15 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			oktrackNum += 1
 			continue
 		}
+		var lrc string = ""
 		if userToken != "" {
 			ttml, err := getSongLyrics(track.ID, storefront, token, userToken)
 			if err != nil {
 				fmt.Println("Failed to get lyrics")
 			} else {
-				lrc, err := conventTTMLToLRC(ttml)
+				lrc, err = conventTTMLToLRC(ttml)
 				if err != nil {
 					fmt.Printf("Failed to parse lyrics: %s \n", err)
-				} else {
-					err := writeLyrics(sanAlbumFolder, lrcFilename, lrc)
-					if err != nil {
-						fmt.Printf("Failed to write lyrics")
-					}
 				}
 			}
 		}
@@ -1174,6 +1170,9 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		index := trackNum - 1
 		tags := []string{
 			"tool=",
+			fmt.Sprintf("lyrics=%s", lrc),
+			fmt.Sprintf("cover=%s/cover.jpg", sanAlbumFolder),
+			fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name),
 			fmt.Sprintf("title=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name),
 			fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name),
 			fmt.Sprintf("artist=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ArtistName),
