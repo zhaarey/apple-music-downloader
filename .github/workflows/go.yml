@@ -1,0 +1,43 @@
+name: Go
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.20'
+
+    - name: Build
+      run: |
+        go build -o main.exe -v ./main.go
+        go build -o main_atmos.exe -v ./main_atmos.go
+        go build -o main_select.exe -v ./main_select.go
+
+    - name: Upload main.exe
+      uses: actions/upload-artifact@v2
+      with:
+        name: apple-music-alac-atmos-downloader-main
+        path: main.exe
+        
+    - name: Upload main_atmos.exe
+      uses: actions/upload-artifact@v2
+      with:
+        name: apple-music-alac-atmos-downloader-atmos
+        path: main_atmos.exe
+        
+    - name: Upload main_select.exe
+      uses: actions/upload-artifact@v2
+      with:
+        name: apple-music-alac-atmos-downloader-select
+        path: main_select.exe
