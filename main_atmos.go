@@ -1291,7 +1291,7 @@ func conventTTMLToLRC(ttml string) (string, error) {
 			}
 			m += h * 60
 			ms = ms / 10
-			lrcLines = append(lrcLines, fmt.Sprintf("[%02d:%02d.%03d]%s", m, s, ms, text))
+			lrcLines = append(lrcLines, fmt.Sprintf("[%02d:%02d.%02d]%s", m, s, ms, text))
 		}
 	}
 	return strings.Join(lrcLines, "\n"), nil
