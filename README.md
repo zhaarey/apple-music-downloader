@@ -5,6 +5,7 @@
 2. 更改目录结构为 歌手名\专辑名  ;Atmos下载文件则另外移动到AM-DL-Atmos downloads，并更改目录结构为 歌手名\专辑名 [Atmos]
 3. 运行结束后显示总体完成情况
 4. 自动内嵌封面和LRC歌词（需要media-user-token，获取方式看最后的说明）
+5. 自动构建 可以到 [Actions](https://github.com/zhaarey/apple-music-alac-atmos-downloader/actions) 页面下载最新自动构建版本 可以直接`main.exe url`
 
 
 

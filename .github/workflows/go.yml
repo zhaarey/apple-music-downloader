@@ -27,17 +27,5 @@ jobs:
     - name: Upload main.exe
       uses: actions/upload-artifact@v2
       with:
-        name: apple-music-alac-atmos-downloader-main
-        path: main.exe
-        
-    - name: Upload main_atmos.exe
-      uses: actions/upload-artifact@v2
-      with:
-        name: apple-music-alac-atmos-downloader-atmos
-        path: main_atmos.exe
-        
-    - name: Upload main_select.exe
-      uses: actions/upload-artifact@v2
-      with:
-        name: apple-music-alac-atmos-downloader-select
-        path: main_select.exe
+        name: apple-music-alac-atmos-downloader
+        path: main.exe main_atmos.exe main_select.exe
