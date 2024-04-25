@@ -1267,7 +1267,7 @@ func conventTTMLToLRC(ttml string) (string, error) {
 				if err != nil {
 					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d.%d", &m, &s, &ms)
 					h = 0
-				} 
+				}
 			} else {
 				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d.%d", &s, &ms)
 				h, m = 0, 0
@@ -1290,6 +1290,7 @@ func conventTTMLToLRC(ttml string) (string, error) {
 				text = lyric.SelectAttr("text").Value
 			}
 			m += h * 60
+			ms = ms / 10
 			lrcLines = append(lrcLines, fmt.Sprintf("[%02d:%02d.%03d]%s", m, s, ms, text))
 		}
 	}
