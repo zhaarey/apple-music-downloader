@@ -1086,17 +1086,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	if strings.HasSuffix(singerFoldername, ".") {
 		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 	}
-	if strings.HasSuffix(singerFoldername, " ") {
-		singerFoldername = strings.TrimSpace(singerFoldername)
-	}
+	singerFoldername = strings.TrimSpace(singerFoldername)
 	singerFolder := filepath.Join("AM-DL-Atmos downloads", forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	albumFolder := fmt.Sprintf("%s [Atmos]", meta.Data[0].Attributes.Name)
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
 	}
-	if strings.HasSuffix(albumFolder, " ") {
-		albumFolder = strings.TrimSpace(albumFolder)
-	}
+	albumFolder = strings.TrimSpace(albumFolder)
 	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
 	fmt.Println(singerFoldername)
