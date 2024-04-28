@@ -1047,7 +1047,7 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 }
 
 func writeCover(sanAlbumFolder, url string) error {
-	covPath := filepath.Join(sanAlbumFolder, "cover.jpg")
+	covPath := filepath.Join(sanAlbumFolder, "cover." + config.CoverFormat)
 	exists, err := fileExists(covPath)
 	if err != nil {
 		fmt.Println("Failed to check if cover exists.")
