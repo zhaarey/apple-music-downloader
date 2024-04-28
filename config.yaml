@@ -1,4 +1,4 @@
-media-user-token:
+media-user-token: "your-media-user-token"
 embed-lrc: true
 save-lrc-file: false
 embed-cover: true
