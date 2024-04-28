@@ -1161,7 +1161,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			continue
 		}
 		var lrc string = ""
-		if userToken != "" && (config.EmbedLrc || config.SaveLrcFile) {
+		if userToken != "your-media-user-token" && (config.EmbedLrc || config.SaveLrcFile) {
 			ttml, err := getSongLyrics(track.ID, storefront, token, userToken)
 			if err != nil {
 				fmt.Println("Failed to get lyrics")
