@@ -31,6 +31,5 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
 1. Open [Apple Music](https://music.apple.com) and log in
 2. Open the Developer tools, Click `Application -> Storage -> Cookies -> https://music.apple.com`
 3. Find the cookie named `media-user-token` and copy its value
-4. Create a file named `media-user-token.txt` in the project root directory
-5. Paste the cookie value obtained in step 3 into the file and save it
-6. Start the script as usual
+4. Paste the cookie value obtained in step 3 into the config.yaml and save it
+5. Start the script as usual
