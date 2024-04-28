@@ -1249,12 +1249,10 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 }
 
 func main() {
-	var mediaUserToken string
-	if _, err := os.Stat("media-user-token.txt"); err == nil {
-		file, err := os.ReadFile("media-user-token.txt")
-		if err == nil && file != nil {
-			mediaUserToken = string(file)
-		}
+	err := loadConfig()
+	if err != nil {
+		fmt.Printf("load config failed: %v", err)
+		return
 	}
 	token, err := getToken()
 	if err != nil {
@@ -1274,7 +1272,7 @@ func main() {
 			fmt.Printf("Invalid URL: %s\n", url)
 			continue
 		}
-		err := rip(albumId, token, storefront, mediaUserToken)
+		err := rip(albumId, token, storefront, config.MediaUserToken)
 		if err != nil {
 			fmt.Println("Album failed.")
 			fmt.Println(err)
