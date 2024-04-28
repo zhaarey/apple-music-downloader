@@ -1063,6 +1063,11 @@ func writeCover(sanAlbumFolder, url string) error {
 	if exists {
 		return nil
 	}
+	if config.CoverFormat == "png" {
+		re := regexp.MustCompile(`\{w\}x\{h\}`)
+		parts := re.Split(url, 2)
+		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
+	}
 	url = strings.Replace(url, "{w}x{h}", config.CoverSize, 1)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
