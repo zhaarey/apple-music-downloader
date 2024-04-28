@@ -10,4 +10,5 @@ require (
 require (
 	github.com/beevik/etree v1.3.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
+	gopkg.in/yaml.v2 v2.2.8
 )

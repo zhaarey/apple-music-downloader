@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"gopkg.in/yaml.v2"
 	"errors"
 	"fmt"
 	"github.com/beevik/etree"
@@ -34,6 +35,18 @@ const (
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
 )
+type Config struct {
+    MediaUserToken string `yaml:"media-user-token"`
+    SaveLrcFile    bool `yaml:"save-lrc-file"`   
+    EmbedLrc       bool `yaml:"embed-lrc"`
+    EmbedCover     bool `yaml:"embed-cover"`
+    CoverSize      string `yaml:"cover-size"`
+    CoverFormat      string `yaml:"cover-format"`
+    AlacSaveFolder      string `yaml:"alac-save-folder"`
+    AtmosSaveFolder      string `yaml:"atmos-save-folder"`
+}
+
+var config Config
 var oktrackNum int = 0
 var trackTotalnum int = 0
 
@@ -47,6 +60,20 @@ type SongInfo struct {
 	r         io.ReadSeeker
 	alacParam *Alac
 	samples   []SampleInfo
+}
+
+func loadConfig() error {
+    // 读取config.yaml文件内容  
+    data, err := ioutil.ReadFile("config.yaml")
+    if err != nil {
+        return err
+    }
+    // 将yaml解析到config变量中
+    err = yaml.Unmarshal(data, &config)
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
 func (s *SongInfo) Duration() (ret uint64) {
@@ -1027,7 +1054,7 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 }
 
 func writeCover(sanAlbumFolder, url string) error {
-	covPath := filepath.Join(sanAlbumFolder, "cover.jpg")
+	covPath := filepath.Join(sanAlbumFolder, "cover." + config.CoverFormat)
 	exists, err := fileExists(covPath)
 	if err != nil {
 		fmt.Println("Failed to check if cover exists.")
@@ -1036,7 +1063,12 @@ func writeCover(sanAlbumFolder, url string) error {
 	if exists {
 		return nil
 	}
-	url = strings.Replace(url, "{w}x{h}", "5000x5000", 1)
+	if config.CoverFormat == "png" {
+		re := regexp.MustCompile(`\{w\}x\{h\}`)
+		parts := re.Split(url, 2)
+		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
+	}
+	url = strings.Replace(url, "{w}x{h}", config.CoverSize, 1)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -1087,7 +1119,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 	}
 	singerFoldername = strings.TrimSpace(singerFoldername)
-	singerFolder := filepath.Join("AM-DL-Atmos downloads", forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	singerFolder := filepath.Join(config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	albumFolder := fmt.Sprintf("%s [Atmos]", meta.Data[0].Attributes.Name)
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
@@ -1117,7 +1149,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		filename := fmt.Sprintf("%02d. %s.ec3", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		m4afilename := fmt.Sprintf("%02d. %s.m4a", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
-		//lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
+		lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		trackPath := filepath.Join(sanAlbumFolder, filename)
 		m4atrackPath := filepath.Join(sanAlbumFolder, m4afilename)
 		exists, err := fileExists(trackPath)
@@ -1134,7 +1166,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			continue
 		}
 		var lrc string = ""
-		if userToken != "" {
+		if userToken != "your-media-user-token" && (config.EmbedLrc || config.SaveLrcFile) {
 			ttml, err := getSongLyrics(track.ID, storefront, token, userToken)
 			if err != nil {
 				fmt.Println("Failed to get lyrics")
@@ -1142,6 +1174,16 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				lrc, err = conventTTMLToLRC(ttml)
 				if err != nil {
 					fmt.Printf("Failed to parse lyrics: %s \n", err)
+				} else {
+					if config.SaveLrcFile {
+						err := writeLyrics(sanAlbumFolder, lrcFilename, lrc)
+						if err != nil {
+							fmt.Printf("Failed to write lyrics")
+						}
+						if !config.EmbedLrc {
+							lrc = ""
+						}
+					}
 				}
 			}
 		}
@@ -1177,7 +1219,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		tags := []string{
 			"tool=",
 			fmt.Sprintf("lyrics=%s", lrc),
-			fmt.Sprintf("cover=%s/cover.jpg", sanAlbumFolder),
 			fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name),
 			fmt.Sprintf("title=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name),
 			fmt.Sprintf("artist=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ArtistName),
@@ -1190,7 +1231,9 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Sprintf("UPC=%s", meta.Data[0].Attributes.Upc),
 			fmt.Sprintf("track=%d/%d", trackNum, trackTotal),
 		}
-
+		if config.EmbedCover {
+			tags = append(tags, fmt.Sprintf("cover=%s/cover.%s", sanAlbumFolder, config.CoverFormat))
+		}
 		tagsString := strings.Join(tags, ":")
 		cmd := exec.Command("MP4Box", "-add", trackPath, "-name", fmt.Sprintf("1=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name), "-itags", tagsString, "-brand", "mp42", "-ab", "dby1", m4atrackPath)
 		fmt.Printf("Encapsulating %s into %s\n", filepath.Base(trackPath), filepath.Base(m4atrackPath))
@@ -1211,12 +1254,10 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 }
 
 func main() {
-	var mediaUserToken string
-	if _, err := os.Stat("media-user-token.txt"); err == nil {
-		file, err := os.ReadFile("media-user-token.txt")
-		if err == nil && file != nil {
-			mediaUserToken = string(file)
-		}
+	err := loadConfig()
+	if err != nil {
+		fmt.Printf("load config failed: %v", err)
+		return
 	}
 	token, err := getToken()
 	if err != nil {
@@ -1236,7 +1277,7 @@ func main() {
 			fmt.Printf("Invalid URL: %s\n", url)
 			continue
 		}
-		err := rip(albumId, token, storefront, mediaUserToken)
+		err := rip(albumId, token, storefront, config.MediaUserToken)
 		if err != nil {
 			fmt.Println("Album failed.")
 			fmt.Println(err)
