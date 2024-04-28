@@ -1239,7 +1239,7 @@ func main() {
 			fmt.Printf("Invalid URL: %s\n", url)
 			continue
 		}
-		err = rip(albumId, token, storefront, mediaUserToken)
+		err = rip(albumId, token, storefront, config.MediaUserToken)
 		if err != nil {
 			fmt.Println("Album failed.")
 			fmt.Println(err)
