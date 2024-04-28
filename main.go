@@ -1139,7 +1139,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 		trackPath := filepath.Join(sanAlbumFolder, filename)
 		var lrc string = ""
-		if userToken != "" && (config.EmbedLrc || config.SaveLrcFile) {
+		if userToken != "your-media-user-token" && (config.EmbedLrc || config.SaveLrcFile) {
 			ttml, err := getSongLyrics(track.ID, storefront, token, userToken)
 			if err != nil {
 				fmt.Println("Failed to get lyrics")
