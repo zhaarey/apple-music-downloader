@@ -1147,6 +1147,11 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	if err != nil {
 		fmt.Println(err)
 	}
+	manually := false
+	if strings.Contains(input, "#") {
+        input = strings.ReplaceAll(input, "#", "")
+		manually = true
+    }
 	input = strings.TrimSpace(input)
 	inputs := strings.Fields(input)
 	for _, str := range inputs {
@@ -1178,6 +1183,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				continue
 			}
 			filename := fmt.Sprintf("%02d. %s.m4a", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
+			fmt.Println(filename)
 			lrcFilename := fmt.Sprintf("%02d. %s.lrc", trackNum, forbiddenNames.ReplaceAllString(track.Attributes.Name, "_"))
 			trackPath := filepath.Join(sanAlbumFolder, filename)
 			var lrc string = ""
@@ -1209,6 +1215,16 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			if exists {
 				fmt.Println("Track already exists locally.")
 				continue
+			}
+			if manually {
+				fmt.Print("m3u8: ")
+				reader := bufio.NewReader(os.Stdin)
+				m3u8_url, err := reader.ReadString('\n')
+				if err != nil {
+					fmt.Println(err)
+				}
+				m3u8_url = strings.TrimSpace(m3u8_url)
+				manifest.Attributes.ExtendedAssetUrls.EnhancedHls=m3u8_url
 			}
 			trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 			if err != nil {
