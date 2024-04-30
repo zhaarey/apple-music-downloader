@@ -1148,6 +1148,18 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println(err)
 	}
 	manually := false
+	manually_txt := false
+	m3u8_txt := ""
+	if strings.Contains(input, "txt") {
+		m3u8_txt= strings.TrimSpace(input)
+		fmt.Print(m3u8_txt)
+		strArr := make([]string, len(arr))
+		for i, num := range arr {
+			strArr[i] = strconv.Itoa(num)
+		}
+		input = strings.Join(strArr, " ")
+		manually_txt = true
+    }
 	if strings.Contains(input, "#") {
         input = strings.ReplaceAll(input, "#", "")
 		manually = true
@@ -1215,6 +1227,26 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			if exists {
 				fmt.Println("Track already exists locally.")
 				continue
+			}
+			if manually_txt {
+				file, err := os.Open(m3u8_txt)
+				if err != nil {
+					fmt.Println("cant open txt:", err)
+				}
+				defer file.Close()
+				scanner := bufio.NewScanner(file)
+				for scanner.Scan() {
+					line := scanner.Text()
+					if strings.HasPrefix(line, track.ID) {
+						parts := strings.SplitN(line, ",", 2)
+						if len(parts) == 2 {
+							manifest.Attributes.ExtendedAssetUrls.EnhancedHls=parts[1]
+						}
+					}
+				}
+				if err := scanner.Err(); err != nil {
+					fmt.Println(err)
+				}
 			}
 			if manually {
 				fmt.Print("m3u8: ")

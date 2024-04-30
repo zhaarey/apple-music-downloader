@@ -6,7 +6,7 @@
 3. 运行结束后显示总体完成情况
 4. 自动内嵌封面和LRC歌词（需要media-user-token，获取方式看最后的说明）
 5. 自动构建 可以到 [Actions](https://github.com/zhaarey/apple-music-alac-atmos-downloader/actions) 页面下载最新自动构建版本 可以直接`main.exe url`
-6. main_select 支持手动填写m3u8，输入#号
+6. main_select 支持手动填写m3u8，输入#号，比如#1 #2，支持txt读取m3u8，输入txt文件名
 
 
 
