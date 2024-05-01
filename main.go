@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -47,6 +48,7 @@ type Config struct {
 }
 
 var config Config
+var txtpath string
 var oktrackNum int = 0
 var trackTotalnum int = 0
 
@@ -1174,6 +1176,27 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			oktrackNum += 1
 			continue
 		}
+		if txtpath != "" {
+			file, err := os.Open(txtpath)
+			if err != nil {
+				fmt.Println("cant open txt:", err)
+			}
+			defer file.Close()
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.HasPrefix(line, track.ID) {
+					parts := strings.SplitN(line, ",", 2)
+					if len(parts) == 2 {
+						manifest.Attributes.ExtendedAssetUrls.EnhancedHls=parts[1]
+						fmt.Println("Found m3u8 from txt")
+					}
+				}
+			}
+			if err := scanner.Err(); err != nil {
+				fmt.Println(err)
+			}
+		}
 		trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 		if err != nil {
 			fmt.Println("Failed to extract info from manifest.\n", err)
@@ -1234,10 +1257,20 @@ func main() {
 	for albumNum, url := range os.Args[1:] {
 		fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
 		var storefront, albumId string
-		if strings.Contains(url, "/playlist/") {
-			storefront, albumId = checkUrlPlaylist(url)
+		if strings.Contains(url, ".txt") {
+			txtpath = url
+			fileName := filepath.Base(url)
+			parts := strings.SplitN(fileName, "_", 3)
+			storefront = parts[0]
+			albumId = parts[1]
 		} else {
-			storefront, albumId = checkUrl(url)
+			if strings.Contains(url, "/playlist/") {
+				storefront, albumId = checkUrlPlaylist(url)
+				txtpath = ""
+			} else {
+				storefront, albumId = checkUrl(url)
+				txtpath = ""
+			}
 		}
 
 		if albumId == "" {
