@@ -1202,8 +1202,10 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				if err != nil {
 					fmt.Println(err)
 				}
-				manifest.Attributes.ExtendedAssetUrls.EnhancedHls=string(Checkbody)
-				fmt.Println("Found m3u8 from API")
+				if string(Checkbody) != "no_found"{
+					manifest.Attributes.ExtendedAssetUrls.EnhancedHls=string(Checkbody)
+					fmt.Println("Found m3u8 from API")
+				}
 			}
 		}
 		if txtpath != "" {
