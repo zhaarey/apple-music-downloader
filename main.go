@@ -45,6 +45,7 @@ type Config struct {
     CoverFormat      string `yaml:"cover-format"`
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
+	Check      string `yaml:"check"`
 }
 
 var config Config
@@ -1175,6 +1176,35 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Println("Track already exists locally.")
 			oktrackNum += 1
 			continue
+		}
+		if config.Check != ""{
+			config.Check=strings.TrimSpace(config.Check)
+			if strings.HasSuffix(config.Check, "txt") {
+				txtpath=config.Check
+			}
+			if strings.HasPrefix(config.Check, "http") {
+				req, err := http.NewRequest("GET", config.Check, nil)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				query := req.URL.Query()
+				query.Set("songid", track.ID)
+				req.URL.RawQuery = query.Encode()
+
+				do, err := http.DefaultClient.Do(req)
+				if err != nil {
+					fmt.Println(err)
+				}
+				defer do.Body.Close()
+
+				Checkbody, err := ioutil.ReadAll(do.Body)
+				if err != nil {
+					fmt.Println(err)
+				}
+				manifest.Attributes.ExtendedAssetUrls.EnhancedHls=string(Checkbody)
+				fmt.Println("Found m3u8 from API")
+			}
 		}
 		if txtpath != "" {
 			file, err := os.Open(txtpath)

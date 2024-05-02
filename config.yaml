@@ -6,3 +6,4 @@ cover-size: 5000x5000
 cover-format: jpg
 alac-save-folder: AM-DL downloads
 atmos-save-folder: AM-DL-Atmos downloads
+check: ""
