@@ -10,8 +10,21 @@
 7. main 支持使用 go run main.go "txt文件地址"   txt文件名需要指定格式  例如  cn_1707581102_THE BOOK 3.txt     建议使用这个[Reqable 脚本代码](https://telegra.ph/Reqable-For-Apple-Music-05-01) 自动生成
 8. main 支持check 可以填入文本地址 或API数据库.
 
+本项目仅支持ALAC和Atmos
+- `alac (audio-alac-stereo)`
+- `ec3 (audio-atmos / audio-ec3)`
+
 ### Python项目
 如需下载AAC推荐使用WorldObservationLog的[AppleMusicDecrypt](https://github.com/WorldObservationLog/AppleMusicDecrypt)
+
+[AppleMusicDecrypt](https://github.com/WorldObservationLog/AppleMusicDecrypt)支持以下编码
+- `alac (audio-alac-stereo)`
+- `ec3 (audio-atmos / audio-ec3)`
+- `ac3 (audio-ac3)`
+- `aac (audio-stereo)`
+- `aac-binaural (audio-stereo-binaural)`
+- `aac-downmix (audio-stereo-downmix)`
+
 
 # Apple Music ALAC / Dolby Atmos Downloader
 
