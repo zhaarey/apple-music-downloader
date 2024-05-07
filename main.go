@@ -45,6 +45,7 @@ type Config struct {
     CoverFormat      string `yaml:"cover-format"`
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
+	ForceApi       bool `yaml:"force-api"`
 	Check      string `yaml:"check"`
 }
 
@@ -1249,6 +1250,12 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				if string(Checkbody) != "no_found"{
 					manifest.Attributes.ExtendedAssetUrls.EnhancedHls=string(Checkbody)
 					fmt.Println("Found m3u8 from API")
+				} else {
+					if config.ForceApi {
+						fmt.Println(" Not Found m3u8 from API, Skip")
+						continue
+					}
+					fmt.Println(" Not Found m3u8 from API")
 				}
 			}
 		}
