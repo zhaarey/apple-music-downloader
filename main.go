@@ -47,6 +47,7 @@ type Config struct {
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
 	ForceApi       bool `yaml:"force-api"`
 	Check      string `yaml:"check"`
+	GetM3u8FromDevice       bool `yaml:"get-m3u8-from-device"`
 }
 
 var config Config
@@ -1257,6 +1258,52 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 					}
 					fmt.Println(" Not Found m3u8 from API")
 				}
+			}
+		}
+		if config.GetM3u8FromDevice{
+			adamID := track.ID
+			conn, err := net.Dial("tcp", "127.0.0.1:20020")
+			if err != nil {
+				fmt.Println("Error connecting to device:", err)
+				continue
+			}
+			defer conn.Close()
+
+			fmt.Println("Connected to device")
+
+			// Send the length of adamID and the adamID itself
+			adamIDBuffer := []byte(adamID)
+			lengthBuffer := []byte{byte(len(adamIDBuffer))}
+
+			// Write length and adamID to the connection
+			_, err = conn.Write(lengthBuffer)
+			if err != nil {
+				fmt.Println("Error writing length to device:", err)
+				continue
+			}
+
+			_, err = conn.Write(adamIDBuffer)
+			if err != nil {
+				fmt.Println("Error writing adamID to device:", err)
+				continue
+			}
+
+			// Read the response (URL) from the device
+			response, err := bufio.NewReader(conn).ReadBytes('\n')
+			if err != nil {
+				fmt.Println("Error reading response from device:", err)
+				continue
+			}
+
+			// Trim any newline characters from the response
+			
+			response = bytes.TrimSpace(response)
+			if len(response) > 0 {
+				fmt.Println("Received URL:", string(response))
+				manifest.Attributes.ExtendedAssetUrls.EnhancedHls = string(response)
+			} else {
+				fmt.Println("Received an empty response")
+				continue
 			}
 		}
 		if txtpath != "" {

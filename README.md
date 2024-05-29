@@ -9,6 +9,7 @@
 6. main_select 支持手动填写m3u8，输入#号，比如#1 #2，支持txt读取m3u8，输入txt文件名
 7. main 支持使用 go run main.go "txt文件地址"   txt文件名需要指定格式  例如  cn_1707581102_THE BOOK 3.txt     建议使用这个[Reqable 脚本代码](https://telegra.ph/Reqable-For-Apple-Music-05-01) 自动生成
 8. main 支持check 可以填入文本地址 或API数据库.
+9. 新增get-m3u8-from-device 改为true 且设置端口`adb forward tcp:20020 tcp:20020`即从模拟器获取m3u8 
 
 本项目仅支持ALAC和Atmos
 - `alac (audio-alac-stereo)`
