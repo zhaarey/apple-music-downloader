@@ -44,6 +44,7 @@ type Config struct {
     CoverFormat      string `yaml:"cover-format"`
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
+	AtmosMax       int `yaml:"atmos-max"`
 }
 
 var config Config
@@ -1363,13 +1364,21 @@ func extractMedia(b string) (string, []string, error) {
 	})
 	for _, variant := range master.Variants {
 		if variant.Codecs == "ec-3" {
-			fmt.Printf("%s\n", variant.Audio)
-			streamUrlTemp, err := masterUrl.Parse(variant.URI)
+			split := strings.Split(variant.Audio, "-")
+			length := len(split)
+			length_int,err := strconv.Atoi(split[length-1])
 			if err != nil {
-				panic(err)
+				return "", nil, err
 			}
-			streamUrl = streamUrlTemp
-			break
+			if length_int <= config.AtmosMax{
+				fmt.Printf("%s\n", variant.Audio)
+				streamUrlTemp, err := masterUrl.Parse(variant.URI)
+				if err != nil {
+					panic(err)
+				}
+				streamUrl = streamUrlTemp
+				break
+			}
 		}
 	}
 	if streamUrl == nil {
