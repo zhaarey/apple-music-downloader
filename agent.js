@@ -100,6 +100,27 @@ setTimeout(() => {
         }
         await s.close();
     }
+    global.getM3U8fromDownload = function(adamID) {
+        var C3282k = Java.use("c.a.a.e.o.k");
+        var m7125s = C3282k.a().s();
+        var PurchaseRequest$PurchaseRequestPtr = Java.use("com.apple.android.storeservices.javanative.account.PurchaseRequest$PurchaseRequestPtr");
+
+        var c3249t = Java.cast(m7125s, Java.use("c.a.a.e.k.t"));
+        var create = PurchaseRequest$PurchaseRequestPtr.create(c3249t.n.value);
+        create.get().setProcessDialogActions(true);
+        create.get().setURLBagKey("subDownload");
+        create.get().setBuyParameters(`salableAdamId=${adamID}&price=0&pricingParameters=SUBS&productType=S`);
+        create.get().run();
+        var response = create.get().getResponse();
+        if (response.get().getError().get() == null) {
+            var item = response.get().getItems().get(0);
+            var assets = item.get().getAssets();
+            var size = assets.size();
+            return assets.get(size - 1).get().getURL();
+        } else {
+            return response.get().getError().get().errorCode();
+        }
+    };
     global.getM3U8 = function(adamID) {
         Java.use("com.apple.android.music.common.MainContentActivity");
         var SVPlaybackLeaseManagerProxy;
@@ -110,18 +131,28 @@ setTimeout(() => {
             onComplete: function (x) {}
         });
         var HLSParam = Java.array('java.lang.String', ["HLS"])
-        var MediaAssetInfo = SVPlaybackLeaseManagerProxy.requestAsset(parseInt(adamID), HLSParam, false)
+        try {
+            var MediaAssetInfo = SVPlaybackLeaseManagerProxy.requestAsset(parseInt(adamID), HLSParam, false);
             if (MediaAssetInfo === null) {
-                return -1
+                return -1;
             }
-            return MediaAssetInfo.getDownloadUrl()
+            return MediaAssetInfo.getDownloadUrl();
+        } catch (e) {
+            console.log("Error calling requestAsset:", e);
+            return -1;
+        }
     };
     
     function performJavaOperations(adamID) {
         return new Promise((resolve, reject) => {
             Java.performNow(function () {
                 const url = getM3U8(adamID);
-                resolve(url);
+                if (url === -1) {
+                    const url = getM3U8fromDownload(adamID);
+                    resolve(url);
+                } else {
+                    resolve(url);
+                }
             });
         });
     }
