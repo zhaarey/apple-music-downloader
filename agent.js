@@ -159,15 +159,7 @@ setTimeout(() => {
     
     async function handleM3U8Connection(s) {
         console.log("New M3U8 connection!");
-        try {
-            const byteArrayToString = byteArray => {
-                let result = '';
-                for (let i = 0; i < byteArray.length; ++i) {
-                    result += String.fromCharCode(byteArray[i]);
-                }
-                return result;
-            };
-    
+        try {    
             const adamSize = (await s.input.readAll(1)).unwrap().readU8();
             if (adamSize !== 0) {
                 const adam = await s.input.readAll(adamSize);
