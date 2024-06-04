@@ -14,3 +14,9 @@ atmos-max: 2768  #2768 2448
 #{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {UPC} {Copyright}
 #example: {ReleaseDate} - {ArtistName} - {AlbumName}({AlbumId})
 album-folder-format: "{AlbumName}"
+#{SongNumer} {SongName} {DiscNumber} {TrackNumber}
+#example: Disk {DiscNumber} - Track {TrackNumber} {SongName}"
+song-file-format: "{SongNumer}. {SongName}"
+explicit-choice : "[E]"
+clean-choice : "[C]"
+apple-master-choice : "[M]"
