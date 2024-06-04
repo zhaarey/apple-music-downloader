@@ -1278,10 +1278,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Sprintf("created=%s", meta.Data[0].Attributes.ReleaseDate),
 			fmt.Sprintf("album_artist=%s", meta.Data[0].Attributes.ArtistName),
 			fmt.Sprintf("composer=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ComposerName),
+			fmt.Sprintf("writer=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ComposerName),
+			fmt.Sprintf("performer=%s", meta.Data[0].Attributes.ArtistName),
 			fmt.Sprintf("copyright=%s", meta.Data[0].Attributes.Copyright),
 			fmt.Sprintf("ISRC=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Isrc),
 			fmt.Sprintf("UPC=%s", meta.Data[0].Attributes.Upc),
-			fmt.Sprintf("track=%d/%d", trackNum, trackTotal),
+			fmt.Sprintf("track=%s", trackNum),
+			fmt.Sprintf("tracknum=%d/%d", trackNum, trackTotal),
 			fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal - 1].Attributes.DiscNumber),
 		}
 		if config.EmbedCover {
