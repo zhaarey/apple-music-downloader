@@ -45,6 +45,7 @@ type Config struct {
     CoverFormat      string `yaml:"cover-format"`
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
+	AlbumFolderFormat      string `yaml:"album-folder-format"`
 	ForceApi       bool `yaml:"force-api"`
 	Check      string `yaml:"check"`
 	GetM3u8FromDevice       bool `yaml:"get-m3u8-from-device"`
@@ -1163,7 +1164,14 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	}
 	singerFoldername = strings.TrimSpace(singerFoldername)
 	singerFolder := filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
-	albumFolder := fmt.Sprintf("%s", meta.Data[0].Attributes.Name)
+	albumFolder := strings.NewReplacer(
+		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
+		"{ArtistName}", meta.Data[0].Attributes.ArtistName,
+		"{AlbumName}", meta.Data[0].Attributes.Name,
+		"{UPC}", meta.Data[0].Attributes.Upc,
+		"{Copyright}", meta.Data[0].Attributes.Copyright,
+		"{AlbumId}", albumId,
+	).Replace(config.AlbumFolderFormat)
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
 	}
