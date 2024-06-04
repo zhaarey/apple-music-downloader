@@ -1131,6 +1131,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	singerFolder := filepath.Join("AM-DL downloads", forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	albumFolder := strings.NewReplacer(
 		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
+		"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
 		"{ArtistName}", meta.Data[0].Attributes.ArtistName,
 		"{AlbumName}", meta.Data[0].Attributes.Name,
 		"{UPC}", meta.Data[0].Attributes.Upc,
