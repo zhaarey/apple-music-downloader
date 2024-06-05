@@ -56,6 +56,7 @@ type Config struct {
 	Check      string `yaml:"check"`
 	GetM3u8FromDevice       bool `yaml:"get-m3u8-from-device"`
 	AlacMax       int `yaml:"alac-max"`
+	AddCodec       bool `yaml:"add-codec"`
 }
 
 var config Config
@@ -1200,6 +1201,9 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		if err != nil {
 			fmt.Println("Failed to extract quality from manifest.\n", err)
 		}
+		if config.AddCodec{
+			Quality=fmt.Sprintf("ALAC %s", Quality)
+		}
 	}
 	var albumFolder string
 	if strings.Contains(albumId, "pl.") {
@@ -1272,8 +1276,10 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				fmt.Println("Failed to extract quality from manifest.\n", err)
 				continue
 			}
+			if config.AddCodec{
+				Quality=fmt.Sprintf("ALAC %s", Quality)
+			}
 		}
-		
 		songName := strings.NewReplacer(
 			"{SongId}", track.ID,
 			"{SongNumer}", fmt.Sprintf("%02d", trackNum),

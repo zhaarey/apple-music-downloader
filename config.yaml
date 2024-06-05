@@ -25,3 +25,5 @@ artist-folder-format: "{ArtistName}"
 explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
+#if set true,Quality will change to [ALAC 24B-96.0kHz] [Atmos 768kbps]
+add-codec: false

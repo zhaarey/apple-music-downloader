@@ -1152,7 +1152,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{ArtistName}", "Apple Music",
 			"{PlaylistName}", meta.Data[0].Attributes.Name,
 			"{PlaylistId}", albumId,
-			"{Quality}","",
+			"{Quality}","ALAC",
 		).Replace(config.PlaylistFolderFormat)
 	}else{
 		albumFolder = strings.NewReplacer(
@@ -1163,7 +1163,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{UPC}", meta.Data[0].Attributes.Upc,
 			"{Copyright}", meta.Data[0].Attributes.Copyright,
 			"{AlbumId}", albumId,
-			"{Quality}", "",
+			"{Quality}", "ALAC",
 		).Replace(config.AlbumFolderFormat)
 	}
 	if meta.Data[0].Attributes.IsMasteredForItunes{

@@ -52,6 +52,7 @@ type Config struct {
 	CleanChoice     string `yaml:"clean-choice"`
 	AppleMasterChoice      string `yaml:"apple-master-choice"`
 	AtmosMax       int `yaml:"atmos-max"`
+	AddCodec       bool `yaml:"add-codec"`
 }
 
 var config Config
@@ -1144,12 +1145,16 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		singerFolder = filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
 	var albumFolder string
+	Quality:=fmt.Sprintf("%dkbps", config.AtmosMax-2000)
+	if config.AddCodec{
+		Quality=fmt.Sprintf("Atmos %dkbps", config.AtmosMax-2000)
+	}
 	if strings.Contains(albumId, "pl.") {
 		albumFolder = strings.NewReplacer(
 			"{ArtistName}", "Apple Music",
 			"{PlaylistName}", meta.Data[0].Attributes.Name,
 			"{PlaylistId}", albumId,
-			"{Quality}","Atmos",
+			"{Quality}",Quality,
 		).Replace(config.PlaylistFolderFormat)
 	}else{
 		albumFolder = strings.NewReplacer(
@@ -1160,7 +1165,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{UPC}", meta.Data[0].Attributes.Upc,
 			"{Copyright}", meta.Data[0].Attributes.Copyright,
 			"{AlbumId}", albumId,
-			"{Quality}","Atmos",
+			"{Quality}",Quality,
 		).Replace(config.AlbumFolderFormat)
 	}
 	if meta.Data[0].Attributes.IsMasteredForItunes{
@@ -1209,7 +1214,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{SongName}", track.Attributes.Name,
 			"{DiscNumber}", string(track.Attributes.DiscNumber),
 			"{TrackNumber}", fmt.Sprintf("%02d", track.Attributes.TrackNumber),
-			"{Quality}","",
+			"{Quality}",Quality,
 		).Replace(config.SongFileFormat)
 		if track.Attributes.IsAppleDigitalMaster{
 			if config.AppleMasterChoice != ""{
