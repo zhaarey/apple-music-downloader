@@ -11,12 +11,15 @@ force-api: false
 get-m3u8-from-device: false
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
-#{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright}
+#{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright})
 album-folder-format: "{AlbumName}"
-#{SongNumer} {SongName} {DiscNumber} {TrackNumber}
-#example: Disk {DiscNumber} - Track {TrackNumber} {SongName}"
+#{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality}
+#example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]"
 song-file-format: "{SongNumer}. {SongName}"
+#{ArtistId} {ArtistName}
+#if artist-folder-format set "",will not make artist folder
+artist-folder-format: "{ArtistName}"
 explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"

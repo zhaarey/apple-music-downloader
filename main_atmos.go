@@ -45,6 +45,7 @@ type Config struct {
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
 	AlbumFolderFormat      string `yaml:"album-folder-format"`
+	ArtistFolderFormat      string `yaml:"artist-folder-format"`
 	SongFileFormat      string `yaml:"song-file-format"`
 	ExplicitChoice      string `yaml:"explicit-choice"`
 	CleanChoice     string `yaml:"clean-choice"`
@@ -1120,12 +1121,19 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	singerFoldername := fmt.Sprintf("%s", meta.Data[0].Attributes.ArtistName)
-	if strings.HasSuffix(singerFoldername, ".") {
-		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+	singerFolder:=""
+	if config.ArtistFolderFormat != ""{
+		singerFoldername := strings.NewReplacer(
+			"{ArtistName}", meta.Data[0].Attributes.ArtistName,
+			"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
+		).Replace(config.ArtistFolderFormat)
+		if strings.HasSuffix(singerFoldername, ".") {
+			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+		}
+		singerFoldername = strings.TrimSpace(singerFoldername)
+		fmt.Println(singerFoldername)
+		singerFolder = filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
-	singerFoldername = strings.TrimSpace(singerFoldername)
-	singerFolder := filepath.Join(config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	albumFolder := strings.NewReplacer(
         "{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
 		"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
@@ -1134,6 +1142,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		"{UPC}", meta.Data[0].Attributes.Upc,
 		"{Copyright}", meta.Data[0].Attributes.Copyright,
         "{AlbumId}", albumId,
+		"{Quality}","",
     ).Replace(config.AlbumFolderFormat)
 	if meta.Data[0].Attributes.IsMasteredForItunes{
 		if config.AppleMasterChoice != ""{
@@ -1157,7 +1166,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	albumFolder = strings.TrimSpace(albumFolder)
 	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
-	fmt.Println(singerFoldername)
 	fmt.Println(albumFolder)
 	err = writeCover(sanAlbumFolder, meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
@@ -1178,10 +1186,12 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			continue
 		}
 		songName := strings.NewReplacer(
+			"{SongId}", track.ID,
 			"{SongNumer}", fmt.Sprintf("%02d", trackNum),
 			"{SongName}", track.Attributes.Name,
 			"{DiscNumber}", string(track.Attributes.DiscNumber),
 			"{TrackNumber}", fmt.Sprintf("%02d", track.Attributes.TrackNumber),
+			"{Quality}","",
 		).Replace(config.SongFileFormat)
 		if track.Attributes.IsAppleDigitalMaster{
 			if config.AppleMasterChoice != ""{

@@ -46,6 +46,7 @@ type Config struct {
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
 	AlbumFolderFormat      string `yaml:"album-folder-format"`
+	ArtistFolderFormat      string `yaml:"artist-folder-format"`
 	SongFileFormat      string `yaml:"song-file-format"`
 	ExplicitChoice      string `yaml:"explicit-choice"`
 	CleanChoice     string `yaml:"clean-choice"`
@@ -1160,12 +1161,37 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	singerFoldername := fmt.Sprintf("%s", meta.Data[0].Attributes.ArtistName)
-	if strings.HasSuffix(singerFoldername, ".") {
-		singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+	singerFolder:=""
+	if config.ArtistFolderFormat != ""{
+		singerFoldername := strings.NewReplacer(
+			"{ArtistName}", meta.Data[0].Attributes.ArtistName,
+			"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
+		).Replace(config.ArtistFolderFormat)
+		if strings.HasSuffix(singerFoldername, ".") {
+			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+		}
+		singerFoldername = strings.TrimSpace(singerFoldername)
+		fmt.Println(singerFoldername)
+		singerFolder = filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
-	singerFoldername = strings.TrimSpace(singerFoldername)
-	singerFolder := filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	manifest1, err := getInfoFromAdam(meta.Data[0].Relationships.Tracks.Data[0].ID, token, storefront)
+	if err != nil {
+		fmt.Println("Failed to get manifest.\n", err)
+	}
+	if manifest1.Attributes.ExtendedAssetUrls.EnhancedHls == "" {
+		fmt.Println("Unavailable in ALAC.")
+	}
+	var Quality string
+	EnhancedHls_m3u8,err:=checkM3u8(meta.Data[0].Relationships.Tracks.Data[0].ID,"album")
+	if strings.HasPrefix(EnhancedHls_m3u8, "http"){
+		manifest1.Attributes.ExtendedAssetUrls.EnhancedHls=EnhancedHls_m3u8
+	}
+	if strings.Contains(config.AlbumFolderFormat, "Quality"){
+		Quality,err = extractMediaQuality(manifest1.Attributes.ExtendedAssetUrls.EnhancedHls)
+		if err != nil {
+			fmt.Println("Failed to extract quality from manifest.\n", err)
+		}
+	}
 	albumFolder := strings.NewReplacer(
 		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
 		"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
@@ -1174,6 +1200,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		"{UPC}", meta.Data[0].Attributes.Upc,
 		"{Copyright}", meta.Data[0].Attributes.Copyright,
 		"{AlbumId}", albumId,
+		"{Quality}", Quality,
 	).Replace(config.AlbumFolderFormat)
 	if meta.Data[0].Attributes.IsMasteredForItunes{
 		if config.AppleMasterChoice != ""{
@@ -1196,7 +1223,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	albumFolder = strings.TrimSpace(albumFolder)
 	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
-	fmt.Println(singerFoldername)
 	fmt.Println(albumFolder)
 	err = writeCover(sanAlbumFolder, meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
@@ -1216,11 +1242,26 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Println("Unavailable in ALAC.")
 			continue
 		}
+		EnhancedHls_m3u8,err:=checkM3u8(track.ID,"song")
+		if strings.HasPrefix(EnhancedHls_m3u8, "http"){
+			manifest.Attributes.ExtendedAssetUrls.EnhancedHls=EnhancedHls_m3u8
+		}
+		var Quality string
+		if strings.Contains(config.SongFileFormat, "Quality"){
+			Quality,err = extractMediaQuality(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
+			if err != nil {
+				fmt.Println("Failed to extract quality from manifest.\n", err)
+				continue
+			}
+		}
+		
 		songName := strings.NewReplacer(
+			"{SongId}", track.ID,
 			"{SongNumer}", fmt.Sprintf("%02d", trackNum),
 			"{SongName}", track.Attributes.Name,
 			"{DiscNumber}", fmt.Sprintf("%0d", track.Attributes.DiscNumber),
 			"{TrackNumber}", fmt.Sprintf("%0d", track.Attributes.TrackNumber),
+			"{Quality}", Quality,
 		).Replace(config.SongFileFormat)
 		if track.Attributes.IsAppleDigitalMaster{
 			if config.AppleMasterChoice != ""{
@@ -1272,110 +1313,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			oktrackNum += 1
 			continue
 		}
-		if config.Check != ""{
-			config.Check=strings.TrimSpace(config.Check)
-			if strings.HasSuffix(config.Check, "txt") {
-				txtpath=config.Check
-			}
-			if strings.HasPrefix(config.Check, "http") {
-				req, err := http.NewRequest("GET", config.Check, nil)
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				query := req.URL.Query()
-				query.Set("songid", track.ID)
-				req.URL.RawQuery = query.Encode()
-
-				do, err := http.DefaultClient.Do(req)
-				if err != nil {
-					fmt.Println(err)
-				}
-				defer do.Body.Close()
-
-				Checkbody, err := ioutil.ReadAll(do.Body)
-				if err != nil {
-					fmt.Println(err)
-				}
-				if string(Checkbody) != "no_found"{
-					manifest.Attributes.ExtendedAssetUrls.EnhancedHls=string(Checkbody)
-					fmt.Println("Found m3u8 from API")
-				} else {
-					if config.ForceApi {
-						fmt.Println(" Not Found m3u8 from API, Skip")
-						continue
-					}
-					fmt.Println(" Not Found m3u8 from API")
-				}
-			}
-		}
-		if config.GetM3u8FromDevice{
-			adamID := track.ID
-			conn, err := net.Dial("tcp", "127.0.0.1:20020")
-			if err != nil {
-				fmt.Println("Error connecting to device:", err)
-				continue
-			}
-			defer conn.Close()
-
-			fmt.Println("Connected to device")
-
-			// Send the length of adamID and the adamID itself
-			adamIDBuffer := []byte(adamID)
-			lengthBuffer := []byte{byte(len(adamIDBuffer))}
-
-			// Write length and adamID to the connection
-			_, err = conn.Write(lengthBuffer)
-			if err != nil {
-				fmt.Println("Error writing length to device:", err)
-				continue
-			}
-
-			_, err = conn.Write(adamIDBuffer)
-			if err != nil {
-				fmt.Println("Error writing adamID to device:", err)
-				continue
-			}
-
-			// Read the response (URL) from the device
-			response, err := bufio.NewReader(conn).ReadBytes('\n')
-			if err != nil {
-				fmt.Println("Error reading response from device:", err)
-				continue
-			}
-
-			// Trim any newline characters from the response
-			
-			response = bytes.TrimSpace(response)
-			if len(response) > 0 {
-				fmt.Println("Received URL:", string(response))
-				manifest.Attributes.ExtendedAssetUrls.EnhancedHls = string(response)
-			} else {
-				fmt.Println("Received an empty response")
-				continue
-			}
-		}
-		if txtpath != "" {
-			file, err := os.Open(txtpath)
-			if err != nil {
-				fmt.Println("cant open txt:", err)
-			}
-			defer file.Close()
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				line := scanner.Text()
-				if strings.HasPrefix(line, track.ID) {
-					parts := strings.SplitN(line, ",", 2)
-					if len(parts) == 2 {
-						manifest.Attributes.ExtendedAssetUrls.EnhancedHls=parts[1]
-						fmt.Println("Found m3u8 from txt")
-					}
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				fmt.Println(err)
-			}
-		}
+		
 		trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 		if err != nil {
 			fmt.Println("Failed to extract info from manifest.\n", err)
@@ -1511,6 +1449,157 @@ func conventTTMLToLRC(ttml string) (string, error) {
 		}
 	}
 	return strings.Join(lrcLines, "\n"), nil
+}
+
+func checkM3u8(b string,f string) (string, error) {
+	var EnhancedHls string
+	if config.Check != ""{
+		config.Check=strings.TrimSpace(config.Check)
+		if strings.HasSuffix(config.Check, "txt") {
+			txtpath=config.Check
+		}
+		if strings.HasPrefix(config.Check, "http") {
+			req, err := http.NewRequest("GET", config.Check, nil)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			query := req.URL.Query()
+			query.Set("songid", b)
+			req.URL.RawQuery = query.Encode()
+
+			do, err := http.DefaultClient.Do(req)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer do.Body.Close()
+
+			Checkbody, err := ioutil.ReadAll(do.Body)
+			if err != nil {
+				fmt.Println(err)
+			}
+			if string(Checkbody) != "no_found"{
+				EnhancedHls=string(Checkbody)
+				fmt.Println("Found m3u8 from API")
+			} else {
+				if config.ForceApi {
+					fmt.Println(" Not Found m3u8 from API, Skip")
+				}
+				fmt.Println(" Not Found m3u8 from API")
+			}
+		}
+	}
+	if config.GetM3u8FromDevice{
+		adamID := b
+		conn, err := net.Dial("tcp", "127.0.0.1:20020")
+		if err != nil {
+			fmt.Println("Error connecting to device:", err)
+		}
+		defer conn.Close()
+		if f =="song"{
+			fmt.Println("Connected to device")
+		}
+
+		// Send the length of adamID and the adamID itself
+		adamIDBuffer := []byte(adamID)
+		lengthBuffer := []byte{byte(len(adamIDBuffer))}
+
+		// Write length and adamID to the connection
+		_, err = conn.Write(lengthBuffer)
+		if err != nil {
+			fmt.Println("Error writing length to device:", err)
+		}
+
+		_, err = conn.Write(adamIDBuffer)
+		if err != nil {
+			fmt.Println("Error writing adamID to device:", err)
+		}
+
+		// Read the response (URL) from the device
+		response, err := bufio.NewReader(conn).ReadBytes('\n')
+		if err != nil {
+			fmt.Println("Error reading response from device:", err)
+		}
+
+		// Trim any newline characters from the response
+		
+		response = bytes.TrimSpace(response)
+		if len(response) > 0 {
+			if f =="song"{
+				fmt.Println("Received URL:", string(response))
+			}
+			EnhancedHls = string(response)
+		} else {
+			fmt.Println("Received an empty response")
+		}
+	}
+	if txtpath != "" {
+		file, err := os.Open(txtpath)
+		if err != nil {
+			fmt.Println("cant open txt:", err)
+		}
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, b) {
+				parts := strings.SplitN(line, ",", 2)
+				if len(parts) == 2 {
+					EnhancedHls=parts[1]
+					fmt.Println("Found m3u8 from txt")
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Println(err)
+		}
+	}
+	return EnhancedHls, nil
+}
+
+func extractMediaQuality(b string) (string, error) {
+	resp, err := http.Get(b)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New(resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	masterString := string(body)
+	from, listType, err := m3u8.DecodeFrom(strings.NewReader(masterString), true)
+	if err != nil || listType != m3u8.MASTER {
+		return "", errors.New("m3u8 not of master type")
+	}
+	master := from.(*m3u8.MasterPlaylist)
+	sort.Slice(master.Variants, func(i, j int) bool {
+		return master.Variants[i].AverageBandwidth > master.Variants[j].AverageBandwidth
+	})
+	var Quality string
+	for _, variant := range master.Variants {
+		if variant.Codecs == "alac" {
+			split := strings.Split(variant.Audio, "-")
+			length := len(split)
+			length_int,err := strconv.Atoi(split[length-2])
+			if err != nil {
+				return "", err
+			}
+			if length_int <= config.AlacMax{
+				HZ,err:=strconv.Atoi(split[length-2])
+				if err != nil {
+					fmt.Println(err)
+				}
+				KHZ:=float64(HZ) / 1000.0
+				Quality = fmt.Sprintf("%sB-%.1fkHz", split[length-1], KHZ)
+				break
+			}
+		}
+	}
+	return Quality, nil
 }
 
 func extractMedia(b string) (string, []string, error) {
