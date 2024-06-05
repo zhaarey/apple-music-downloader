@@ -22,6 +22,7 @@ song-file-format: "{SongNumer}. {SongName}"
 #{ArtistId} {ArtistName}
 #if artist-folder-format set "",will not make artist folder
 artist-folder-format: "{ArtistName}"
+#if set "" will not add tag
 explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
