@@ -46,6 +46,7 @@ type Config struct {
     AlacSaveFolder      string `yaml:"alac-save-folder"`
     AtmosSaveFolder      string `yaml:"atmos-save-folder"`
 	AlbumFolderFormat      string `yaml:"album-folder-format"`
+	PlaylistFolderFormat      string `yaml:"playlist-folder-format"`
 	ArtistFolderFormat      string `yaml:"artist-folder-format"`
 	SongFileFormat      string `yaml:"song-file-format"`
 	ExplicitChoice      string `yaml:"explicit-choice"`
@@ -1126,10 +1127,18 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	}
 	singerFolder:=""
 	if config.ArtistFolderFormat != ""{
-		singerFoldername := strings.NewReplacer(
-			"{ArtistName}", meta.Data[0].Attributes.ArtistName,
-			"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
-		).Replace(config.ArtistFolderFormat)
+		var singerFoldername string
+		if strings.Contains(albumId, "pl.") {
+			singerFoldername = strings.NewReplacer(
+				"{ArtistName}", "Apple Music",
+				"{ArtistId}", "",
+			).Replace(config.ArtistFolderFormat)
+		}else{
+			singerFoldername = strings.NewReplacer(
+				"{ArtistName}", meta.Data[0].Attributes.ArtistName,
+				"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
+			).Replace(config.ArtistFolderFormat)
+		}
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 		}
@@ -1137,16 +1146,26 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println(singerFoldername)
 		singerFolder = filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
-	albumFolder := strings.NewReplacer(
-		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
-		"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
-		"{ArtistName}", meta.Data[0].Attributes.ArtistName,
-		"{AlbumName}", meta.Data[0].Attributes.Name,
-		"{UPC}", meta.Data[0].Attributes.Upc,
-		"{Copyright}", meta.Data[0].Attributes.Copyright,
-		"{AlbumId}", albumId,
-		"{Quality}","",
-	).Replace(config.AlbumFolderFormat)
+	var albumFolder string
+	if strings.Contains(albumId, "pl.") {
+		albumFolder = strings.NewReplacer(
+			"{ArtistName}", "Apple Music",
+			"{PlaylistName}", meta.Data[0].Attributes.Name,
+			"{PlaylistId}", albumId,
+			"{Quality}","",
+		).Replace(config.PlaylistFolderFormat)
+	}else{
+		albumFolder = strings.NewReplacer(
+			"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
+			"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
+			"{ArtistName}", meta.Data[0].Attributes.ArtistName,
+			"{AlbumName}", meta.Data[0].Attributes.Name,
+			"{UPC}", meta.Data[0].Attributes.Upc,
+			"{Copyright}", meta.Data[0].Attributes.Copyright,
+			"{AlbumId}", albumId,
+			"{Quality}", "",
+		).Replace(config.AlbumFolderFormat)
+	}
 	if meta.Data[0].Attributes.IsMasteredForItunes{
 		if config.AppleMasterChoice != ""{
 			albumFolder = fmt.Sprintf("%s %s", albumFolder,config.AppleMasterChoice)

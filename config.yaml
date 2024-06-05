@@ -14,6 +14,8 @@ atmos-max: 2768  #2768 2448
 #{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright})
 album-folder-format: "{AlbumName}"
+#{PlaylistId} {PlaylistName} {ArtistName} {Quality}
+playlist-folder-format: "{PlaylistName}"
 #{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality}
 #example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]"
 song-file-format: "{SongNumer}. {SongName}"
