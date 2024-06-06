@@ -1387,6 +1387,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		tags := []string{
 			fmt.Sprintf("lyrics=%s", lrc),
 		}
+		if track.Attributes.ContentRating=="explicit"{
+			tags = append(tags, "rating=1")
+		}else if track.Attributes.ContentRating=="clean"{
+			tags = append(tags, "rating=2")
+		}else{
+			tags = append(tags, "rating=0")
+		}
 		if config.EmbedCover {
 			if strings.Contains(albumId, "pl.") && config.DlAlbumcoverForPlaylist {
 				err = writeCover(sanAlbumFolder,track.ID, track.Attributes.Artwork.URL)

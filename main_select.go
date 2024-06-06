@@ -1466,6 +1466,14 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 					tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder,"cover", config.CoverFormat))
 				}
 			}
+			
+			if track.Attributes.ContentRating=="explicit"{
+				tags = append(tags, "rating=1")
+			}else if track.Attributes.ContentRating=="clean"{
+				tags = append(tags, "rating=2")
+			}else{
+				tags = append(tags, "rating=0")
+			}
 			tagsString := strings.Join(tags, ":")
 			cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
 			if err := cmd.Run(); err != nil {

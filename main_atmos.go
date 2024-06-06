@@ -1346,6 +1346,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber, trackTotal))
 			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.AlbumName))
 		}
+		if track.Attributes.ContentRating=="explicit"{
+			tags = append(tags, "rating=1")
+		}else if track.Attributes.ContentRating=="clean"{
+			tags = append(tags, "rating=2")
+		}else{
+			tags = append(tags, "rating=0")
+		}
 		tagsString := strings.Join(tags, ":")
 		cmd := exec.Command("MP4Box", "-add", trackPath, "-name", fmt.Sprintf("1=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name), "-itags", tagsString, "-brand", "mp42", "-ab", "dby1", m4atrackPath)
 		fmt.Printf("Encapsulating %s into %s\n", filepath.Base(trackPath), filepath.Base(m4atrackPath))
