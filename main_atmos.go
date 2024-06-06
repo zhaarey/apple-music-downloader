@@ -1142,6 +1142,23 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println(singerFoldername)
 	}
 	singerFolder := filepath.Join(config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	stringsToJoin := []string{}
+	if meta.Data[0].Attributes.IsAppleDigitalMaster{
+		if config.AppleMasterChoice != ""{
+			stringsToJoin = append(stringsToJoin, config.AppleMasterChoice)
+		}
+	}
+	if meta.Data[0].Attributes.ContentRating=="explicit"{
+		if config.ExplicitChoice != ""{
+			stringsToJoin = append(stringsToJoin, config.ExplicitChoice)
+		}
+	}
+	if meta.Data[0].Attributes.ContentRating=="clean"{
+		if config.CleanChoice != ""{
+			stringsToJoin = append(stringsToJoin, config.CleanChoice)
+		}
+	}
+	Tag_string := strings.Join(stringsToJoin, " ")
 	var albumFolder string
 	Quality:=fmt.Sprintf("%dkbps", config.AtmosMax-2000)
 	if strings.Contains(albumId, "pl.") {
@@ -1151,6 +1168,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{PlaylistId}", albumId,
 			"{Quality}",Quality,
 			"{Codec}", "Atmos",
+			"{Tag}",Tag_string,
 		).Replace(config.PlaylistFolderFormat)
 	}else{
 		albumFolder = strings.NewReplacer(
@@ -1163,22 +1181,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{AlbumId}", albumId,
 			"{Quality}",Quality,
 			"{Codec}", "Atmos",
+			"{Tag}",Tag_string,
 		).Replace(config.AlbumFolderFormat)
-	}
-	if meta.Data[0].Attributes.IsMasteredForItunes{
-		if config.AppleMasterChoice != ""{
-			albumFolder = fmt.Sprintf("%s %s", albumFolder,config.AppleMasterChoice)
-		}
-	}
-	if meta.Data[0].Attributes.ContentRating=="explicit"{
-		if config.ExplicitChoice != ""{
-			albumFolder = fmt.Sprintf("%s %s", albumFolder,config.ExplicitChoice)
-		}
-	}
-	if meta.Data[0].Attributes.ContentRating=="clean"{
-		if config.CleanChoice != ""{
-			albumFolder = fmt.Sprintf("%s %s", albumFolder,config.CleanChoice)
-		}
 	}
 	if strings.HasSuffix(albumFolder, ".") {
 		albumFolder = strings.ReplaceAll(albumFolder, ".", "")
@@ -1205,6 +1209,24 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Println("Unavailable in ALAC.")
 			continue
 		}
+		
+		stringsToJoin := []string{}
+		if track.Attributes.IsAppleDigitalMaster{
+			if config.AppleMasterChoice != ""{
+				stringsToJoin = append(stringsToJoin, config.AppleMasterChoice)
+			}
+		}
+		if track.Attributes.ContentRating=="explicit"{
+			if config.ExplicitChoice != ""{
+				stringsToJoin = append(stringsToJoin, config.ExplicitChoice)
+			}
+		}
+		if track.Attributes.ContentRating=="clean"{
+			if config.CleanChoice != ""{
+				stringsToJoin = append(stringsToJoin, config.CleanChoice)
+			}
+		}
+		Tag_string := strings.Join(stringsToJoin, " ")
 		songName := strings.NewReplacer(
 			"{SongId}", track.ID,
 			"{SongNumer}", fmt.Sprintf("%02d", trackNum),
@@ -1213,22 +1235,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{TrackNumber}", fmt.Sprintf("%02d", track.Attributes.TrackNumber),
 			"{Quality}",Quality,
 			"{Codec}", "Atmos",
+			"{Tag}",Tag_string,
 		).Replace(config.SongFileFormat)
-		if track.Attributes.IsAppleDigitalMaster{
-			if config.AppleMasterChoice != ""{
-				songName = fmt.Sprintf("%s %s", songName,config.AppleMasterChoice)
-			}
-		}
-		if track.Attributes.ContentRating=="explicit"{
-			if config.ExplicitChoice != ""{
-				songName = fmt.Sprintf("%s %s", songName,config.ExplicitChoice)
-			}
-		}
-		if track.Attributes.ContentRating=="clean"{
-			if config.CleanChoice != ""{
-				songName = fmt.Sprintf("%s %s", songName,config.CleanChoice)
-			}
-		}
 		fmt.Println(songName)
 		filename := fmt.Sprintf("%s.ec3", forbiddenNames.ReplaceAllString(songName, "_"))
 		m4afilename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
