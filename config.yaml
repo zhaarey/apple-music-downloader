@@ -11,12 +11,12 @@ force-api: false
 get-m3u8-from-device: false
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
-#{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality}
-#example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright})
+#{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec}
+#example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright}){Codec}
 album-folder-format: "{AlbumName}"
-#{PlaylistId} {PlaylistName} {ArtistName} {Quality}
+#{PlaylistId} {PlaylistName} {ArtistName} {Quality} {Codec}
 playlist-folder-format: "{PlaylistName}"
-#{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality}
+#{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality} {Codec}
 #example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]"
 song-file-format: "{SongNumer}. {SongName}"
 #{ArtistId} {ArtistName}
@@ -26,5 +26,3 @@ artist-folder-format: "{ArtistName}"
 explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
-#if set true,Quality will change to [ALAC 24B-96.0kHz] [Atmos 768kbps]
-add-codec: false

@@ -52,7 +52,6 @@ type Config struct {
 	ExplicitChoice      string `yaml:"explicit-choice"`
 	CleanChoice     string `yaml:"clean-choice"`
 	AppleMasterChoice      string `yaml:"apple-master-choice"`
-	AlacMax       int `yaml:"alac-max"`
 }
 
 var config Config
@@ -1151,7 +1150,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{ArtistName}", "Apple Music",
 			"{PlaylistName}", meta.Data[0].Attributes.Name,
 			"{PlaylistId}", albumId,
-			"{Quality}","ALAC",
+			"{Quality}","",
+			"{Codec}", "ALAC",
 		).Replace(config.PlaylistFolderFormat)
 	}else{
 		albumFolder = strings.NewReplacer(
@@ -1162,7 +1162,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{UPC}", meta.Data[0].Attributes.Upc,
 			"{Copyright}", meta.Data[0].Attributes.Copyright,
 			"{AlbumId}", albumId,
-			"{Quality}", "ALAC",
+			"{Quality}", "",
+			"{Codec}", "ALAC",
 		).Replace(config.AlbumFolderFormat)
 	}
 	if meta.Data[0].Attributes.IsMasteredForItunes{
@@ -1256,6 +1257,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				"{DiscNumber}", string(track.Attributes.DiscNumber),
 				"{TrackNumber}", fmt.Sprintf("%02d", track.Attributes.TrackNumber),
 				"{Quality}","",
+				"{Codec}", "ALAC",
 			).Replace(config.SongFileFormat)
 			if track.Attributes.IsAppleDigitalMaster{
 				if config.AppleMasterChoice != ""{

@@ -56,7 +56,6 @@ type Config struct {
 	Check      string `yaml:"check"`
 	GetM3u8FromDevice       bool `yaml:"get-m3u8-from-device"`
 	AlacMax       int `yaml:"alac-max"`
-	AddCodec       bool `yaml:"add-codec"`
 }
 
 var config Config
@@ -1200,9 +1199,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		if err != nil {
 			fmt.Println("Failed to extract quality from manifest.\n", err)
 		}
-		if config.AddCodec{
-			Quality=fmt.Sprintf("ALAC %s", Quality)
-		}
 	}
 	var albumFolder string
 	if strings.Contains(albumId, "pl.") {
@@ -1211,6 +1207,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{PlaylistName}", meta.Data[0].Attributes.Name,
 			"{PlaylistId}", albumId,
 			"{Quality}",Quality,
+			"{Codec}", "ALAC",
 		).Replace(config.PlaylistFolderFormat)
 	}else{
 		albumFolder = strings.NewReplacer(
@@ -1222,6 +1219,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{Copyright}", meta.Data[0].Attributes.Copyright,
 			"{AlbumId}", albumId,
 			"{Quality}", Quality,
+			"{Codec}", "ALAC",
 		).Replace(config.AlbumFolderFormat)
 	}
 	if meta.Data[0].Attributes.IsMasteredForItunes{
@@ -1286,6 +1284,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{DiscNumber}", fmt.Sprintf("%0d", track.Attributes.DiscNumber),
 			"{TrackNumber}", fmt.Sprintf("%0d", track.Attributes.TrackNumber),
 			"{Quality}", Quality,
+			"{Codec}", "ALAC",
 		).Replace(config.SongFileFormat)
 		if track.Attributes.IsAppleDigitalMaster{
 			if config.AppleMasterChoice != ""{
