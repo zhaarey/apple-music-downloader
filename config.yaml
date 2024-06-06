@@ -26,3 +26,7 @@ artist-folder-format: "{ArtistName}"
 explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
+#if set true,for playlst,will use songinfo for meta #albumname track disk
+use-songinfo-for-playlist: false
+#if set true,will download album cover for playlist
+dl-albumcover-for-playlist: false

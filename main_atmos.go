@@ -52,6 +52,8 @@ type Config struct {
 	CleanChoice     string `yaml:"clean-choice"`
 	AppleMasterChoice      string `yaml:"apple-master-choice"`
 	AtmosMax       int `yaml:"atmos-max"`
+	UseSongInfoForPlaylist       bool `yaml:"use-songinfo-for-playlist"`
+	DlAlbumcoverForPlaylist       bool `yaml:"dl-albumcover-for-playlist"`
 }
 
 var config Config
@@ -1061,8 +1063,8 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 	}
 }
 
-func writeCover(sanAlbumFolder, url string) error {
-	covPath := filepath.Join(sanAlbumFolder, "cover." + config.CoverFormat)
+func writeCover(sanAlbumFolder,name string, url string) error {
+	covPath := filepath.Join(sanAlbumFolder, name+"." + config.CoverFormat)
 	exists, err := fileExists(covPath)
 	if err != nil {
 		fmt.Println("Failed to check if cover exists.")
@@ -1191,7 +1193,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
 	fmt.Println(albumFolder)
-	err = writeCover(sanAlbumFolder, meta.Data[0].Attributes.Artwork.URL)
+	err = writeCover(sanAlbumFolder,"cover", meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
 		fmt.Println("Failed to write cover.")
 	}
@@ -1310,7 +1312,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		tags := []string{
 			"tool=",
 			fmt.Sprintf("lyrics=%s", lrc),
-			fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name),
 			fmt.Sprintf("title=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name),
 			fmt.Sprintf("artist=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ArtistName),
 			fmt.Sprintf("genre=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.GenreNames[0]),
@@ -1322,12 +1323,28 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Sprintf("copyright=%s", meta.Data[0].Attributes.Copyright),
 			fmt.Sprintf("ISRC=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Isrc),
 			fmt.Sprintf("UPC=%s", meta.Data[0].Attributes.Upc),
-			fmt.Sprintf("track=%s", trackNum),
-			fmt.Sprintf("tracknum=%d/%d", trackNum, trackTotal),
-			fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal - 1].Attributes.DiscNumber),
 		}
 		if config.EmbedCover {
-			tags = append(tags, fmt.Sprintf("cover=%s/cover.%s", sanAlbumFolder, config.CoverFormat))
+			if strings.Contains(albumId, "pl.") && config.DlAlbumcoverForPlaylist {
+				err = writeCover(sanAlbumFolder,track.ID, track.Attributes.Artwork.URL)
+				if err != nil {
+					fmt.Println("Failed to write cover.")
+				}
+				tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder,track.ID, config.CoverFormat))
+			}else{
+				tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder,"cover", config.CoverFormat))
+			}
+		}
+		if strings.Contains(albumId, "pl.") && !config.UseSongInfoForPlaylist {
+			tags = append(tags, "disk=1/1")
+			tags = append(tags, fmt.Sprintf("track=%s", trackNum))
+			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", trackNum, trackTotal))
+			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name))
+		}else{
+			tags = append(tags, fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal - 1].Attributes.DiscNumber))
+			tags = append(tags, fmt.Sprintf("track=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber))
+			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber, trackTotal))
+			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.AlbumName))
 		}
 		tagsString := strings.Join(tags, ":")
 		cmd := exec.Command("MP4Box", "-add", trackPath, "-name", fmt.Sprintf("1=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.Name), "-itags", tagsString, "-brand", "mp42", "-ab", "dby1", m4atrackPath)
@@ -1340,6 +1357,12 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		if err := os.Remove(trackPath); err != nil {
 			fmt.Printf("Error deleting file: %v\n", err)
 			continue
+		}
+		if strings.Contains(albumId, "pl.") && config.DlAlbumcoverForPlaylist {
+			if err := os.Remove(fmt.Sprintf("%s/%s.%s", sanAlbumFolder,track.ID, config.CoverFormat)); err != nil {
+				fmt.Printf("Error deleting file: %s/%s.%s\n", sanAlbumFolder,track.ID, config.CoverFormat)
+				continue
+			}
 		}
 		fmt.Printf("Successfully processed and deleted %s\n", filepath.Base(trackPath))
 		oktrackNum += 1
