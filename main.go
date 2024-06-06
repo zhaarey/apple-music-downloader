@@ -1273,9 +1273,6 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				fmt.Println("Failed to extract quality from manifest.\n", err)
 				continue
 			}
-			if config.AddCodec{
-				Quality=fmt.Sprintf("ALAC %s", Quality)
-			}
 		}
 		songName := strings.NewReplacer(
 			"{SongId}", track.ID,
