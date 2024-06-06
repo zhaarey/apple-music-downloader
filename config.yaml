@@ -14,10 +14,10 @@ atmos-max: 2768  #2768 2448
 #{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec} {Tag}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright}){Codec}
 album-folder-format: "{AlbumName}"
-#{PlaylistId} {PlaylistName} {ArtistName} {Quality} {Codec}
+#{PlaylistId} {PlaylistName} {ArtistName} {Quality} {Codec} {Tag}
 playlist-folder-format: "{PlaylistName}"
 #{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality} {Codec} {Tag}
-#example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]"
+#example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]{{Tag}}"
 song-file-format: "{SongNumer}. {SongName}"
 #{ArtistId} {ArtistName}
 #if artist-folder-format set "",will not make artist folder
