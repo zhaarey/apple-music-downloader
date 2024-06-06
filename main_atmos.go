@@ -1123,9 +1123,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	singerFolder:=""
+	var singerFoldername string
 	if config.ArtistFolderFormat != ""{
-		var singerFoldername string
 		if strings.Contains(albumId, "pl.") {
 			singerFoldername = strings.NewReplacer(
 				"{ArtistName}", "Apple Music",
@@ -1142,8 +1141,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		singerFoldername = strings.TrimSpace(singerFoldername)
 		fmt.Println(singerFoldername)
-		singerFolder = filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
+	singerFolder := filepath.Join(config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	var albumFolder string
 	Quality:=fmt.Sprintf("%dkbps", config.AtmosMax-2000)
 	if config.AddCodec{

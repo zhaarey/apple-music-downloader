@@ -1163,9 +1163,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println("Failed to get album metadata.\n")
 		return err
 	}
-	singerFolder:=""
+	var singerFoldername string
 	if config.ArtistFolderFormat != ""{
-		var singerFoldername string
 		if strings.Contains(albumId, "pl.") {
 			singerFoldername = strings.NewReplacer(
 				"{ArtistName}", "Apple Music",
@@ -1182,8 +1181,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		singerFoldername = strings.TrimSpace(singerFoldername)
 		fmt.Println(singerFoldername)
-		singerFolder = filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
+	singerFolder := filepath.Join(config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	manifest1, err := getInfoFromAdam(meta.Data[0].Relationships.Tracks.Data[0].ID, token, storefront)
 	if err != nil {
 		fmt.Println("Failed to get manifest.\n", err)
