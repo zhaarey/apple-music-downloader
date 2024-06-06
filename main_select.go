@@ -52,6 +52,7 @@ type Config struct {
 	ExplicitChoice      string `yaml:"explicit-choice"`
 	CleanChoice     string `yaml:"clean-choice"`
 	AppleMasterChoice      string `yaml:"apple-master-choice"`
+	AlacMax       int `yaml:"alac-max"`
 }
 
 var config Config
