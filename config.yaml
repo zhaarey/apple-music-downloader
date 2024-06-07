@@ -11,7 +11,7 @@ force-api: false
 get-m3u8-from-device: false
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
-#{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec} {Tag}
+#{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec} {Tag} {RecordLabel}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright}){Codec}
 album-folder-format: "{AlbumName}"
 #{PlaylistId} {PlaylistName} {ArtistName} {Quality} {Codec} {Tag}

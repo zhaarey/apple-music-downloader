@@ -1179,6 +1179,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{ArtistName}", meta.Data[0].Attributes.ArtistName,
 			"{AlbumName}", meta.Data[0].Attributes.Name,
 			"{UPC}", meta.Data[0].Attributes.Upc,
+			"{RecordLabel}", meta.Data[0].Attributes.RecordLabel,
 			"{Copyright}", meta.Data[0].Attributes.Copyright,
 			"{AlbumId}", albumId,
 			"{Quality}",Quality,
