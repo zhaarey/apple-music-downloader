@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"gopkg.in/yaml.v2"
 	"errors"
 	"fmt"
-	"github.com/beevik/etree"
 	"io"
 	"io/ioutil"
 	"math"
@@ -23,6 +21,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/beevik/etree"
+	"gopkg.in/yaml.v2"
+
 	"github.com/abema/go-mp4"
 	"github.com/grafov/m3u8"
 )
@@ -35,25 +36,26 @@ const (
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
 )
+
 type Config struct {
-    MediaUserToken string `yaml:"media-user-token"`
-    SaveLrcFile    bool `yaml:"save-lrc-file"`   
-    EmbedLrc       bool `yaml:"embed-lrc"`
-    EmbedCover     bool `yaml:"embed-cover"`
-    CoverSize      string `yaml:"cover-size"`
-    CoverFormat      string `yaml:"cover-format"`
-    AlacSaveFolder      string `yaml:"alac-save-folder"`
-    AtmosSaveFolder      string `yaml:"atmos-save-folder"`
-	AlbumFolderFormat      string `yaml:"album-folder-format"`
-	PlaylistFolderFormat      string `yaml:"playlist-folder-format"`
+	MediaUserToken          string `yaml:"media-user-token"`
+	SaveLrcFile             bool   `yaml:"save-lrc-file"`
+	EmbedLrc                bool   `yaml:"embed-lrc"`
+	EmbedCover              bool   `yaml:"embed-cover"`
+	CoverSize               string `yaml:"cover-size"`
+	CoverFormat             string `yaml:"cover-format"`
+	AlacSaveFolder          string `yaml:"alac-save-folder"`
+	AtmosSaveFolder         string `yaml:"atmos-save-folder"`
+	AlbumFolderFormat       string `yaml:"album-folder-format"`
+	PlaylistFolderFormat    string `yaml:"playlist-folder-format"`
 	ArtistFolderFormat      string `yaml:"artist-folder-format"`
-	SongFileFormat      string `yaml:"song-file-format"`
-	ExplicitChoice      string `yaml:"explicit-choice"`
-	CleanChoice     string `yaml:"clean-choice"`
-	AppleMasterChoice      string `yaml:"apple-master-choice"`
-	AtmosMax       int `yaml:"atmos-max"`
-	UseSongInfoForPlaylist       bool `yaml:"use-songinfo-for-playlist"`
-	DlAlbumcoverForPlaylist       bool `yaml:"dl-albumcover-for-playlist"`
+	SongFileFormat          string `yaml:"song-file-format"`
+	ExplicitChoice          string `yaml:"explicit-choice"`
+	CleanChoice             string `yaml:"clean-choice"`
+	AppleMasterChoice       string `yaml:"apple-master-choice"`
+	AtmosMax                int    `yaml:"atmos-max"`
+	UseSongInfoForPlaylist  bool   `yaml:"use-songinfo-for-playlist"`
+	DlAlbumcoverForPlaylist bool   `yaml:"dl-albumcover-for-playlist"`
 }
 
 var config Config
@@ -73,17 +75,17 @@ type SongInfo struct {
 }
 
 func loadConfig() error {
-    // 读取config.yaml文件内容  
-    data, err := ioutil.ReadFile("config.yaml")
-    if err != nil {
-        return err
-    }
-    // 将yaml解析到config变量中
-    err = yaml.Unmarshal(data, &config)
-    if err != nil {
-        return err
-    }
-    return nil
+	// 读取config.yaml文件内容
+	data, err := ioutil.ReadFile("config.yaml")
+	if err != nil {
+		return err
+	}
+	// 将yaml解析到config变量中
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *SongInfo) Duration() (ret uint64) {
@@ -1063,8 +1065,8 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 	}
 }
 
-func writeCover(sanAlbumFolder,name string, url string) error {
-	covPath := filepath.Join(sanAlbumFolder, name+"." + config.CoverFormat)
+func writeCover(sanAlbumFolder, name string, url string) error {
+	covPath := filepath.Join(sanAlbumFolder, name+"."+config.CoverFormat)
 	exists, err := fileExists(covPath)
 	if err != nil {
 		fmt.Println("Failed to check if cover exists.")
@@ -1125,13 +1127,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		return err
 	}
 	var singerFoldername string
-	if config.ArtistFolderFormat != ""{
+	if config.ArtistFolderFormat != "" {
 		if strings.Contains(albumId, "pl.") {
 			singerFoldername = strings.NewReplacer(
 				"{ArtistName}", "Apple Music",
 				"{ArtistId}", "",
 			).Replace(config.ArtistFolderFormat)
-		}else{
+		} else {
 			singerFoldername = strings.NewReplacer(
 				"{ArtistName}", meta.Data[0].Attributes.ArtistName,
 				"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
@@ -1145,46 +1147,45 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	}
 	singerFolder := filepath.Join(config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	stringsToJoin := []string{}
-	if meta.Data[0].Attributes.IsAppleDigitalMaster{
-		if config.AppleMasterChoice != ""{
+	if meta.Data[0].Attributes.IsAppleDigitalMaster || meta.Data[0].Attributes.IsMasteredForItunes {
+		if config.AppleMasterChoice != "" {
 			stringsToJoin = append(stringsToJoin, config.AppleMasterChoice)
 		}
 	}
-	if meta.Data[0].Attributes.ContentRating=="explicit"{
-		if config.ExplicitChoice != ""{
+	if meta.Data[0].Attributes.ContentRating == "explicit" {
+		if config.ExplicitChoice != "" {
 			stringsToJoin = append(stringsToJoin, config.ExplicitChoice)
 		}
 	}
-	if meta.Data[0].Attributes.ContentRating=="clean"{
-		if config.CleanChoice != ""{
+	if meta.Data[0].Attributes.ContentRating == "clean" {
+		if config.CleanChoice != "" {
 			stringsToJoin = append(stringsToJoin, config.CleanChoice)
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
 	var albumFolder string
-	Quality:=fmt.Sprintf("%dkbps", config.AtmosMax-2000)
+	Quality := fmt.Sprintf("%dkbps", config.AtmosMax-2000)
 	if strings.Contains(albumId, "pl.") {
 		albumFolder = strings.NewReplacer(
 			"{ArtistName}", "Apple Music",
 			"{PlaylistName}", meta.Data[0].Attributes.Name,
 			"{PlaylistId}", albumId,
-			"{Quality}",Quality,
+			"{Quality}", Quality,
 			"{Codec}", "Atmos",
-			"{Tag}",Tag_string,
+			"{Tag}", Tag_string,
 		).Replace(config.PlaylistFolderFormat)
-	}else{
+	} else {
 		albumFolder = strings.NewReplacer(
 			"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
 			"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
 			"{ArtistName}", meta.Data[0].Attributes.ArtistName,
 			"{AlbumName}", meta.Data[0].Attributes.Name,
 			"{UPC}", meta.Data[0].Attributes.Upc,
-			"{RecordLabel}", meta.Data[0].Attributes.RecordLabel,
 			"{Copyright}", meta.Data[0].Attributes.Copyright,
 			"{AlbumId}", albumId,
-			"{Quality}",Quality,
+			"{Quality}", Quality,
 			"{Codec}", "Atmos",
-			"{Tag}",Tag_string,
+			"{Tag}", Tag_string,
 		).Replace(config.AlbumFolderFormat)
 	}
 	if strings.HasSuffix(albumFolder, ".") {
@@ -1194,7 +1195,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
 	fmt.Println(albumFolder)
-	err = writeCover(sanAlbumFolder,"cover", meta.Data[0].Attributes.Artwork.URL)
+	err = writeCover(sanAlbumFolder, "cover", meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
 		fmt.Println("Failed to write cover.")
 	}
@@ -1212,20 +1213,20 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Println("Unavailable in ALAC.")
 			continue
 		}
-		
+
 		stringsToJoin := []string{}
-		if track.Attributes.IsAppleDigitalMaster{
-			if config.AppleMasterChoice != ""{
+		if track.Attributes.IsAppleDigitalMaster {
+			if config.AppleMasterChoice != "" {
 				stringsToJoin = append(stringsToJoin, config.AppleMasterChoice)
 			}
 		}
-		if track.Attributes.ContentRating=="explicit"{
-			if config.ExplicitChoice != ""{
+		if track.Attributes.ContentRating == "explicit" {
+			if config.ExplicitChoice != "" {
 				stringsToJoin = append(stringsToJoin, config.ExplicitChoice)
 			}
 		}
-		if track.Attributes.ContentRating=="clean"{
-			if config.CleanChoice != ""{
+		if track.Attributes.ContentRating == "clean" {
+			if config.CleanChoice != "" {
 				stringsToJoin = append(stringsToJoin, config.CleanChoice)
 			}
 		}
@@ -1236,9 +1237,9 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			"{SongName}", track.Attributes.Name,
 			"{DiscNumber}", string(track.Attributes.DiscNumber),
 			"{TrackNumber}", fmt.Sprintf("%02d", track.Attributes.TrackNumber),
-			"{Quality}",Quality,
+			"{Quality}", Quality,
 			"{Codec}", "Atmos",
-			"{Tag}",Tag_string,
+			"{Tag}", Tag_string,
 		).Replace(config.SongFileFormat)
 		fmt.Println(songName)
 		filename := fmt.Sprintf("%s.ec3", forbiddenNames.ReplaceAllString(songName, "_"))
@@ -1327,13 +1328,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		if config.EmbedCover {
 			if strings.Contains(albumId, "pl.") && config.DlAlbumcoverForPlaylist {
-				err = writeCover(sanAlbumFolder,track.ID, track.Attributes.Artwork.URL)
+				err = writeCover(sanAlbumFolder, track.ID, track.Attributes.Artwork.URL)
 				if err != nil {
 					fmt.Println("Failed to write cover.")
 				}
-				tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder,track.ID, config.CoverFormat))
-			}else{
-				tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder,"cover", config.CoverFormat))
+				tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder, track.ID, config.CoverFormat))
+			} else {
+				tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", sanAlbumFolder, "cover", config.CoverFormat))
 			}
 		}
 		if strings.Contains(albumId, "pl.") && !config.UseSongInfoForPlaylist {
@@ -1341,17 +1342,17 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			tags = append(tags, fmt.Sprintf("track=%s", trackNum))
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", trackNum, trackTotal))
 			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name))
-		}else{
-			tags = append(tags, fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal - 1].Attributes.DiscNumber))
+		} else {
+			tags = append(tags, fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal-1].Attributes.DiscNumber))
 			tags = append(tags, fmt.Sprintf("track=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber))
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber, trackTotal))
 			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.AlbumName))
 		}
-		if track.Attributes.ContentRating=="explicit"{
+		if track.Attributes.ContentRating == "explicit" {
 			tags = append(tags, "rating=1")
-		}else if track.Attributes.ContentRating=="clean"{
+		} else if track.Attributes.ContentRating == "clean" {
 			tags = append(tags, "rating=2")
-		}else{
+		} else {
 			tags = append(tags, "rating=0")
 		}
 		tagsString := strings.Join(tags, ":")
@@ -1367,8 +1368,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			continue
 		}
 		if strings.Contains(albumId, "pl.") && config.DlAlbumcoverForPlaylist {
-			if err := os.Remove(fmt.Sprintf("%s/%s.%s", sanAlbumFolder,track.ID, config.CoverFormat)); err != nil {
-				fmt.Printf("Error deleting file: %s/%s.%s\n", sanAlbumFolder,track.ID, config.CoverFormat)
+			if err := os.Remove(fmt.Sprintf("%s/%s.%s", sanAlbumFolder, track.ID, config.CoverFormat)); err != nil {
+				fmt.Printf("Error deleting file: %s/%s.%s\n", sanAlbumFolder, track.ID, config.CoverFormat)
 				continue
 			}
 		}
@@ -1491,11 +1492,11 @@ func extractMedia(b string) (string, []string, error) {
 		if variant.Codecs == "ec-3" {
 			split := strings.Split(variant.Audio, "-")
 			length := len(split)
-			length_int,err := strconv.Atoi(split[length-1])
+			length_int, err := strconv.Atoi(split[length-1])
 			if err != nil {
 				return "", nil, err
 			}
-			if length_int <= config.AtmosMax{
+			if length_int <= config.AtmosMax {
 				fmt.Printf("%s\n", variant.Audio)
 				streamUrlTemp, err := masterUrl.Parse(variant.URI)
 				if err != nil {
@@ -1765,32 +1766,32 @@ type SongAttributes struct {
 	ExtendedAssetUrls struct {
 		EnhancedHls string `json:"enhancedHls"`
 	} `json:"extendedAssetUrls"`
-	IsMasteredForItunes bool   `json:"isMasteredForItunes"`
+	IsMasteredForItunes  bool   `json:"isMasteredForItunes"`
 	IsAppleDigitalMaster bool   `json:"isAppleDigitalMaster"`
-	ContentRating string   `json:"contentRating"`
-	ReleaseDate         string `json:"releaseDate"`
-	Name                string `json:"name"`
-	Isrc                string `json:"isrc"`
-	AlbumName           string `json:"albumName"`
-	TrackNumber         int    `json:"trackNumber"`
-	ComposerName        string `json:"composerName"`
+	ContentRating        string `json:"contentRating"`
+	ReleaseDate          string `json:"releaseDate"`
+	Name                 string `json:"name"`
+	Isrc                 string `json:"isrc"`
+	AlbumName            string `json:"albumName"`
+	TrackNumber          int    `json:"trackNumber"`
+	ComposerName         string `json:"composerName"`
 }
 
 type AlbumAttributes struct {
-	ArtistName          string   `json:"artistName"`
-	IsSingle            bool     `json:"isSingle"`
-	IsComplete          bool     `json:"isComplete"`
-	GenreNames          []string `json:"genreNames"`
-	TrackCount          int      `json:"trackCount"`
-	IsMasteredForItunes bool     `json:"isMasteredForItunes"`
-	IsAppleDigitalMaster bool   `json:"isAppleDigitalMaster"`
-	ContentRating string   `json:"contentRating"`
-	ReleaseDate         string   `json:"releaseDate"`
-	Name                string   `json:"name"`
-	RecordLabel         string   `json:"recordLabel"`
-	Upc                 string   `json:"upc"`
-	Copyright           string   `json:"copyright"`
-	IsCompilation       bool     `json:"isCompilation"`
+	ArtistName           string   `json:"artistName"`
+	IsSingle             bool     `json:"isSingle"`
+	IsComplete           bool     `json:"isComplete"`
+	GenreNames           []string `json:"genreNames"`
+	TrackCount           int      `json:"trackCount"`
+	IsMasteredForItunes  bool     `json:"isMasteredForItunes"`
+	IsAppleDigitalMaster bool     `json:"isAppleDigitalMaster"`
+	ContentRating        string   `json:"contentRating"`
+	ReleaseDate          string   `json:"releaseDate"`
+	Name                 string   `json:"name"`
+	RecordLabel          string   `json:"recordLabel"`
+	Upc                  string   `json:"upc"`
+	Copyright            string   `json:"copyright"`
+	IsCompilation        bool     `json:"isCompilation"`
 }
 
 type SongData struct {
@@ -1952,22 +1953,22 @@ type AutoGenerated struct {
 				TextColor3 string `json:"textColor3"`
 				TextColor4 string `json:"textColor4"`
 			} `json:"artwork"`
-			ArtistName          string   `json:"artistName"`
-			IsSingle            bool     `json:"isSingle"`
-			URL                 string   `json:"url"`
-			IsComplete          bool     `json:"isComplete"`
-			GenreNames          []string `json:"genreNames"`
-			TrackCount          int      `json:"trackCount"`
-			IsMasteredForItunes bool     `json:"isMasteredForItunes"`
-			IsAppleDigitalMaster bool   `json:"isAppleDigitalMaster"`
-			ContentRating string   `json:"contentRating"`
-			ReleaseDate         string   `json:"releaseDate"`
-			Name                string   `json:"name"`
-			RecordLabel         string   `json:"recordLabel"`
-			Upc                 string   `json:"upc"`
-			AudioTraits         []string `json:"audioTraits"`
-			Copyright           string   `json:"copyright"`
-			PlayParams          struct {
+			ArtistName           string   `json:"artistName"`
+			IsSingle             bool     `json:"isSingle"`
+			URL                  string   `json:"url"`
+			IsComplete           bool     `json:"isComplete"`
+			GenreNames           []string `json:"genreNames"`
+			TrackCount           int      `json:"trackCount"`
+			IsMasteredForItunes  bool     `json:"isMasteredForItunes"`
+			IsAppleDigitalMaster bool     `json:"isAppleDigitalMaster"`
+			ContentRating        string   `json:"contentRating"`
+			ReleaseDate          string   `json:"releaseDate"`
+			Name                 string   `json:"name"`
+			RecordLabel          string   `json:"recordLabel"`
+			Upc                  string   `json:"upc"`
+			AudioTraits          []string `json:"audioTraits"`
+			Copyright            string   `json:"copyright"`
+			PlayParams           struct {
 				ID   string `json:"id"`
 				Kind string `json:"kind"`
 			} `json:"playParams"`
@@ -2010,22 +2011,22 @@ type AutoGenerated struct {
 							TextColor3 string `json:"textColor3"`
 							TextColor4 string `json:"textColor4"`
 						} `json:"artwork"`
-						ArtistName          string   `json:"artistName"`
-						URL                 string   `json:"url"`
-						DiscNumber          int      `json:"discNumber"`
-						GenreNames          []string `json:"genreNames"`
-						HasTimeSyncedLyrics bool     `json:"hasTimeSyncedLyrics"`
-						IsMasteredForItunes bool     `json:"isMasteredForItunes"`
-						IsAppleDigitalMaster bool   `json:"isAppleDigitalMaster"`
-						ContentRating string   `json:"contentRating"`
-						DurationInMillis    int      `json:"durationInMillis"`
-						ReleaseDate         string   `json:"releaseDate"`
-						Name                string   `json:"name"`
-						Isrc                string   `json:"isrc"`
-						AudioTraits         []string `json:"audioTraits"`
-						HasLyrics           bool     `json:"hasLyrics"`
-						AlbumName           string   `json:"albumName"`
-						PlayParams          struct {
+						ArtistName           string   `json:"artistName"`
+						URL                  string   `json:"url"`
+						DiscNumber           int      `json:"discNumber"`
+						GenreNames           []string `json:"genreNames"`
+						HasTimeSyncedLyrics  bool     `json:"hasTimeSyncedLyrics"`
+						IsMasteredForItunes  bool     `json:"isMasteredForItunes"`
+						IsAppleDigitalMaster bool     `json:"isAppleDigitalMaster"`
+						ContentRating        string   `json:"contentRating"`
+						DurationInMillis     int      `json:"durationInMillis"`
+						ReleaseDate          string   `json:"releaseDate"`
+						Name                 string   `json:"name"`
+						Isrc                 string   `json:"isrc"`
+						AudioTraits          []string `json:"audioTraits"`
+						HasLyrics            bool     `json:"hasLyrics"`
+						AlbumName            string   `json:"albumName"`
+						PlayParams           struct {
 							ID   string `json:"id"`
 							Kind string `json:"kind"`
 						} `json:"playParams"`
@@ -2073,22 +2074,22 @@ type AutoGeneratedTrack struct {
 				TextColor3 string `json:"textColor3"`
 				TextColor4 string `json:"textColor4"`
 			} `json:"artwork"`
-			ArtistName          string   `json:"artistName"`
-			URL                 string   `json:"url"`
-			DiscNumber          int      `json:"discNumber"`
-			GenreNames          []string `json:"genreNames"`
-			HasTimeSyncedLyrics bool     `json:"hasTimeSyncedLyrics"`
-			IsMasteredForItunes bool     `json:"isMasteredForItunes"`
-			IsAppleDigitalMaster bool   `json:"isAppleDigitalMaster"`
-			ContentRating string   `json:"contentRating"`
-			DurationInMillis    int      `json:"durationInMillis"`
-			ReleaseDate         string   `json:"releaseDate"`
-			Name                string   `json:"name"`
-			Isrc                string   `json:"isrc"`
-			AudioTraits         []string `json:"audioTraits"`
-			HasLyrics           bool     `json:"hasLyrics"`
-			AlbumName           string   `json:"albumName"`
-			PlayParams          struct {
+			ArtistName           string   `json:"artistName"`
+			URL                  string   `json:"url"`
+			DiscNumber           int      `json:"discNumber"`
+			GenreNames           []string `json:"genreNames"`
+			HasTimeSyncedLyrics  bool     `json:"hasTimeSyncedLyrics"`
+			IsMasteredForItunes  bool     `json:"isMasteredForItunes"`
+			IsAppleDigitalMaster bool     `json:"isAppleDigitalMaster"`
+			ContentRating        string   `json:"contentRating"`
+			DurationInMillis     int      `json:"durationInMillis"`
+			ReleaseDate          string   `json:"releaseDate"`
+			Name                 string   `json:"name"`
+			Isrc                 string   `json:"isrc"`
+			AudioTraits          []string `json:"audioTraits"`
+			HasLyrics            bool     `json:"hasLyrics"`
+			AlbumName            string   `json:"albumName"`
+			PlayParams           struct {
 				ID   string `json:"id"`
 				Kind string `json:"kind"`
 			} `json:"playParams"`
