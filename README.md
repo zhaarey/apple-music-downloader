@@ -10,6 +10,8 @@
 7. main 支持使用 go run main.go "txt文件地址"   txt文件名需要指定格式  例如  cn_1707581102_THE BOOK 3.txt     建议使用这个[Reqable 脚本代码](https://telegra.ph/Reqable-For-Apple-Music-05-01) 自动生成
 8. main 支持check 可以填入文本地址 或API数据库.
 9. 新增get-m3u8-from-device 改为true 且设置端口`adb forward tcp:20020 tcp:20020`即从模拟器获取m3u8 
+10. 文件夹和文件支持模板
+11. 支持下载歌手 `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351`
 
 本项目仅支持ALAC和Atmos
 - `alac (audio-alac-stereo)`
