@@ -1060,7 +1060,7 @@ func checkArtist(artistUrl string, token string) ([]string, error) {
 		}
 		for _, album := range obj.Data {
 			urls = append(urls, album.Attributes.URL)
-			options = append(options, fmt.Sprintf("AlbumName: %s(%s)", album.Attributes.Name, album.ID))
+			options = append(options, fmt.Sprintf("%s(%s)", album.Attributes.Name, album.ID))
 		}
 		Num = Num + 100
 		if len(obj.Next) == 0 {

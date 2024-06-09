@@ -27,6 +27,7 @@ jobs:
         mkdir -p alac
         cp agent.js alac/
         cp config.yaml alac/
+        cp README.md alac/
         cp main.exe alac/
         cp main_atmos.exe alac/
         cp main_select.exe alac/
