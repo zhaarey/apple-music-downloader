@@ -1050,6 +1050,7 @@ func checkArtist(artistUrl string, token string) ([]string, error) {
 				continue
 			}
 			if num > 0 && num <= len(options) {
+				fmt.Println(options[num-1])
 				args = append(args, urls[num-1])
 			} else {
 				fmt.Println("Option out of range:", opt[0])
@@ -1066,6 +1067,7 @@ func checkArtist(artistUrl string, token string) ([]string, error) {
 				continue
 			}
 			for i := start; i <= end; i++ {
+				fmt.Println(options[i-1])
 				args = append(args, urls[i-1])
 			}
 		} else {
