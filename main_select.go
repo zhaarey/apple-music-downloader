@@ -1191,10 +1191,15 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				"{ArtistName}", "Apple Music",
 				"{ArtistId}", "",
 			).Replace(config.ArtistFolderFormat)
-		} else {
+		} else if len(meta.Data[0].Relationships.Artists.Data) > 0 {
 			singerFoldername = strings.NewReplacer(
 				"{ArtistName}", meta.Data[0].Attributes.ArtistName,
 				"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
+			).Replace(config.ArtistFolderFormat)
+		} else {
+			singerFoldername = strings.NewReplacer(
+				"{ArtistName}", meta.Data[0].Attributes.ArtistName,
+				"{ArtistId}", "",
 			).Replace(config.ArtistFolderFormat)
 		}
 		if strings.HasSuffix(singerFoldername, ".") {
