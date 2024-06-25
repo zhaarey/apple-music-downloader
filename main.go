@@ -1392,8 +1392,9 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		fmt.Println("Failed to write cover.")
 	}
 	//get animated artwork
-	if config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionSquareVideo1x1.Video != "" {
-		motionvideoUrl, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionSquareVideo1x1.Video)
+	if config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video != "" {
+		fmt.Println("Found Animation Artwork.")
+		motionvideoUrl, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video)
 		if err != nil {
 			fmt.Println("no motion video.\n", err)
 		}
