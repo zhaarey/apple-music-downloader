@@ -42,6 +42,7 @@ type Config struct {
 	MediaUserToken          string `yaml:"media-user-token"`
 	SaveLrcFile             bool   `yaml:"save-lrc-file"`
 	SaveAnimatedArtwork	bool   `yaml:"save-animated-artwork"`
+	EmbyAnimatedArtwork	bool   `yaml:"emby-animated-artwork"`
 	EmbedLrc                bool   `yaml:"embed-lrc"`
 	EmbedCover              bool   `yaml:"embed-cover"`
 	CoverSize               string `yaml:"cover-size"`
@@ -1405,10 +1406,20 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		if exists {
 			fmt.Println("Animated artwork already exists locally.")
 		} else {
+			fmt.Println("Animation Artwork Downloading...")
 			cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrl, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork.mp4"))
 			if err := cmd.Run(); err != nil {
 				fmt.Printf("animated artwork dl err: %v\n", err)
+			} else {
+				fmt.Println("Animation Artwork Downloaded")
 			}
+			if config.EmbyAnimatedArtwork {
+				cmd2 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder.jpg"))
+				if err := cmd2.Run(); err != nil {
+					fmt.Printf("animated artwork to gif err: %v\n", err)
+				}
+			}
+			
 		}
 	}
 	trackTotal := len(meta.Data[0].Relationships.Tracks.Data)
