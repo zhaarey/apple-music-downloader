@@ -12,6 +12,7 @@
 9. 新增get-m3u8-from-device 改为true 且设置端口`adb forward tcp:20020 tcp:20020`即从模拟器获取m3u8 
 10. 文件夹和文件支持模板
 11. 支持下载歌手 `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351`
+12. 新增[wrapper](https://github.com/zhaarey/wrapper/releases)模式 目前只能linux运行，解密速度超快，基本秒解
 
 本项目仅支持ALAC和Atmos
 - `alac (audio-alac-stereo)`
