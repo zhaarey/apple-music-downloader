@@ -8,7 +8,7 @@ on:
 
 jobs:
 
-  build:
+  build-windows:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v3
@@ -16,7 +16,6 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.20'
-
     - name: Build
       run: |
         go build -o main.exe -v ./main.go
@@ -31,9 +30,36 @@ jobs:
         cp main.exe alac/
         cp main_atmos.exe alac/
         cp main_select.exe alac/
-
     - name: Upload apple-music-alac-atmos-downloader
       uses: actions/upload-artifact@v2
       with:
-        name: apple-music-alac-atmos-downloader
+        name: apple-music-alac-atmos-downloader-windows
+        path: alac/*
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.20'
+    - name: Build
+      run: |
+        go build -o main -v ./main.go
+        go build -o main_atmos -v ./main_atmos.go
+        go build -o main_select -v ./main_select.go
+    - name: Create a new directory and copy files
+      run: |
+        mkdir -p alac
+        cp agent.js alac/
+        cp config.yaml alac/
+        cp README.md alac/
+        cp main alac/
+        cp main_atmos alac/
+        cp main_select alac/
+    - name: Upload apple-music-alac-atmos-downloader
+      uses: actions/upload-artifact@v2
+      with:
+        name: apple-music-alac-atmos-downloader-linux
         path: alac/*
