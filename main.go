@@ -1405,9 +1405,11 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	fmt.Println(albumFolder)
 	//get artist cover
 	if config.SaveArtistCover && !(strings.Contains(albumId, "pl.")) {
-		err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
-		if err != nil {
-			fmt.Println("Failed to write artist cover.")
+		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
+			err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
+			if err != nil {
+				fmt.Println("Failed to write artist cover.")
+			}
 		}
 	}
 	//get album cover
