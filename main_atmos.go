@@ -1503,12 +1503,12 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 		}
 		if strings.Contains(albumId, "pl.") && !config.UseSongInfoForPlaylist {
 			tags = append(tags, "disk=1/1")
-			tags = append(tags, fmt.Sprintf("track=%s", trackNum))
+			tags = append(tags, fmt.Sprintf("track=%d", trackNum))
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", trackNum, trackTotal))
 			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Attributes.Name))
 		} else {
 			tags = append(tags, fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal-1].Attributes.DiscNumber))
-			tags = append(tags, fmt.Sprintf("track=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber))
+			tags = append(tags, fmt.Sprintf("track=%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber))
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber, trackTotal))
 			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.AlbumName))
 		}
