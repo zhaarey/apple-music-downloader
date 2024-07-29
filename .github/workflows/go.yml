@@ -19,8 +19,6 @@ jobs:
     - name: Build
       run: |
         go build -o main.exe -v ./main.go
-        go build -o main_atmos.exe -v ./main_atmos.go
-        go build -o main_select.exe -v ./main_select.go
     - name: Create a new directory and copy files
       run: |
         mkdir -p alac
@@ -28,8 +26,6 @@ jobs:
         cp config.yaml alac/
         cp README.md alac/
         cp main.exe alac/
-        cp main_atmos.exe alac/
-        cp main_select.exe alac/
     - name: Upload apple-music-alac-atmos-downloader
       uses: actions/upload-artifact@v2
       with:
@@ -47,8 +43,6 @@ jobs:
     - name: Build
       run: |
         go build -o main -v ./main.go
-        go build -o main_atmos -v ./main_atmos.go
-        go build -o main_select -v ./main_select.go
     - name: Create a new directory and copy files
       run: |
         mkdir -p alac
@@ -56,8 +50,6 @@ jobs:
         cp config.yaml alac/
         cp README.md alac/
         cp main alac/
-        cp main_atmos alac/
-        cp main_select alac/
     - name: Upload apple-music-alac-atmos-downloader
       uses: actions/upload-artifact@v2
       with:

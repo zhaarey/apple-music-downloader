@@ -1376,7 +1376,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 					fmt.Println("Unavailable.\n")
 				} else {
 					EnhancedHls_m3u8, err := checkM3u8(meta.Data[0].Relationships.Tracks.Data[0].ID, "album")
-					if strings.HasPrefix(EnhancedHls_m3u8, "http") {
+					if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
 						manifest1.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
 					}
 					Quality, err = extractMediaQuality(manifest1.Attributes.ExtendedAssetUrls.EnhancedHls)
@@ -1538,7 +1538,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				continue
 			}
 			EnhancedHls_m3u8, err := checkM3u8(track.ID, "song")
-			if strings.HasPrefix(EnhancedHls_m3u8, "http") {
+			if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
 				manifest.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
 			}
 			var Quality string
@@ -1819,6 +1819,9 @@ func conventTTMLToLRC(ttml string) (string, error) {
 				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d:%d.%d", &h, &m, &s, &ms)
 				if err != nil {
 					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d.%d", &m, &s, &ms)
+					if err != nil {
+						_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d", &m, &s)
+					}
 					h = 0
 				}
 			} else {

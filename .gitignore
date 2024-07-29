@@ -4,6 +4,4 @@
 !go.mod
 !go.sum
 !main.go
-!main_atmos.go
-!main_select.go
 !README.md
