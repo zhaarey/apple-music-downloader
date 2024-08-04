@@ -16,6 +16,7 @@ get-m3u8-port: "127.0.0.1:20020"
 get-m3u8-from-device: false
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
+limit-max: 200
 #{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec} {Tag} {RecordLabel}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright}){Codec}
 album-folder-format: "{AlbumName}"
