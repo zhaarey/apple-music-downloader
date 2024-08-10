@@ -1303,7 +1303,7 @@ func writeCover(sanAlbumFolder, name string, url string) error {
 	}
 	url = strings.Replace(url, "{w}x{h}", config.CoverSize, 1)
 	if config.CoverFormat == "original" {
-		url = strings.Replace(url, "https://is1-ssl.mzstatic.com/image/thumb", "https://a5.mzstatic.com/us/r1000/0", 1)
+		url = strings.Replace(url, "is1-ssl.mzstatic.com/image/thumb", "a5.mzstatic.com/us/r1000/0", 1)
 		url = url[:strings.LastIndex(url, "/")]
 	}
 	req, err := http.NewRequest("GET", url, nil)
