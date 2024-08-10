@@ -6,7 +6,7 @@ save-animated-artwork: false    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
 embed-cover: true
 cover-size: 5000x5000
-cover-format: jpg       #jpg or png
+cover-format: jpg       #jpg png or original
 alac-save-folder: AM-DL downloads
 atmos-save-folder: AM-DL-Atmos downloads
 check: ""
