@@ -1283,6 +1283,11 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 
 func writeCover(sanAlbumFolder, name string, url string) error {
 	covPath := filepath.Join(sanAlbumFolder, name+"."+config.CoverFormat)
+	if config.CoverFormat == "original" {
+		ext := strings.Split(url, "/")[len(strings.Split(url, "/"))-2]
+		ext = ext[strings.LastIndex(ext, ".")+1:]
+		covPath = filepath.Join(sanAlbumFolder, name+"."+ext)
+	}
 	exists, err := fileExists(covPath)
 	if err != nil {
 		fmt.Println("Failed to check if cover exists.")
@@ -1297,6 +1302,10 @@ func writeCover(sanAlbumFolder, name string, url string) error {
 		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
 	}
 	url = strings.Replace(url, "{w}x{h}", config.CoverSize, 1)
+	if config.CoverFormat == "original" {
+		url = strings.Replace(url, "https://is1-ssl.mzstatic.com/image/thumb", "https://a5.mzstatic.com/us/r1000/0", 1)
+		url = url[:strings.LastIndex(url, "/")]
+	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
