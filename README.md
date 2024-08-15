@@ -12,6 +12,7 @@
 9. 支持下载歌手 `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351` `--all-album` 自动选择歌手的所有专辑
 10. 新增[wrapper](https://github.com/zhaarey/wrapper/releases)模式 目前只能linux运行，解密速度超快，基本秒解
 11. `limit-max`支持限制长度 默认200
+12. 支持逐词与未同步歌词
 
 本项目仅支持ALAC和Atmos
 - `alac (audio-alac-stereo)`

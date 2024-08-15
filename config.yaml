@@ -1,6 +1,7 @@
 media-user-token: "your-media-user-token"
 embed-lrc: true
 save-lrc-file: false
+lrc-format: "lyrics"   #lyrics syllable-lyrics
 save-artist-cover: false
 save-animated-artwork: false    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
