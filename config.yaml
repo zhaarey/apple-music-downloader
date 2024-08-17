@@ -1,12 +1,13 @@
 media-user-token: "your-media-user-token"
 embed-lrc: true
 save-lrc-file: false
+lrc-format: "lyrics"   #lyrics syllable-lyrics
 save-artist-cover: false
 save-animated-artwork: false    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
 embed-cover: true
 cover-size: 5000x5000
-cover-format: jpg       #jpg or png
+cover-format: jpg       #jpg png or original
 alac-save-folder: AM-DL downloads
 atmos-save-folder: AM-DL-Atmos downloads
 check: ""
@@ -16,6 +17,7 @@ get-m3u8-port: "127.0.0.1:20020"
 get-m3u8-from-device: false
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
+limit-max: 200
 #{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec} {Tag} {RecordLabel}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright}){Codec}
 album-folder-format: "{AlbumName}"
