@@ -6,13 +6,13 @@
 3. 运行结束后显示总体完成情况
 4. 自动内嵌封面和LRC歌词（需要media-user-token，获取方式看最后的说明）
 5. 自动构建 可以到 [Actions](https://github.com/zhaarey/apple-music-alac-atmos-downloader/actions) 页面下载最新自动构建版本 可以直接`main.exe url`
-6. main_select 支持手动填写m3u8，输入#号，比如#1 #2，支持txt读取m3u8，输入txt文件名
-7. main 支持使用 go run main.go "txt文件地址"   txt文件名需要指定格式  例如  cn_1707581102_THE BOOK 3.txt     建议使用这个[Reqable 脚本代码](https://telegra.ph/Reqable-For-Apple-Music-05-01) 自动生成
-8. main 支持check 可以填入文本地址 或API数据库.
-9. 新增get-m3u8-from-device 改为true 且设置端口`adb forward tcp:20020 tcp:20020`即从模拟器获取m3u8 
-10. 文件夹和文件支持模板
-11. 支持下载歌手 `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351`
-12. 新增[wrapper](https://github.com/zhaarey/wrapper/releases)模式 目前只能linux运行，解密速度超快，基本秒解
+6. main 支持check 可以填入文本地址 或API数据库.
+7. 新增get-m3u8-from-device 改为true 且设置端口`adb forward tcp:20020 tcp:20020`即从模拟器获取m3u8 
+8. 文件夹和文件支持模板
+9. 支持下载歌手 `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351` `--all-album` 自动选择歌手的所有专辑
+10. 新增[wrapper](https://github.com/zhaarey/wrapper/releases)模式 目前只能linux运行，解密速度超快，基本秒解
+11. `limit-max`支持限制长度 默认200
+12. 支持逐词与未同步歌词
 
 本项目仅支持ALAC和Atmos
 - `alac (audio-alac-stereo)`
@@ -42,9 +42,9 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
 5. Start frida server.
 6. Start the frida agent: `frida -U -l agent.js -f com.apple.android.music`.
 7. Start downloading some albums: `go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511`.
-8. Start downloading singles: `go run main_select.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511` input numbers separated by spaces.
+8. Start downloading singles: `go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511` input numbers separated by spaces.
 9. Start downloading some playlists: `go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b` or `go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N`.
-10. For dolby atmos: `go run main_atmos.go https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
+10. For dolby atmos: `go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
 
 [中文教程-详见方法三](https://telegra.ph/Apple-Music-Alac高解析度无损音乐下载教程-04-02-2)
 
