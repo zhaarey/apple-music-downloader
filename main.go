@@ -1856,9 +1856,13 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 	for _, div := range parsedTTML.FindElement("tt").FindElement("body").FindElements("div") {
 		for _, item := range div.ChildElements() {
 			var lrcSyllables []string
+			var i int = 0
 			for _, lyrics := range item.Child {
 				if _, ok := lyrics.(*etree.CharData); ok {
-					lrcSyllables = append(lrcSyllables, " ")
+					if i > 0 {
+						lrcSyllables = append(lrcSyllables, " ")
+						continue
+					}
 					continue
 				}
 				lyric := lyrics.(*etree.Element)
@@ -1884,6 +1888,7 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 					text = lyric.SelectAttr("text").Value
 				}
 				lrcSyllables = append(lrcSyllables, fmt.Sprintf("%s%s", beginTime, text))
+				i += 1
 			}
 			endTime, err := parseTime(item.SelectAttr("end").Value)
 			if err != nil {
