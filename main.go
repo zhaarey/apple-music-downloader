@@ -2013,6 +2013,7 @@ func checkM3u8(b string, f string) (string, error) {
 		conn, err := net.Dial("tcp", config.GetM3u8Port)
 		if err != nil {
 			fmt.Println("Error connecting to device:", err)
+			return "none", err
 		}
 		defer conn.Close()
 		if f == "song" {
@@ -2027,17 +2028,20 @@ func checkM3u8(b string, f string) (string, error) {
 		_, err = conn.Write(lengthBuffer)
 		if err != nil {
 			fmt.Println("Error writing length to device:", err)
+			return "none", err
 		}
 
 		_, err = conn.Write(adamIDBuffer)
 		if err != nil {
 			fmt.Println("Error writing adamID to device:", err)
+			return "none", err
 		}
 
 		// Read the response (URL) from the device
 		response, err := bufio.NewReader(conn).ReadBytes('\n')
 		if err != nil {
 			fmt.Println("Error reading response from device:", err)
+			return "none", err
 		}
 
 		// Trim any newline characters from the response
