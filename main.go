@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"gopkg.in/yaml.v2"
 
 	"github.com/abema/go-mp4"
@@ -37,12 +39,17 @@ const (
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
 )
-var dl_atmos = false
-var dl_select = false
-var artist_select = false
+var (
+	dl_atmos      bool
+	dl_select     bool
+	artist_select bool
+	alac_max      *int
+	atmos_max     *int
+)
 
 type Config struct {
 	MediaUserToken          string `yaml:"media-user-token"`
+	AuthorizationToken      string `yaml:"authorization-token"`
 	SaveLrcFile             bool   `yaml:"save-lrc-file"`
 	LrcFormat               string `yaml:"lrc-format"`
 	SaveAnimatedArtwork     bool   `yaml:"save-animated-artwork"`
@@ -1770,32 +1777,53 @@ func main() {
 	}
 	token, err := getToken()
 	if err != nil {
-		fmt.Println("Failed to get token.")
-		return
-	}
-	var dlArgs []string
-	for _, arg := range os.Args {
-		if strings.Contains(arg, "--atmos") {
-			dl_atmos = true
-		} else if strings.Contains(arg, "--select") {
-			dl_select = true
-		} else if strings.Contains(arg, "--all-album") {
-			artist_select = true
+		if config.AuthorizationToken != "" && config.AuthorizationToken != "your-authorization-token" {
+			token = strings.Replace(config.AuthorizationToken, "Bearer ", "", -1)
 		} else {
-			dlArgs = append(dlArgs, arg)
+			fmt.Println("Failed to get token.")
+			return
 		}
 	}
-	os.Args = dlArgs
-	if strings.Contains(os.Args[1], "/artist/") {
-		newArgs, err := checkArtist(os.Args[1], token)
+	// Define command-line flags
+	pflag.BoolVar(&dl_atmos, "atmos", false, "Enable atmos download mode")
+	pflag.BoolVar(&dl_select, "select", false, "Enable selective download")
+	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
+	alac_max = pflag.Int("alac-max", -1, "Specify the max quality for download alac")
+	atmos_max = pflag.Int("atmos-max", -1, "Specify the max quality for download atmos")
+
+	// Custom usage message for help
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] url1 url2 ...\n", "[main | main.exe | go run main.go]")
+		fmt.Println("Options:")
+		pflag.PrintDefaults()
+	}
+
+	// Parse the flag arguments
+	pflag.Parse()
+
+	if *alac_max != -1 {
+		config.AlacMax = *alac_max
+	}
+	if *atmos_max != -1 {
+		config.AtmosMax = *atmos_max
+	}
+	args := pflag.Args()
+	if len(args) == 0 {
+		fmt.Println("No URLs provided. Please provide at least one URL.")
+		pflag.Usage()
+		return
+	}
+	os.Args = args
+	if strings.Contains(os.Args[0], "/artist/") {
+		newArgs, err := checkArtist(os.Args[0], token)
 		if err != nil {
 			fmt.Println("Failed to get artist.")
 			return
 		}
-		os.Args = append([]string{os.Args[0]}, newArgs...)
+		os.Args = newArgs
 	}
-	albumTotal := len(os.Args[1:])
-	for albumNum, url := range os.Args[1:] {
+	albumTotal := len(os.Args)
+	for albumNum, url := range os.Args {
 		fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
 		var storefront, albumId string
 		if strings.Contains(url, ".txt") {

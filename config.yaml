@@ -1,4 +1,5 @@
-media-user-token: "your-media-user-token"
+media-user-token: "your-media-user-token" #If you need to obtain the lyrics, need to change it
+authorization-token: "your-authorization-token" #You don't need to change it; it can automatically obtain token
 embed-lrc: true
 save-lrc-file: false
 lrc-format: "lyrics"   #lyrics syllable-lyrics
@@ -10,7 +11,7 @@ cover-size: 5000x5000
 cover-format: jpg       #jpg png or original
 alac-save-folder: AM-DL downloads
 atmos-save-folder: AM-DL-Atmos downloads
-check: ""
+check: "" # API or .txt
 force-api: false
 decrypt-m3u8-port: "127.0.0.1:10020"
 get-m3u8-port: "127.0.0.1:20020"
