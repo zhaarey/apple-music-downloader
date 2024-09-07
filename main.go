@@ -72,6 +72,7 @@ type Config struct {
 	Check                   string `yaml:"check"`
 	DecryptM3u8Port         string `yaml:"decrypt-m3u8-port"`
 	GetM3u8Port             string `yaml:"get-m3u8-port"`
+	GetM3u8Mode             string `yaml:"get-m3u8-mode"`
 	GetM3u8FromDevice       bool   `yaml:"get-m3u8-from-device"`
 	AlacMax                 int    `yaml:"alac-max"`
 	AtmosMax                int    `yaml:"atmos-max"`
@@ -1353,6 +1354,15 @@ func writeLyrics(sanAlbumFolder, filename string, lrc string) error {
 	return nil
 }
 
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
+}
+
 func rip(albumId string, token string, storefront string, userToken string) error {
 	var Codec string
 	if dl_atmos {
@@ -1405,9 +1415,19 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				if manifest1.Attributes.ExtendedAssetUrls.EnhancedHls == "" {
 					fmt.Println("Unavailable.\n")
 				} else {
-					EnhancedHls_m3u8, err := checkM3u8(meta.Data[0].Relationships.Tracks.Data[0].ID, "album")
-					if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
-						manifest1.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
+					needCheck := false
+
+					if config.GetM3u8Mode == "all" {
+						needCheck = true
+					} else if config.GetM3u8Mode == "hires" && contains(meta.Data[0].Relationships.Tracks.Data[0].Attributes.AudioTraits, "hi-res-lossless") {
+						needCheck = true
+					}
+					var EnhancedHls_m3u8 string
+					if needCheck {
+						EnhancedHls_m3u8, err = checkM3u8(meta.Data[0].Relationships.Tracks.Data[0].ID, "album")
+						if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
+							manifest1.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
+						}
 					}
 					Quality, err = extractMediaQuality(manifest1.Attributes.ExtendedAssetUrls.EnhancedHls)
 					if err != nil {
@@ -1567,9 +1587,19 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				fmt.Println("Unavailable.")
 				continue
 			}
-			EnhancedHls_m3u8, err := checkM3u8(track.ID, "song")
-			if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
-				manifest.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
+			needCheck := false
+
+			if config.GetM3u8Mode == "all" {
+				needCheck = true
+			} else if config.GetM3u8Mode == "hires" && contains(track.Attributes.AudioTraits, "hi-res-lossless") {
+				needCheck = true
+			}
+			var EnhancedHls_m3u8 string
+			if needCheck {
+				EnhancedHls_m3u8, err = checkM3u8(track.ID, "song")
+				if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
+					manifest.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
+				}
 			}
 			var Quality string
 			if strings.Contains(config.SongFileFormat, "Quality") {
