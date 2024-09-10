@@ -29,6 +29,7 @@ import (
 	"github.com/abema/go-mp4"
 	"github.com/beevik/etree"
 	"github.com/grafov/m3u8"
+	"github.com/schollz/progressbar/v3"
 )
 
 const (
@@ -2310,7 +2311,6 @@ func extractVideo(c string) (string, error) {
 	return streamUrl.String(), nil
 }
 func extractSong(url string) (*SongInfo, error) {
-	fmt.Println("Downloading...")
 	track, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -2319,7 +2319,16 @@ func extractSong(url string) (*SongInfo, error) {
 	if track.StatusCode != http.StatusOK {
 		return nil, errors.New(track.Status)
 	}
-	rawSong, err := ioutil.ReadAll(track.Body)
+	contentLength := track.ContentLength
+	bar := progressbar.NewOptions64(contentLength,
+		progressbar.OptionSetElapsedTime(true),
+		progressbar.OptionShowElapsedTimeOnFinish(),
+		progressbar.OptionShowCount(),
+		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetDescription("Downloading..."),
+	)
+	rawSong, err := ioutil.ReadAll(io.TeeReader(track.Body, bar))
 	if err != nil {
 		return nil, err
 	}
