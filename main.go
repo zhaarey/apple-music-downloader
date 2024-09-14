@@ -1594,6 +1594,12 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	}
 	for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
 		trackNum++
+		if isInArray(okDict[albumId], trackNum) {
+			//fmt.Println("已完成直接跳过.\n")
+			trackTotalnum += 1
+			oktrackNum += 1
+			continue
+		}
 		if isInArray(selected, trackNum) {
 			trackTotalnum += 1
 			fmt.Printf("Track %d of %d:\n", trackNum, trackTotal)
@@ -1875,36 +1881,45 @@ func main() {
 		os.Args = newArgs
 	}
 	albumTotal := len(os.Args)
-	for albumNum, url := range os.Args {
-		fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
-		var storefront, albumId string
-		if strings.Contains(url, ".txt") {
-			txtpath = url
-			fileName := filepath.Base(url)
-			parts := strings.SplitN(fileName, "_", 3)
-			storefront = parts[0]
-			albumId = parts[1]
-		} else {
-			if strings.Contains(url, "/playlist/") {
-				storefront, albumId = checkUrlPlaylist(url)
-				txtpath = ""
+	for {
+		for albumNum, url := range os.Args {
+			fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
+			var storefront, albumId string
+			if strings.Contains(url, ".txt") {
+				txtpath = url
+				fileName := filepath.Base(url)
+				parts := strings.SplitN(fileName, "_", 3)
+				storefront = parts[0]
+				albumId = parts[1]
 			} else {
-				storefront, albumId = checkUrl(url)
-				txtpath = ""
+				if strings.Contains(url, "/playlist/") {
+					storefront, albumId = checkUrlPlaylist(url)
+					txtpath = ""
+				} else {
+					storefront, albumId = checkUrl(url)
+					txtpath = ""
+				}
+			}
+			if albumId == "" {
+				fmt.Printf("Invalid URL: %s\n", url)
+				continue
+			}
+			err = rip(albumId, token, storefront, config.MediaUserToken)
+			if err != nil {
+				fmt.Println("Album failed.")
+				fmt.Println(err)
 			}
 		}
-
-		if albumId == "" {
-			fmt.Printf("Invalid URL: %s\n", url)
-			continue
+		fmt.Printf("=======  Completed %d/%d ###### %d errors!! =======\n", oktrackNum, trackTotalnum, trackTotalnum-oktrackNum)
+		if trackTotalnum-oktrackNum == 0 {
+			break
 		}
-		err = rip(albumId, token, storefront, config.MediaUserToken)
-		if err != nil {
-			fmt.Println("Album failed.")
-			fmt.Println(err)
-		}
+		fmt.Println("Error detected, press Enter to try again...")
+		fmt.Scanln()
+		fmt.Println("Start trying again...")
+		oktrackNum = 0
+		trackTotalnum = 0
 	}
-	fmt.Printf("=======  Completed %d/%d ###### %d errors!! =======\n", oktrackNum, trackTotalnum, trackTotalnum-oktrackNum)
 }
 
 func conventSyllableTTMLToLRC(ttml string) (string, error) {
