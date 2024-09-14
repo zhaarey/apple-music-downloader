@@ -86,6 +86,7 @@ var config Config
 var txtpath string
 var oktrackNum int = 0
 var trackTotalnum int = 0
+var okDict = make(map[string][]int)
 
 type SampleInfo struct {
 	data      []byte
