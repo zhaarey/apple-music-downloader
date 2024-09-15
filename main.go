@@ -1705,6 +1705,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			if exists {
 				fmt.Println("Track already exists locally.")
 				oktrackNum += 1
+				okDict[albumId] = append(okDict[albumId], trackNum)
 				continue
 			}
 			m4aexists, err := fileExists(m4atrackPath)
@@ -1714,6 +1715,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			if m4aexists {
 				fmt.Println("Track already exists locally.")
 				oktrackNum += 1
+				okDict[albumId] = append(okDict[albumId], trackNum)
 				continue
 			}
 
@@ -1823,6 +1825,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				fmt.Printf("Successfully processed and deleted %s\n", filepath.Base(trackPath))
 			}
 			oktrackNum += 1
+			okDict[albumId] = append(okDict[albumId], trackNum)
 		}
 	}
 	return err
