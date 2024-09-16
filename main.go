@@ -84,8 +84,16 @@ type Config struct {
 
 var config Config
 var txtpath string
-var oktrackNum int = 0
-var trackTotalnum int = 0
+//统计结果
+var counter Counter
+type Counter struct {
+	Unavailable int
+	NotSong int
+	Error int
+	Success int
+	Total int
+}
+var okDict = make(map[string][]int)
 
 type SampleInfo struct {
 	data      []byte
@@ -1594,16 +1602,24 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	}
 	for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
 		trackNum++
+		if isInArray(okDict[albumId], trackNum) {
+			//fmt.Println("已完成直接跳过.\n")
+			counter.Total++
+			counter.Success++
+			continue
+		}
 		if isInArray(selected, trackNum) {
-			trackTotalnum += 1
+			counter.Total++
 			fmt.Printf("Track %d of %d:\n", trackNum, trackTotal)
 			manifest, err := getInfoFromAdam(track.ID, token, storefront)
 			if err != nil {
 				fmt.Println("Failed to get manifest.\n", err)
+				counter.NotSong++
 				continue
 			}
 			if manifest.Attributes.ExtendedAssetUrls.EnhancedHls == "" {
 				fmt.Println("Unavailable.")
+				counter.Unavailable++
 				continue
 			}
 			needCheck := false
@@ -1628,6 +1644,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 					Quality, err = extractMediaQuality(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 					if err != nil {
 						fmt.Println("Failed to extract quality from manifest.\n", err)
+						counter.Error++
 						continue
 					}
 				}
@@ -1697,7 +1714,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			}
 			if exists {
 				fmt.Println("Track already exists locally.")
-				oktrackNum += 1
+				counter.Success++
+				okDict[albumId] = append(okDict[albumId], trackNum)
 				continue
 			}
 			m4aexists, err := fileExists(m4atrackPath)
@@ -1706,18 +1724,21 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			}
 			if m4aexists {
 				fmt.Println("Track already exists locally.")
-				oktrackNum += 1
+				counter.Success++
+				okDict[albumId] = append(okDict[albumId], trackNum)
 				continue
 			}
 
 			trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 			if err != nil {
 				fmt.Println("Failed to extract info from manifest.\n", err)
+				counter.Error++
 				continue
 			}
 			info, err := extractSong(trackUrl)
 			if err != nil {
 				fmt.Println("Failed to extract track.", err)
+				counter.Error++
 				continue
 			}
 			samplesOk := true
@@ -1734,11 +1755,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				break
 			}
 			if !samplesOk {
+				counter.Error++
 				continue
 			}
 			err = decryptSong(info, keys, meta, trackPath, trackNum, trackTotal)
 			if err != nil {
 				fmt.Println("Failed to decrypt track.\n", err)
+				counter.Error++
 				continue
 			}
 			tags := []string{
@@ -1799,11 +1822,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			}
 			if err := cmd.Run(); err != nil {
 				fmt.Printf("Embed failed: %v\n", err)
+				counter.Error++
 				continue
 			}
 			if strings.Contains(albumId, "pl.") && config.DlAlbumcoverForPlaylist {
 				if err := os.Remove(fmt.Sprintf("%s/%s.%s", sanAlbumFolder, track.ID, config.CoverFormat)); err != nil {
 					fmt.Printf("Error deleting file: %s/%s.%s\n", sanAlbumFolder, track.ID, config.CoverFormat)
+					counter.Error++
 					continue
 				}
 			}
@@ -1811,11 +1836,13 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				fmt.Printf("Deleting original EC3 file: %s\n", filepath.Base(trackPath))
 				if err := os.Remove(trackPath); err != nil {
 					fmt.Printf("Error deleting file: %v\n", err)
+					counter.Error++
 					continue
 				}
 				fmt.Printf("Successfully processed and deleted %s\n", filepath.Base(trackPath))
 			}
-			oktrackNum += 1
+			counter.Success++
+			okDict[albumId] = append(okDict[albumId], trackNum)
 		}
 	}
 	return err
@@ -1875,36 +1902,44 @@ func main() {
 		os.Args = newArgs
 	}
 	albumTotal := len(os.Args)
-	for albumNum, url := range os.Args {
-		fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
-		var storefront, albumId string
-		if strings.Contains(url, ".txt") {
-			txtpath = url
-			fileName := filepath.Base(url)
-			parts := strings.SplitN(fileName, "_", 3)
-			storefront = parts[0]
-			albumId = parts[1]
-		} else {
-			if strings.Contains(url, "/playlist/") {
-				storefront, albumId = checkUrlPlaylist(url)
-				txtpath = ""
+	for {
+		for albumNum, url := range os.Args {
+			fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
+			var storefront, albumId string
+			if strings.Contains(url, ".txt") {
+				txtpath = url
+				fileName := filepath.Base(url)
+				parts := strings.SplitN(fileName, "_", 3)
+				storefront = parts[0]
+				albumId = parts[1]
 			} else {
-				storefront, albumId = checkUrl(url)
-				txtpath = ""
+				if strings.Contains(url, "/playlist/") {
+					storefront, albumId = checkUrlPlaylist(url)
+					txtpath = ""
+				} else {
+					storefront, albumId = checkUrl(url)
+					txtpath = ""
+				}
+			}
+			if albumId == "" {
+				fmt.Printf("Invalid URL: %s\n", url)
+				continue
+			}
+			err = rip(albumId, token, storefront, config.MediaUserToken)
+			if err != nil {
+				fmt.Println("Album failed.")
+				fmt.Println(err)
 			}
 		}
-
-		if albumId == "" {
-			fmt.Printf("Invalid URL: %s\n", url)
-			continue
+		fmt.Printf("=======  [\u2714 ] Completed: %d/%d  |  [\u26A0 ] Warnings: %d  |  [\u2716 ] Errors: %d  =======\n", counter.Success, counter.Total, counter.Unavailable+counter.NotSong, counter.Error)
+		if counter.Error == 0 {
+			break
 		}
-		err = rip(albumId, token, storefront, config.MediaUserToken)
-		if err != nil {
-			fmt.Println("Album failed.")
-			fmt.Println(err)
-		}
+		fmt.Println("Error detected, press Enter to try again...")
+		fmt.Scanln()
+		fmt.Println("Start trying again...")
+		counter = Counter{}
 	}
-	fmt.Printf("=======  Completed %d/%d ###### %d errors!! =======\n", oktrackNum, trackTotalnum, trackTotalnum-oktrackNum)
 }
 
 func conventSyllableTTMLToLRC(ttml string) (string, error) {
