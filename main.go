@@ -1616,12 +1616,12 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			fmt.Printf("Track %d of %d:\n", trackNum, trackTotal)
 			manifest, err := getInfoFromAdam(track.ID, token, storefront)
 			if err != nil {
-				fmt.Println("Failed to get manifest.\n", err)
+				fmt.Println("\u26A0 Failed to get manifest:", err)
 				counter.NotSong++
 				continue
 			}
 			if manifest.Attributes.ExtendedAssetUrls.EnhancedHls == "" {
-				fmt.Println("Unavailable.")
+				fmt.Println("\u26A0 Unavailable.")
 				counter.Unavailable++
 				continue
 			}
@@ -1734,7 +1734,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 
 			trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 			if err != nil {
-				fmt.Println("Failed to extract info from manifest.\n", err)
+				fmt.Println("\u26A0 Failed to extract info from manifest:", err)
 				counter.Unavailable++
 				continue
 			}
