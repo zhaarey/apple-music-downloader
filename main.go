@@ -1732,7 +1732,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			trackUrl, keys, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 			if err != nil {
 				fmt.Println("Failed to extract info from manifest.\n", err)
-				counter.Error++
+				counter.Unavailable++
 				continue
 			}
 			info, err := extractSong(trackUrl)
