@@ -1408,15 +1408,18 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			singerFoldername = strings.NewReplacer(
 				"{ArtistName}", "Apple Music",
 				"{ArtistId}", "",
+				"{ArtistsName}", "Apple Music",
 			).Replace(config.ArtistFolderFormat)
 		} else if len(meta.Data[0].Relationships.Artists.Data) > 0 {
 			singerFoldername = strings.NewReplacer(
-				"{ArtistName}", LimitString(meta.Data[0].Attributes.ArtistName),
+				"{ArtistName}", LimitString(meta.Data[0].Relationships.Artists.Data[0].Attributes.Name),
+				"{ArtistsName}", LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
 			).Replace(config.ArtistFolderFormat)
 		} else {
 			singerFoldername = strings.NewReplacer(
-				"{ArtistName}", LimitString(meta.Data[0].Attributes.ArtistName),
+				"{ArtistName}", LimitString(meta.Data[0].Relationships.Artists.Data[0].Attributes.Name),
+				"{ArtistsName}", LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistId}", "",
 			).Replace(config.ArtistFolderFormat)
 		}
