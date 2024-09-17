@@ -29,7 +29,7 @@ playlist-folder-format: "{PlaylistName}"
 #{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality} {Codec} {Tag}
 #example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]{{Tag}}"
 song-file-format: "{SongNumer}. {SongName}"
-#{ArtistId} {ArtistName}
+#{ArtistId} {ArtistName}/{ArtistsName}
 #if artist-folder-format set "",will not make artist folder
 artist-folder-format: "{ArtistName}"
 #if set "" will not add tag
