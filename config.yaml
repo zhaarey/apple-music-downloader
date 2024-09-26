@@ -1,8 +1,9 @@
 media-user-token: "your-media-user-token" #If you need to obtain the lyrics, need to change it
 authorization-token: "your-authorization-token" #You don't need to change it; it can automatically obtain token
+lrc-type: "lyrics"   #lyrics or syllable-lyrics
+lrc-format: "lrc"   #lrc or ttml
 embed-lrc: true
 save-lrc-file: false
-lrc-format: "lyrics"   #lyrics syllable-lyrics
 save-artist-cover: false
 save-animated-artwork: false    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
