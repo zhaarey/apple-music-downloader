@@ -1726,9 +1726,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 						if err != nil {
 							fmt.Printf("Failed to write lyrics")
 						}
-						if !config.EmbedLrc {
-							lrc = ""
-						}
+						lrc = ""
 					}
 				} else {
 					lrc, err = conventTTMLToLRC(ttml)
