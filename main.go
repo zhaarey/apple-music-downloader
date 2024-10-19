@@ -1873,14 +1873,26 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				}
 			}
 			if dl_atmos {
-				fmt.Printf("Deleting original EC3 file: %s\n", filepath.Base(trackPath))
+				//fmt.Printf("Deleting original EC3 file: %s\n", filepath.Base(trackPath))
 				if err := os.Remove(trackPath); err != nil {
 					fmt.Printf("Error deleting file: %v\n", err)
 					counter.Error++
 					continue
 				}
 				fmt.Printf("Successfully processed and deleted %s\n", filepath.Base(trackPath))
+				trackPath = m4atrackPath
 			}
+			if !(checkSongIntegrity(trackPath, manifest.Attributes.DurationInMillis)) {
+				fmt.Println("Audio Integrity : Bad")
+				if err := os.Remove(trackPath); err != nil {
+					fmt.Printf("Error deleting file: %v\n", err)
+					counter.Error++
+					continue
+				}
+				counter.Error++
+				continue
+			}
+			fmt.Println("Audio Integrity : OK")
 			counter.Success++
 			okDict[albumId] = append(okDict[albumId], trackNum)
 		}
@@ -1989,6 +2001,18 @@ func main() {
 		fmt.Println("Start trying again...")
 		counter = Counter{}
 	}
+}
+
+func checkSongIntegrity(songPath string, duration int) bool {
+	duration = duration / 1000
+	starttime := strconv.Itoa(duration - 2)
+	command := "ffmpeg"
+	args := []string{"-y", "-v", "error", "-ss", starttime, "-i", songPath, "-map", "0:a", "-c:a", "pcm_s16le", "-f", "null", "NUL"}
+	cmd := exec.Command(command, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return err == nil && stderr.Len() == 0
 }
 
 func conventSyllableTTMLToLRC(ttml string) (string, error) {
@@ -2692,6 +2716,7 @@ type SongAttributes struct {
 	AlbumName            string `json:"albumName"`
 	TrackNumber          int    `json:"trackNumber"`
 	ComposerName         string `json:"composerName"`
+	DurationInMillis          int    `json:"durationInMillis"`
 }
 
 type AlbumAttributes struct {
