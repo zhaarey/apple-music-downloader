@@ -131,52 +131,6 @@ function getKdContext(adamId, uri) {
     return kdContext;
 }
 
-async function getM3U8Url(adamId) {
-    return new Promise((resolve) => {
-        Java.perform(() => {
-            try {
-                const SVPlaybackLeaseManagerProxy = Java.use("com.apple.android.music.playback.SVPlaybackLeaseManagerProxy");
-                const MediaAssetInfo = SVPlaybackLeaseManagerProxy.requestAsset(parseInt(adamId), "", ["HLS"], false);
-                resolve(MediaAssetInfo ? MediaAssetInfo.getDownloadUrl() : null);
-            } catch (e) {
-                console.error("Error calling requestAsset:", e);
-                resolve(null);
-            }
-        });
-    });
-}
-
-async function getM3U8UrlFromDownload(adamId) {
-    return new Promise((resolve) => {
-        Java.perform(() => {
-            const N = Java.use("com.apple.android.storeservices.v2.N");
-            const data = N.a().j();
-            const PurchaseRequestPtr = Java.use("com.apple.android.storeservices.javanative.account.PurchaseRequest$PurchaseRequestPtr");
-
-            const request = Java.cast(data, Java.use("com.apple.android.storeservices.storeclient.g"));
-            const create = PurchaseRequestPtr.create(request.n.value);
-            create.get().setProcessDialogActions(true);
-            create.get().setURLBagKey("subDownload");
-            create.get().setBuyParameters(`salableAdamId=${adamId}&price=0&pricingParameters=SUBS&productType=S`);
-            try {
-                create.get().run();
-                const response = create.get().getResponse();
-                if (response.get().getError().get() == null) {
-                    const item = response.get().getItems().get(0);
-                    const assets = item.get().getAssets();
-                    resolve(assets.get(assets.size() - 1).get().getURL());
-                } else {
-                    console.error("Download failed", response.get().getError().get().errorCode());
-                    resolve(null);
-                }
-            } catch (error) {
-                console.error("Error during download", error);
-                resolve(null);
-            }
-        });
-    });
-}
-
 async function handleDecryptionConnection(socket) {
     try {
         while (true) {
@@ -214,38 +168,94 @@ async function handleDecryptionConnection(socket) {
     }
 }
 
-
-async function handleM3U8Connection(socket) {
-    try {
-        const adamIdSizeBuffer = await socket.input.readAll(1);
-        if (adamIdSizeBuffer.byteLength === 0) {
-            console.warn("Empty adamId size received");
-            return;
-        }
-
-        const adamIdSize = adamIdSizeBuffer.unwrap().readU8();
-        if (adamIdSize > 0) {
-            const adamIdBuffer = await socket.input.readAll(adamIdSize);
-            const adamId = String.fromCharCode(...new Uint8Array(adamIdBuffer));
-
-            let m3u8Url = await getM3U8Url(adamId);
-            if (!m3u8Url) {
-                m3u8Url = await getM3U8UrlFromDownload(adamId);
-            }
-
-            if (m3u8Url) {
-                const m3u8Array = new TextEncoder().encode(m3u8Url + "\n");
-                await socket.output.writeAll(m3u8Array);
-            } else {
-                console.error("Failed to retrieve M3U8 URL");
-            }
-        }
-    } catch (e) {
-        console.error("M3U8 connection error:", e);
-        console.error(e.stack);
-    } finally {
-        await socket.close();
+global.getM3U8fromDownload = function(adamID) {
+    var C8717f
+    Java.choose("of.f", {
+        onMatch: function (x) {
+            C8717f = x
+        },
+        onComplete: function (x) {}
+    });
+    var response = C8717f.q(0, "", adamID, false)
+    if (response.get().getError().get() == null){
+        var item = response.get().getItems().get(0)
+        var assets = item.get().getAssets()
+        var size = assets.size()
+        return assets.get(size - 1).get().getURL()
+    } else {
+        return response.get().getError().get().errorCode()
     }
+};
+
+const stringToByteArray = str => {
+    const byteArray = [];
+    for (let i = 0; i < str.length; ++i) {
+        byteArray.push(str.charCodeAt(i));
+    }
+    return byteArray;
+};
+
+global.getM3U8 = function(adamID) {
+    Java.use("com.apple.android.music.common.MainContentActivity");
+    var SVPlaybackLeaseManagerProxy;
+    Java.choose("com.apple.android.music.playback.SVPlaybackLeaseManagerProxy", {
+        onMatch: function (x) {
+            SVPlaybackLeaseManagerProxy = x
+        },
+        onComplete: function (x) {}
+    });
+    var HLSParam = Java.array('java.lang.String', ["HLS"])
+    var MediaAssetInfo = SVPlaybackLeaseManagerProxy.requestAsset(parseInt(adamID), null, HLSParam, false)
+    if (MediaAssetInfo === null) {
+        return -1
+    }
+    return MediaAssetInfo.getDownloadUrl()
+};
+
+function performJavaOperations(adamID) {
+    return new Promise((resolve, reject) => {
+        Java.performNow(function () {
+            const url = getM3U8(adamID);
+            if (url === -1) {
+                const url = getM3U8fromDownload(adamID);
+                resolve(url);
+            } else {
+                resolve(url);
+            }
+        });
+    });
+}
+
+
+async function handleM3U8Connection(s) {
+    console.log("New M3U8 connection!");
+    try {    
+        const adamSize = (await s.input.readAll(1)).unwrap().readU8();
+        if (adamSize !== 0) {
+            const adam = await s.input.readAll(adamSize);
+            const byteArray = new Uint8Array(adam);
+            let adamID = "";
+            for (let i = 0; i < byteArray.length; i++) {
+                adamID += String.fromCharCode(byteArray[i]);
+            }
+            console.log("adamID:", adamID);
+            let m3u8Url;
+            performJavaOperations(adamID)
+                .then(async (url) => {
+                    m3u8Url = url;
+                    console.log("M3U8 URL: ", m3u8Url);
+                    const m3u8Array = stringToByteArray(m3u8Url + "\n");
+                    // console.log("M3U8 ARRAY:", m3u8Array);
+                    await s.output.writeAll(m3u8Array);
+                })
+                .catch((error) => {
+                    console.error("Error performing Java operations:", error);
+                });
+        }
+    } catch (err) {
+        console.error("Error handling M3U8 connection:", err);
+    }
+    await s.close();
 }
 
 function initializeFridaFunctions(androidappmusic) {
