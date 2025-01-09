@@ -47,7 +47,7 @@ func (b *TimedResponseBody) Read(p []byte) (int, error) {
 func Run(adamId string, playlistUrl string, outfile string, Config structs.ConfigSet) error {
 	var err error
 	var optstimeout uint
-	optstimeout = 20000
+	optstimeout = 0
 	timeout := time.Duration(optstimeout * uint(time.Millisecond))
 	header := make(http.Header)
 
