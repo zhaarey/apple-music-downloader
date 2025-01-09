@@ -7,14 +7,14 @@
 3. 运行结束后显示总体完成情况
 4. 自动内嵌封面和LRC歌词（需要media-user-token，获取方式看最后的说明）
 5. 自动构建 可以到 [Actions](https://github.com/zhaarey/apple-music-alac-atmos-downloader/actions) 页面下载最新自动构建版本 可以直接`main.exe url`
-6. main 支持check 可以填入文本地址 或API数据库.
+6. 支持逐词与未同步歌词
 7. 新增get-m3u8-from-device 改为true 且设置端口`adb forward tcp:20020 tcp:20020`即从模拟器获取m3u8
 8. 文件夹和文件支持模板
 9. 支持下载歌手 `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351` `--all-album` 自动选择歌手的所有专辑
 10. 新增[wrapper](https://github.com/zhaarey/wrapper/releases)模式 目前只能linux运行，解密速度超快，基本秒解
 11. `limit-max`支持限制长度 默认200
-12. 支持逐词与未同步歌词
-13. 现已支持arm64解密
+12. 现已支持arm64解密
+13. 下载解密部分更换为Sendy McSenderson的代码，实现边下载边解密
 
 ### Special thanks to `chocomint` for creating `agent-arm64.js`
 
