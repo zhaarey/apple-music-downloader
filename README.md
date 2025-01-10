@@ -18,7 +18,7 @@
 
 ### Special thanks to `chocomint` for creating `agent-arm64.js`
 
-本项目仅支持ALAC和Atmos
+本项目仅支持ALAC、Atmos和苹果数字母带生成的AAC（adm-aac），不支持仅有AAC的专辑（only-aac）及MV
 
 - `alac (audio-alac-stereo)`
 - `ec3 (audio-atmos / audio-ec3)`
