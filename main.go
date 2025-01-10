@@ -34,6 +34,7 @@ import (
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
 	dl_atmos      bool
+	dl_aac        bool
 	dl_select     bool
 	artist_select bool
 	alac_max      *int
@@ -428,6 +429,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	var Codec string
 	if dl_atmos {
 		Codec = "Atmos"
+	} else if dl_aac {
+		Codec = "AAC"
 	} else {
 		Codec = "ALAC"
 	}
@@ -859,6 +862,7 @@ func main() {
 	}
 	// Define command-line flags
 	pflag.BoolVar(&dl_atmos, "atmos", false, "Enable atmos download mode")
+	pflag.BoolVar(&dl_aac, "aac", false, "Enable adm-aac download mode")
 	pflag.BoolVar(&dl_select, "select", false, "Enable selective download")
 	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
 	alac_max = pflag.Int("alac-max", -1, "Specify the max quality for download alac")
@@ -1155,21 +1159,33 @@ func extractMediaQuality(b string) (string, error) {
 	})
 	var Quality string
 	for _, variant := range master.Variants {
-		if variant.Codecs == "alac" {
-			split := strings.Split(variant.Audio, "-")
-			length := len(split)
-			length_int, err := strconv.Atoi(split[length-2])
-			if err != nil {
-				return "", err
-			}
-			if length_int <= Config.AlacMax {
-				HZ, err := strconv.Atoi(split[length-2])
-				if err != nil {
-					fmt.Println(err)
+		if dl_aac {
+			if variant.Codecs == "mp4a.40.2" {
+				aacregex := regexp.MustCompile(`audio-stereo-\d+`)
+				replaced := aacregex.ReplaceAllString(variant.Audio, "aac")
+				split := strings.Split(variant.Audio, "-")
+				if replaced == Config.AacType {
+					Quality = fmt.Sprintf("%skbps", split[2])
+					break
 				}
-				KHZ := float64(HZ) / 1000.0
-				Quality = fmt.Sprintf("%sB-%.1fkHz", split[length-1], KHZ)
-				break
+			}
+		} else {
+			if variant.Codecs == "alac" {
+				split := strings.Split(variant.Audio, "-")
+				length := len(split)
+				length_int, err := strconv.Atoi(split[length-2])
+				if err != nil {
+					return "", err
+				}
+				if length_int <= Config.AlacMax {
+					HZ, err := strconv.Atoi(split[length-2])
+					if err != nil {
+						fmt.Println(err)
+					}
+					KHZ := float64(HZ) / 1000.0
+					Quality = fmt.Sprintf("%sB-%.1fkHz", split[length-1], KHZ)
+					break
+				}
 			}
 		}
 	}
@@ -1213,6 +1229,21 @@ func extractMedia(b string) (string, error) {
 					return "", err
 				}
 				if length_int <= Config.AtmosMax {
+					fmt.Printf("%s\n", variant.Audio)
+					streamUrlTemp, err := masterUrl.Parse(variant.URI)
+					if err != nil {
+						panic(err)
+					}
+					streamUrl = streamUrlTemp
+					break
+				}
+			}
+		} else if dl_aac {
+			if variant.Codecs == "mp4a.40.2" {
+				aacregex := regexp.MustCompile(`audio-stereo-\d+`)
+				replaced := aacregex.ReplaceAllString(variant.Audio, "aac")
+				//split := strings.Split(variant.Audio, "-")
+				if replaced == Config.AacType {
 					fmt.Printf("%s\n", variant.Audio)
 					streamUrlTemp, err := masterUrl.Parse(variant.URI)
 					if err != nil {
