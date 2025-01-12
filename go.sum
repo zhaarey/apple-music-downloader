@@ -1,5 +1,7 @@
 github.com/Eyevinn/mp4ff v0.46.0 h1:A8oJA4A3C9fDbX38jEw/26utjNdvmRmrO37tVI5pDk0=
 github.com/Eyevinn/mp4ff v0.46.0/go.mod h1:hJNUUqOBryLAzUW9wpCJyw2HaI+TCd2rUPhafoS5lgg=
+github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37 h1:6X6U2D53ITfDGiyGN+sOVm/iFveFHrFRS7icGJ+u88M=
+github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37/go.mod h1:l5rVvaRUrCot83416D6xggKCeFZQAXcv02tnJslG26s=
 github.com/abema/go-mp4 v1.3.0 h1:vr0PX0jk3E4GO1c28fNRsyZdkLwz38R+XRVncIH1XDk=
 github.com/abema/go-mp4 v1.3.0/go.mod h1:vPl9t5ZK7K0x68jh12/+ECWBCXoWuIDtNgPtU2f04ws=
 github.com/beevik/etree v1.3.0 h1:hQTc+pylzIKDb23yYprodCWWTt+ojFfUZyzU09a/hmU=

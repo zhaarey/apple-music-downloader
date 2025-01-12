@@ -1,6 +1,8 @@
 module main
 
-go 1.17
+go 1.21.6
+
+toolchain go1.22.2
 
 require (
 	github.com/Eyevinn/mp4ff v0.46.0
@@ -11,6 +13,7 @@ require (
 )
 
 require (
+	github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sys v0.22.0 // indirect
