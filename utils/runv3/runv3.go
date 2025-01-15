@@ -253,7 +253,7 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string)(erro
 		fmt.Println(err)
 		return err
 	}
-	headers := map[string]any{
+	headers := map[string]interface{}{
 		"authorization": "Bearer " + authtoken,
 		"x-apple-music-user-token": mutoken,
 	}

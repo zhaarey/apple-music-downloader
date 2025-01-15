@@ -2,8 +2,6 @@ module main
 
 go 1.23.1
 
-toolchain go1.23.3
-
 require (
 	github.com/Eyevinn/mp4ff v0.46.0
 	github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37
