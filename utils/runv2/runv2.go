@@ -118,14 +118,36 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 			return err
 		}
 		defer do.Body.Close()
-		body = do.Body
+		if do.ContentLength < int64(Config.MaxMemoryLimit * 1024 * 1024) {
+			var buffer bytes.Buffer
+			bar := progressbar.NewOptions64(
+				do.ContentLength,
+				progressbar.OptionClearOnFinish(),
+				progressbar.OptionSetElapsedTime(false),
+				progressbar.OptionSetPredictTime(false),
+				progressbar.OptionShowElapsedTimeOnFinish(),
+				progressbar.OptionShowCount(),
+				progressbar.OptionEnableColorCodes(true),
+				progressbar.OptionShowBytes(true),
+				progressbar.OptionSetDescription("Downloading..."),
+				progressbar.OptionSetTheme(progressbar.Theme{
+					Saucer:        "",
+					SaucerHead:    "",
+					SaucerPadding: "",
+					BarStart:      "",
+					BarEnd:        "",
+				}),
+			)
+			io.Copy(io.MultiWriter(&buffer, bar), do.Body)
+			body = &buffer
+			fmt.Print("Downloaded\n")
+		} else {
+			body = do.Body
+		}
 	}
 
 	var totalLen int64
 	totalLen = do.ContentLength
-
-
-
 	// connect to decryptor
 	//addr := fmt.Sprintf("127.0.0.1:10020")
 	addr := Config.DecryptM3u8Port
@@ -133,26 +155,14 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	if err != nil {
 		return err
 	}
-	fmt.Print("Downloading...\n")
+	//fmt.Print("Decrypting...\n")
 	defer Close(conn)
 
 	err = downloadAndDecryptFile(conn, body, outfile, adamId, segments, totalLen, Config)
 	if err != nil {
 		return err
 	}
-	fmt.Print("Decryption finished\n")
-	// create output file
-	// ofh, err := os.Create(outfile)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer ofh.Close()
- //
-	// _, err = ofh.Write(buffer.Bytes())
-	// if err != nil {
-	// 	return err
-	// }
-
+	fmt.Print("Decrypted\n")
 	return nil
 }
 
@@ -204,7 +214,7 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 		progressbar.OptionShowCount(),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowBytes(true),
-		//progressbar.OptionSetDescription("Decrypting..."),
+		progressbar.OptionSetDescription("Decrypting..."),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "",
 			SaucerHead:    "",
