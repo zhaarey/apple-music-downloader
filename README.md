@@ -18,11 +18,12 @@
 
 ### Special thanks to `chocomint` for creating `agent-arm64.js`
 
-本项目仅支持ALAC、Atmos和苹果数字母带生成的AAC（adm-aac），不支持仅有AAC的专辑（only-aac）及MV
+本项目暂不支持MV下载，对于下载aac-lc则必须填入有订阅的media-user-token
 
 - `alac (audio-alac-stereo)`
 - `ec3 (audio-atmos / audio-ec3)`
 - `aac (audio-stereo)`
+- `aac-lc (audio-stereo)`
 - `aac-binaural (audio-stereo-binaural)`
 - `aac-downmix (audio-stereo-downmix)`
 
@@ -54,7 +55,7 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
 8. Start downloading singles: `go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511` input numbers separated by spaces.
 9. Start downloading some playlists: `go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b` or `go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N`.
 10. For dolby atmos: `go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
-11. For adm aac: `go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
+11. For aac: `go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
 
 [中文教程-详见方法三](https://telegra.ph/Apple-Music-Alac高解析度无损音乐下载教程-04-02-2)
 

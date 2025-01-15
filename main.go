@@ -29,6 +29,8 @@ import (
 
 	"main/utils/runv2"
 	"main/utils/structs"
+
+	"main/utils/runv3"
 )
 
 var (
@@ -426,7 +428,7 @@ func contains(slice []string, item string) bool {
 func rip(albumId string, token string, storefront string, userToken string) error {
 	var Codec string
 	if dl_atmos {
-		Codec = "Atmos"
+		Codec = "ATMOS"
 	} else if dl_aac {
 		Codec = "AAC"
 	} else {
@@ -472,13 +474,17 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
+		} else if dl_aac && Config.AacType == "aac-lc" {
+			Quality = "256kbps"
 		} else {
 			manifest1, err := getInfoFromAdam(meta.Data[0].Relationships.Tracks.Data[0].ID, token, storefront)
 			if err != nil {
 				fmt.Println("Failed to get manifest.\n", err)
 			} else {
 				if manifest1.Attributes.ExtendedAssetUrls.EnhancedHls == "" {
-					fmt.Println("Unavailable.\n")
+					Codec = "AAC"
+					Quality = "256kbps"
+					//fmt.Println("Unavailable.\n")
 				} else {
 					needCheck := false
 
@@ -655,10 +661,18 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				counter.NotSong++
 				continue
 			}
+			needDlAacLc := false
+			if dl_aac && Config.AacType == "aac-lc" {
+				needDlAacLc = true
+			}
 			if manifest.Attributes.ExtendedAssetUrls.EnhancedHls == "" {
-				fmt.Println("\u26A0 Unavailable.")
-				counter.Unavailable++
-				continue
+				if dl_atmos {
+					fmt.Println("Unavailable")
+					counter.Unavailable++
+					continue
+				}
+				fmt.Println("Unavailable, Try DL AAC-LC")
+				needDlAacLc = true
 			}
 			needCheck := false
 
@@ -668,7 +682,7 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				needCheck = true
 			}
 			var EnhancedHls_m3u8 string
-			if needCheck {
+			if needCheck && !needDlAacLc {
 				EnhancedHls_m3u8, err = checkM3u8(track.ID, "song")
 				if strings.HasSuffix(EnhancedHls_m3u8, ".m3u8") {
 					manifest.Attributes.ExtendedAssetUrls.EnhancedHls = EnhancedHls_m3u8
@@ -678,6 +692,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			if strings.Contains(Config.SongFileFormat, "Quality") {
 				if dl_atmos {
 					Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
+				} else if needDlAacLc {
+					Quality = fmt.Sprintf("256kbps")
 				} else {
 					Quality, err = extractMediaQuality(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
 					if err != nil {
@@ -719,6 +735,8 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 			filename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
 			lrcFilename := fmt.Sprintf("%s.%s", forbiddenNames.ReplaceAllString(songName, "_"), Config.LrcFormat)
 			trackPath := filepath.Join(sanAlbumFolder, filename)
+
+			//get lrc
 			var lrc string = ""
 			if userToken != "your-media-user-token" && (Config.EmbedLrc || Config.SaveLrcFile) {
 				ttml, err := getSongLyrics(track.ID, storefront, token, userToken)
@@ -760,21 +778,33 @@ func rip(albumId string, token string, storefront string, userToken string) erro
 				okDict[albumId] = append(okDict[albumId], trackNum)
 				continue
 			}
-
-			trackM3u8Url, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
-			if err != nil {
-				fmt.Println("\u26A0 Failed to extract info from manifest:", err)
-				counter.Unavailable++
-				continue
+			if needDlAacLc {
+				if userToken == "your-media-user-token" {
+					fmt.Println("media-user-token Unset!")
+					counter.Error++
+					continue
+				}
+				err := runv3.Run(track.ID, trackPath, token, userToken)
+				if err != nil {
+					fmt.Println("Failed to dl aac-lc:", err)
+					counter.Error++
+					continue
+				}
+			} else {
+				trackM3u8Url, err := extractMedia(manifest.Attributes.ExtendedAssetUrls.EnhancedHls)
+				if err != nil {
+					fmt.Println("\u26A0 Failed to extract info from manifest:", err)
+					counter.Unavailable++
+					continue
+				}
+				//边下载边解密
+				err = runv2.Run(track.ID, trackM3u8Url, trackPath, Config)
+				if err != nil {
+					fmt.Println("Failed to run v2:", err)
+					counter.Error++
+					continue
+				}
 			}
-			//边下载边解密
-			err = runv2.Run(track.ID, trackM3u8Url, trackPath, Config)
-			if err != nil {
-				fmt.Println("Failed to run v2:", err)
-				counter.Error++
-				continue
-			}
-
 			tags := []string{
 				"tool=",
 				fmt.Sprintf("lyrics=%s", lrc),
