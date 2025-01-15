@@ -223,7 +223,7 @@ func extsong(b string)(bytes.Buffer){
 		progressbar.OptionShowCount(),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowBytes(true),
-		//progressbar.OptionSetDescription("Downloading..."),
+		progressbar.OptionSetDescription("Downloading..."),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "",
 			SaucerHead:    "",
@@ -233,9 +233,6 @@ func extsong(b string)(bytes.Buffer){
 		}),
 	)
 	io.Copy(io.MultiWriter(&buffer, bar), resp.Body)
-	if err != nil {
-		fmt.Printf("读取文件失败: %v\n", err)
-	}
 	return buffer
 }
 func Run(adamId string, trackpath string, authtoken string, mutoken string)(error) {
@@ -271,8 +268,8 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string)(erro
 		fmt.Println(err)
 		return err
 	}
-	fmt.Print("Downloading...\n")
 	body := extsong(fileurl)
+	fmt.Print("Downloaded\n")
 	//bodyReader := bytes.NewReader(body)
 	var buffer bytes.Buffer
 
