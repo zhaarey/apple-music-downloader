@@ -329,7 +329,7 @@ func getMeta(albumId string, token string, storefront string) (*structs.AutoGene
 
 func getSongLyrics(songId string, storefront string, token string, userToken string) (string, error) {
 	req, err := http.NewRequest("GET",
-		fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/songs/%s/%s", storefront, songId, Config.LrcType), nil)
+		fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/songs/%s/%s?l=%s", storefront, songId, Config.LrcType, Config.Language), nil)
 	if err != nil {
 		return "", err
 	}
@@ -1044,10 +1044,17 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 		ms = ms / 10
 		return fmt.Sprintf("[%02d:%02d.%02d]", m, s, ms), nil
 	}
-	for _, div := range parsedTTML.FindElement("tt").FindElement("body").FindElements("div") {
+	divs := parsedTTML.FindElement("tt").FindElement("body").FindElements("div")
+	//get trans
+	if len(parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata").FindElement("iTunesMetadata").FindElement("translations").FindElements("translation")) > 0 {
+	    divs = parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata").FindElement("iTunesMetadata").FindElement("translations").FindElements("translation")
+	}
+	
+	for _, div := range divs {
 		for _, item := range div.ChildElements() {
 			var lrcSyllables []string
 			var i int = 0
+			var endTime string
 			for _, lyrics := range item.Child {
 				if _, ok := lyrics.(*etree.CharData); ok {
 					if i > 0 {
@@ -1061,6 +1068,10 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 					continue
 				}
 				beginTime, err := parseTime(lyric.SelectAttr("begin").Value)
+				if err != nil {
+					return "", err
+				}
+				endTime, err = parseTime(lyric.SelectAttr("end").Value)
 				if err != nil {
 					return "", err
 				}
@@ -1081,10 +1092,10 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 				lrcSyllables = append(lrcSyllables, fmt.Sprintf("%s%s", beginTime, text))
 				i += 1
 			}
-			endTime, err := parseTime(item.SelectAttr("end").Value)
-			if err != nil {
-				return "", err
-			}
+			//endTime, err := parseTime(item.SelectAttr("end").Value)
+			//if err != nil {
+			//	return "", err
+			//}
 			lrcLines = append(lrcLines, strings.Join(lrcSyllables, "")+endTime)
 		}
 	}
@@ -1140,6 +1151,11 @@ func conventTTMLToLRC(ttml string) (string, error) {
 				return "", err
 			}
 			var text string
+			if len(parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata").FindElement("iTunesMetadata").FindElement("translations").FindElements("translation")) > 0 {
+			    xpath := fmt.Sprintf("//text[@for='%s']", lyric.SelectAttr("itunes:key").Value)
+			    trans := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata").FindElement("iTunesMetadata").FindElement("translations").FindElement("translation").FindElement(xpath)
+			    lyric = trans
+			}
 			if lyric.SelectAttr("text") == nil {
 				var textTmp []string
 				for _, span := range lyric.Child {
