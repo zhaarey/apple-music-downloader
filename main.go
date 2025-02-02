@@ -1046,11 +1046,14 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 	}
 	divs := parsedTTML.FindElement("tt").FindElement("body").FindElements("div")
 	//get trans
-	iTunesMetadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata").FindElement("iTunesMetadata")
-	if len(iTunesMetadata.FindElements("translations")) > 0 {
-		if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
-	    		divs = iTunesMetadata.FindElement("translations").FindElements("translation")
-		}
+	Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
+	if len(Metadata.FindElements("iTunesMetadata")) > 0 {
+	    iTunesMetadata := Metadata.FindElement("iTunesMetadata")
+	    if len(iTunesMetadata.FindElements("translations")) > 0 {
+	    	if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
+	            divs = iTunesMetadata.FindElement("translations").FindElements("translation")
+	    	}
+    	    }
 	}
 	
 	for _, div := range divs {
@@ -1155,13 +1158,16 @@ func conventTTMLToLRC(ttml string) (string, error) {
 			}
 			var text string
 			//GET trans
-			iTunesMetadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata").FindElement("iTunesMetadata")
-			if len(iTunesMetadata.FindElements("translations")) > 0 {
-				if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
-			    		xpath := fmt.Sprintf("//text[@for='%s']", lyric.SelectAttr("itunes:key").Value)
-			   		 trans := iTunesMetadata.FindElement("translations").FindElement("translation").FindElement(xpath)
-			    		lyric = trans
-				}
+	                Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
+	                if len(Metadata.FindElements("iTunesMetadata")) > 0 {
+			    iTunesMetadata := Metadata.FindElement("iTunesMetadata")
+			    if len(iTunesMetadata.FindElements("translations")) > 0 {
+			    	if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
+			            xpath := fmt.Sprintf("//text[@for='%s']", lyric.SelectAttr("itunes:key").Value)
+			       	    trans := iTunesMetadata.FindElement("translations").FindElement("translation").FindElement(xpath)
+			            lyric = trans
+			    	}
+			    }
 			}
 			if lyric.SelectAttr("text") == nil {
 				var textTmp []string
