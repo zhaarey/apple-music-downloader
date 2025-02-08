@@ -1183,14 +1183,14 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 	//get trans
 	Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
 	if len(Metadata.FindElements("iTunesMetadata")) > 0 {
-	    iTunesMetadata := Metadata.FindElement("iTunesMetadata")
-	    if len(iTunesMetadata.FindElements("translations")) > 0 {
-	    	if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
-	            divs = iTunesMetadata.FindElement("translations").FindElements("translation")
-	    	}
-    	    }
+		iTunesMetadata := Metadata.FindElement("iTunesMetadata")
+		if len(iTunesMetadata.FindElements("translations")) > 0 {
+			if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
+				divs = iTunesMetadata.FindElement("translations").FindElements("translation")
+			}
+		}
 	}
-	
+
 	for _, div := range divs {
 		for _, item := range div.ChildElements() {
 			var lrcSyllables []string
@@ -1293,16 +1293,16 @@ func conventTTMLToLRC(ttml string) (string, error) {
 			}
 			var text string
 			//GET trans
-	                Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
-	                if len(Metadata.FindElements("iTunesMetadata")) > 0 {
-			    iTunesMetadata := Metadata.FindElement("iTunesMetadata")
-			    if len(iTunesMetadata.FindElements("translations")) > 0 {
-			    	if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
-			            xpath := fmt.Sprintf("//text[@for='%s']", lyric.SelectAttr("itunes:key").Value)
-			       	    trans := iTunesMetadata.FindElement("translations").FindElement("translation").FindElement(xpath)
-			            lyric = trans
-			    	}
-			    }
+			Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
+			if len(Metadata.FindElements("iTunesMetadata")) > 0 {
+				iTunesMetadata := Metadata.FindElement("iTunesMetadata")
+				if len(iTunesMetadata.FindElements("translations")) > 0 {
+					if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
+						xpath := fmt.Sprintf("//text[@for='%s']", lyric.SelectAttr("itunes:key").Value)
+						trans := iTunesMetadata.FindElement("translations").FindElement("translation").FindElement(xpath)
+						lyric = trans
+					}
+				}
 			}
 			if lyric.SelectAttr("text") == nil {
 				var textTmp []string
@@ -1560,7 +1560,13 @@ func extractMedia(b string) (string, error) {
 					fmt.Printf("Debug: Found Dolby Atmos variant - %s (Bitrate: %d kbps)\n",
 						variant.Audio, variant.Bandwidth/1000)
 				}
-				if int(variant.Bandwidth)/1000 <= Config.AtmosMax {
+				split := strings.Split(variant.Audio, "-")
+				length := len(split)
+				length_int, err := strconv.Atoi(split[length-1])
+				if err != nil {
+					return "", err
+				}
+				if length_int <= Config.AtmosMax {
 					if !debug_mode {
 						fmt.Printf("%s\n", variant.Audio)
 					}
