@@ -1079,12 +1079,12 @@ func main() {
 		fmt.Println("Options:")
 		pflag.PrintDefaults()
 	}
-	Config.AlacMax = *alac_max
-	Config.AtmosMax = *atmos_max
-	Config.AacType = *aac_type
 
 	// Parse the flag arguments
 	pflag.Parse()
+	Config.AlacMax = *alac_max
+	Config.AtmosMax = *atmos_max
+	Config.AacType = *aac_type
 
 	args := pflag.Args()
 	if len(args) == 0 {
