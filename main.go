@@ -100,6 +100,16 @@ func checkUrl(url string) (string, string) {
 		return matches[0][1], matches[0][2]
 	}
 }
+func checkUrlSong(url string) (string, string) {
+	pat := regexp.MustCompile(`^(?:https:\/\/(?:beta\.music|music)\.apple\.com\/(\w{2})(?:\/song|\/song\/.+))\/(?:id)?(\d[^\D]+)(?:$|\?)`)
+	matches := pat.FindAllStringSubmatch(url, -1)
+
+	if matches == nil {
+		return "", ""
+	} else {
+		return matches[0][1], matches[0][2]
+	}
+}
 func checkUrlPlaylist(url string) (string, string) {
 	pat := regexp.MustCompile(`^(?:https:\/\/(?:beta\.music|music)\.apple\.com\/(\w{2})(?:\/playlist|\/playlist\/.+))\/(?:id)?(pl\.[\w-]+)(?:$|\?)`)
 	matches := pat.FindAllStringSubmatch(url, -1)
@@ -120,6 +130,18 @@ func checkUrlArtist(url string) (string, string) {
 	} else {
 		return matches[0][1], matches[0][2]
 	}
+}
+func getUrlSong(songUrl string, token string) (string, error) {
+	storefront, songId := checkUrlSong(songUrl)
+	manifest, err := getInfoFromAdam(songId, token, storefront)
+	if err != nil {
+		fmt.Println("\u26A0 Failed to get manifest:", err)
+		counter.NotSong++
+		return "", err
+	}
+	albumId := manifest.Relationships.Albums.Data[0].ID
+	songAlbumUrl := fmt.Sprintf("https://music.apple.com/%s/album/1/%s?i=%s", storefront, albumId, songId)
+	return songAlbumUrl, nil
 }
 func getUrlArtistName(artistUrl string, token string) (string, error) {
 	storefront, artistId := checkUrlArtist(artistUrl)
@@ -1093,6 +1115,13 @@ func main() {
 		for albumNum, urlRaw := range os.Args {
 			fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
 			var storefront, albumId string
+			if strings.Contains(urlRaw, "/song/") {
+				urlRaw, err = getUrlSong(urlRaw, token)
+				dl_song = true
+				if err != nil {
+					fmt.Println("Failed to get Song info.")
+				}
+			}
 			if strings.Contains(urlRaw, "/playlist/") {
 				storefront, albumId = checkUrlPlaylist(urlRaw)
 			} else {
@@ -1502,12 +1531,17 @@ func extractMedia(b string) (string, error) {
 					fmt.Printf("Debug: Found Dolby Atmos variant - %s (Bitrate: %d kbps)\n",
 						variant.Audio, variant.Bandwidth/1000)
 				}
-				streamUrlTemp, err := masterUrl.Parse(variant.URI)
-				if err != nil {
-					return "", err
+				if int(variant.Bandwidth)/1000 <= Config.AtmosMax {
+					if !debug_mode {
+						fmt.Printf("%s\n", variant.Audio)
+					}
+					streamUrlTemp, err := masterUrl.Parse(variant.URI)
+					if err != nil {
+						return "", err
+					}
+					streamUrl = streamUrlTemp
+					break
 				}
-				streamUrl = streamUrlTemp
-				break
 			} else if variant.Codecs == "ac-3" { // Add Dolby Audio support
 				if debug_mode {
 					fmt.Printf("Debug: Found Dolby Audio variant - %s (Bitrate: %d kbps)\n",
@@ -1528,6 +1562,9 @@ func extractMedia(b string) (string, error) {
 				aacregex := regexp.MustCompile(`audio-stereo-\d+`)
 				replaced := aacregex.ReplaceAllString(variant.Audio, "aac")
 				if replaced == Config.AacType {
+					if !debug_mode {
+						fmt.Printf("%s\n", variant.Audio)
+					}
 					streamUrlTemp, err := masterUrl.Parse(variant.URI)
 					if err != nil {
 						panic(err)
@@ -1545,6 +1582,9 @@ func extractMedia(b string) (string, error) {
 					return "", err
 				}
 				if length_int <= Config.AlacMax {
+					if !debug_mode {
+						fmt.Printf("%s-bit / %s Hz\n", split[length-1], split[length-2])
+					}
 					streamUrlTemp, err := masterUrl.Parse(variant.URI)
 					if err != nil {
 						panic(err)

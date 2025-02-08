@@ -19,7 +19,7 @@ get-m3u8-port: "127.0.0.1:20020"
 get-m3u8-from-device: true
 #set 'all' to retrieve all m3u8, and set 'hires' to only detect hires m3u8.
 get-m3u8-mode: hires # all hires
-aac-type: aac-lc # aac-lc aac aac-binaural aac-downmix
+aac-type: aac # aac-lc aac aac-binaural aac-downmix
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
 limit-max: 200
