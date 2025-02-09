@@ -960,7 +960,6 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 			continue
 		}
 		if isInArray(selected, trackNum) {
-			counter.Total++
 			downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, &counter)
 		}
 	}
