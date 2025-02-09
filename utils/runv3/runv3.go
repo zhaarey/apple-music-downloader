@@ -106,7 +106,7 @@ func AfterRequest(Response *requests.Response) ([]byte, error) {
 	}
 	return License, nil
 }
-func getWebplayback(adamId string, authtoken string, mutoken string) (string, string, error) {
+func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool) (string, string, error) {
 	url := "https://play.music.apple.com/WebObjects/MZPlay.woa/wa/webPlayback"
 	postData := map[string]string{
 		"salableAdamId": adamId,
@@ -144,6 +144,9 @@ func getWebplayback(adamId string, authtoken string, mutoken string) (string, st
 		fmt.Println("json err:", err)
 		return "", "", err
 	}
+	if mvmode {
+		return obj.List[0].HlsPlaylistUrl, "", nil
+	}
 	if len(obj.List) > 0 {
 		// 遍历 Assets
 		for i, _ := range obj.List[0].Assets {
@@ -162,6 +165,7 @@ func getWebplayback(adamId string, authtoken string, mutoken string) (string, st
 type Songlist struct {
 	List []struct {
 		Hlsurl string `json:"hls-key-cert-url"`
+		HlsPlaylistUrl string `json:"hls-playlist-url"`
 		Assets []struct {
 			Flavor string `json:"flavor"`
 			URL string `json:"URL"`
@@ -235,11 +239,21 @@ func extsong(b string)(bytes.Buffer){
 	io.Copy(io.MultiWriter(&buffer, bar), resp.Body)
 	return buffer
 }
-func Run(adamId string, trackpath string, authtoken string, mutoken string)(error) {
-
-	fileurl, kidBase64, err := getWebplayback(adamId, authtoken, mutoken)
-	if err != nil {
-		return err
+func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmode bool)(string, error) {
+	var keystr string   //for mv key
+	var fileurl string
+	var kidBase64 string
+	var err error
+	if mvmode {
+		kidBase64, _, err = extractKidBase64(trackpath)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		fileurl, kidBase64, err = GetWebplayback(adamId, authtoken, mutoken, false)
+		if err != nil {
+			return "", err
+		}
 	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, "pssh", kidBase64)
@@ -248,7 +262,7 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string)(erro
 	//fmt.Println(pssh)
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return "", err
 	}
 	headers := map[string]interface{}{
 		"authorization": "Bearer " + authtoken,
@@ -263,10 +277,13 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string)(erro
 		AfterRequest:  AfterRequest,
 	}
 	key.CdmInit()
-	_, keybt, err := key.GetKey(ctx, "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense", pssh, nil)
+	keystr, keybt, err := key.GetKey(ctx, "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense", pssh, nil)
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return "", err
+	}
+	if mvmode {
+		return keystr, nil
 	}
 	body := extsong(fileurl)
 	fmt.Print("Downloaded\n")
@@ -276,7 +293,7 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string)(erro
 	err = DecryptMP4(&body, keybt, &buffer)
 	if err != nil {
 		fmt.Print("Decryption failed\n")
-		return err
+		return "", err
 	} else {
 		fmt.Print("Decrypted\n")
 	}
@@ -284,16 +301,16 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string)(erro
 	ofh, err := os.Create(trackpath)
 	if err != nil {
 		fmt.Printf("创建文件失败: %v\n", err)
-		return err
+		return "", err
 	}
 	defer ofh.Close()
 
 	_, err = ofh.Write(buffer.Bytes())
 	if err != nil {
 		fmt.Printf("写入文件失败: %v\n", err)
-		return err
+		return "", err
 	}
-	return nil
+	return "", nil
 }
 // DecryptMP4Auto decrypts a fragmented MP4 file with the set of keys retreived from the widevice license
 // by automatically selecting the appropriate key. Supports CENC and CBCS schemes.
