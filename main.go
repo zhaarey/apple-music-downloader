@@ -400,7 +400,7 @@ func writeCover(sanAlbumFolder, name string, url string) error {
 		return err
 	}
 	if exists {
-		return nil
+		_ = os.Remove(covPath)
 	}
 	if Config.CoverFormat == "png" {
 		re := regexp.MustCompile(`\{w\}x\{h\}`)
@@ -970,7 +970,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 			continue
 		}
 		if isInArray(selected, trackNum) {
-			counter.Total++
+			//counter.Total++
 			downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, &counter)
 		}
 	}
@@ -1167,10 +1167,9 @@ func main() {
 		counter = structs.Counter{}
 	}
 }
-
 func mvDownloader(adamID string, saveDir string, token string, mediaUserToken string)(error){
-	vidPath := filepath.Join(saveDir, fmt.Sprintf("%s.mp4", adamID))
-	audPath := filepath.Join(saveDir, fmt.Sprintf("%s.m4a", adamID))
+	vidPath := filepath.Join(saveDir, fmt.Sprintf("%s_vid.mp4", adamID))
+	audPath := filepath.Join(saveDir, fmt.Sprintf("%s_aud.mp4", adamID))
 	mvOutPath := filepath.Join(saveDir, fmt.Sprintf("%s.mkv", adamID))
 	exists, _ := fileExists(mvOutPath)
 	if exists {
@@ -1183,33 +1182,28 @@ func mvDownloader(adamID string, saveDir string, token string, mediaUserToken st
 	audiom3u8url, _ := extractMvAudio(mvm3u8url)
 	//fmt.Println(videom3u8url)
 	//fmt.Println(audiom3u8url)
-	videokey, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true)
-	audiokey, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true)
-	//fmt.Println(videokey)
-	//fmt.Println(audiokey)
-	cmd1 := exec.Command("n-m3u8dl-re", videom3u8url, "--key", videokey, "--decryption-engine", "MP4DECRYPT", "--save-dir", saveDir, "--save-name", adamID)
-	cmd2 := exec.Command("n-m3u8dl-re", audiom3u8url, "--key", audiokey, "--decryption-engine", "MP4DECRYPT", "--save-dir", saveDir, "--save-name", adamID)
-	cmd3 := exec.Command("MP4Box", "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
-	fmt.Printf("MVvid Downloading...")
-	if err := cmd1.Run(); err != nil {
-		fmt.Printf("MVvid Download failed: %v\n", err)
-		return err
-	}
-	fmt.Printf("\rMVvid Downloaded.    \n")
-	fmt.Printf("MVaud Downloading...")
-	if err := cmd2.Run(); err != nil {
-		fmt.Printf("MVaud Download failed: %v\n", err)
-		return err
-	}
-	fmt.Printf("\rMVaud Downloaded.    \n")
+
+	videokeyAndUrls, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true)
+	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true)
+	//fmt.Println(videokeyAndUrls)
+	//fmt.Println(audiokeyAndUrls)
+
+	fmt.Println("MV-VIDEO")
+	_ = runv3.ExtMvData(videokeyAndUrls, vidPath)
+
+	fmt.Println("MV-AUDIO")
+	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
+
+	muxCmd := exec.Command("MP4Box", "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
 	fmt.Printf("MV Remuxing...")
-	if err := cmd3.Run(); err != nil {
+	if err := muxCmd.Run(); err != nil {
 		fmt.Printf("MV mux failed: %v\n", err)
 		return err
 	}
 	fmt.Printf("\rMV Remuxed.   \n")
 	_ = os.Remove(vidPath)
 	_ = os.Remove(audPath)
+
 	return nil
 }
 
