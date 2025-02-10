@@ -1188,6 +1188,7 @@ func mvDownloader(adamID string, saveDir string, token string, mediaUserToken st
 	//fmt.Println(videokeyAndUrls)
 	//fmt.Println(audiokeyAndUrls)
 
+	os.MkdirAll(saveDir, os.ModePerm)
 	fmt.Println("MV-VIDEO")
 	_ = runv3.ExtMvData(videokeyAndUrls, vidPath)
 

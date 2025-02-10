@@ -210,7 +210,7 @@ func extractKidBase64(b string, mvmode bool) (string, string, error) {
 			if mvmode {
 				for _, segment := range mediaPlaylist.Segments {
 					if segment != nil {
-						fmt.Println("Extracted URI:", segment.URI)
+						//fmt.Println("Extracted URI:", segment.URI)
 						urlBuilder.WriteString(";")
         					urlBuilder.WriteString(b[:lastSlashIndex])
         					urlBuilder.WriteString("/")
@@ -370,10 +370,10 @@ func ExtMvData (keyAndUrls string, savePath string)(error) {
 	fmt.Println("\nDownloaded.")
 
 	cmd1 := exec.Command("mp4decrypt", "--key", key, tempFile.Name(), savePath)
-	//outlog, err := cmd1.CombinedOutput()
-	if  err := cmd1.Run(); err != nil {
+	outlog, err := cmd1.CombinedOutput()
+	if err != nil {
 		fmt.Printf("Decrypt failed: %v\n", err)
-		//fmt.Printf("Output:\n%s\n", outlog)
+		fmt.Printf("Output:\n%s\n", outlog)
 		return err
 	} else {
 		fmt.Println("Decrypted.")
