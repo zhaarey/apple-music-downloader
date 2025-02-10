@@ -4,7 +4,6 @@ go 1.23.1
 
 require (
 	github.com/Eyevinn/mp4ff v0.46.0
-	github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1
 	github.com/gospider007/requests v0.0.0-20250114011338-9562a203fa04
 	github.com/grafov/m3u8 v0.11.1
@@ -74,6 +73,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
+	github.com/zhaarey/go-mp4tag v0.0.0-20250210082810-2486d83a2076 // indirect
 	go.mongodb.org/mongo-driver v1.17.2 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
