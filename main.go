@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Sorrow446/go-mp4tag"
+	"github.com/zhaarey/go-mp4tag"
 	"github.com/spf13/pflag"
 
 	"gopkg.in/yaml.v2"
@@ -993,7 +993,6 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 			continue
 		}
 		if isInArray(selected, trackNum) {
-			//counter.Total++
 			downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, &counter)
 		}
 	}

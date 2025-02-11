@@ -4,7 +4,6 @@ go 1.23.1
 
 require (
 	github.com/Eyevinn/mp4ff v0.46.0
-	github.com/Sorrow446/go-mp4tag v0.0.0-20240130220823-68ce31d53e37
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1
 	github.com/gospider007/requests v0.0.0-20250114011338-9562a203fa04
 	github.com/grafov/m3u8 v0.11.1
@@ -94,5 +93,6 @@ require (
 
 require (
 	github.com/beevik/etree v1.3.0
+	github.com/zhaarey/go-mp4tag v0.0.0-20250210094042-22578afc09bf
 	gopkg.in/yaml.v2 v2.2.8
 )
