@@ -20,8 +20,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zhaarey/go-mp4tag"
 	"github.com/spf13/pflag"
+	"github.com/zhaarey/go-mp4tag"
 
 	"gopkg.in/yaml.v2"
 

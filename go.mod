@@ -73,6 +73,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
+	github.com/zhaarey/go-mp4tag v0.0.0-20250210082810-2486d83a2076 // indirect
 	go.mongodb.org/mongo-driver v1.17.2 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
