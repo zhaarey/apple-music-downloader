@@ -64,7 +64,7 @@ func (w *Key) GetKey(ctx context.Context, licenseServerURL string, PSSH string, 
 
 	for _, key := range keys {
 		if key.Type == wv.License_KeyContainer_CONTENT {
-			// command += "--key " + hex.EncodeToString(key.ID) + ":" + hex.EncodeToString(key.Value)
+			//command += hex.EncodeToString(key.ID) + ":" + hex.EncodeToString(key.Value)
 			command += hex.EncodeToString(key.Value)
 			keybt = key.Value
 		}

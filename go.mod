@@ -94,5 +94,6 @@ require (
 
 require (
 	github.com/beevik/etree v1.3.0
+	github.com/zhaarey/go-mp4tag v0.0.0-20250210094042-22578afc09bf
 	gopkg.in/yaml.v2 v2.2.8
 )
