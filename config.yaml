@@ -42,3 +42,5 @@ apple-master-choice : "[M]"
 use-songinfo-for-playlist: false
 #if set true,will download album cover for playlist
 dl-albumcover-for-playlist: false
+mv-audio-type: atmos  #atmos ac3 aac
+mv-max: 2160

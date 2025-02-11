@@ -34,6 +34,8 @@ type ConfigSet struct {
 	LimitMax                int    `yaml:"limit-max"`
 	UseSongInfoForPlaylist  bool   `yaml:"use-songinfo-for-playlist"`
 	DlAlbumcoverForPlaylist bool   `yaml:"dl-albumcover-for-playlist"`
+	MVAudioType             string `yaml:"mv-audio-type"`
+	MVMax                   int    `yaml:"mv-max"`
 }
 
 type Counter struct {
