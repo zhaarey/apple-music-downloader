@@ -857,7 +857,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 	if dl_cover {
 		fmt.Println("Cover only mode - downloading artwork")
 		counter.Total++
-		
+
 		// Download album cover
 		err = writeCover(sanAlbumFolder, "cover", meta.Data[0].Attributes.Artwork.URL)
 		if err != nil {
@@ -937,7 +937,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 				}
 			}
 		}
-		
+
 		return nil
 	}
 
@@ -1752,6 +1752,9 @@ func extractMediaQuality(b string) (string, error) {
 		return "", errors.New("m3u8 not of master type")
 	}
 	master := from.(*m3u8.MasterPlaylist)
+	sort.Slice(master.Variants, func(i, j int) bool {
+		return master.Variants[i].AverageBandwidth > master.Variants[j].AverageBandwidth
+	})
 	if debug_mode {
 		fmt.Println("\nDebug: All Available Variants:")
 		fmt.Println("-----------------------------")
