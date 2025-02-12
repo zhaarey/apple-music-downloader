@@ -179,7 +179,7 @@ func getUrlArtistName(artistUrl string, token string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	return obj.Data[0].Attributes.Name, obj.Data[0].ID , nil
+	return obj.Data[0].Attributes.Name, obj.Data[0].ID, nil
 }
 
 func checkArtist(artistUrl string, token string, relationship string) ([]string, error) {
@@ -1262,13 +1262,12 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true)
 	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
 
-
 	//tags
 	tags := []string{
 		"tool=",
 		fmt.Sprintf("artist=%s", MVInfo.Data[0].Attributes.ArtistName),
 		fmt.Sprintf("title=%s", MVInfo.Data[0].Attributes.Name),
-		fmt.Sprintf("genre=%s", MVInfo.Data[0].Attributes.GenreNames),
+		fmt.Sprintf("genre=%s", MVInfo.Data[0].Attributes.GenreNames[0]),
 		fmt.Sprintf("created=%s", MVInfo.Data[0].Attributes.ReleaseDate),
 		fmt.Sprintf("ISRC=%s", MVInfo.Data[0].Attributes.Isrc),
 	}
@@ -1286,7 +1285,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	var trackTotal int
 	var trackNum int
 	var index int
-	if meta !=nil {
+	if meta != nil {
 		trackTotal = len(meta.Data[0].Relationships.Tracks.Data)
 		for i, track := range meta.Data[0].Relationships.Tracks.Data {
 			if adamID == track.ID {
