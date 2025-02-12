@@ -869,28 +869,6 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video != "" {
 		fmt.Println("Found Animation Artwork.")
 
-		// Download tall version
-		motionvideoUrlTall, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailTall.Video)
-		if err != nil {
-			fmt.Println("no motion video tall.\n", err)
-		} else {
-			exists, err := fileExists(filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
-			if err != nil {
-				fmt.Println("Failed to check if animated artwork tall exists.")
-			}
-			if exists {
-				fmt.Println("Animated artwork tall already exists locally.")
-			} else {
-				fmt.Println("Animation Artwork Tall Downloading...")
-				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlTall, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
-				if err := cmd.Run(); err != nil {
-					fmt.Printf("animated artwork tall dl err: %v\n", err)
-				} else {
-					fmt.Println("Animation Artwork Tall Downloaded")
-				}
-			}
-		}
-
 		// Download square version
 		motionvideoUrlSquare, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video)
 		if err != nil {
@@ -914,16 +892,32 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 		}
 
 		if Config.EmbyAnimatedArtwork {
-			// Convert tall version to gif
-			cmd2 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder_tall.jpg"))
-			if err := cmd2.Run(); err != nil {
-				fmt.Printf("animated artwork tall to gif err: %v\n", err)
-			}
-
 			// Convert square version to gif
-			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder_square.jpg"))
+			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder.jpg"))
 			if err := cmd3.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
+			}
+		}
+
+		// Download tall version
+		motionvideoUrlTall, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailTall.Video)
+		if err != nil {
+			fmt.Println("no motion video tall.\n", err)
+		} else {
+			exists, err := fileExists(filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
+			if err != nil {
+				fmt.Println("Failed to check if animated artwork tall exists.")
+			}
+			if exists {
+				fmt.Println("Animated artwork tall already exists locally.")
+			} else {
+				fmt.Println("Animation Artwork Tall Downloading...")
+				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlTall, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
+				if err := cmd.Run(); err != nil {
+					fmt.Printf("animated artwork tall dl err: %v\n", err)
+				} else {
+					fmt.Println("Animation Artwork Tall Downloaded")
+				}
 			}
 		}
 	}
@@ -1931,7 +1925,7 @@ func extractVideo(c string) (string, error) {
 
 	video := from.(*m3u8.MasterPlaylist)
 
-	re := regexp.MustCompile(`_(\d+)x(\d+)_`)
+	re := regexp.MustCompile(`_(\d+)x(\d+)`)
 
 	var streamUrl *url.URL
 	sort.Slice(video.Variants, func(i, j int) bool {
