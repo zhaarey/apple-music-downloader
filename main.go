@@ -40,6 +40,7 @@ var (
 	dl_aac         bool
 	dl_select      bool
 	dl_song        bool
+	dl_cover       bool
 	artist_select  bool
 	debug_mode     bool
 	alac_max       *int
@@ -851,6 +852,95 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 	sanAlbumFolder := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolder, "_"))
 	os.MkdirAll(sanAlbumFolder, os.ModePerm)
 	fmt.Println(albumFolder)
+
+	// If cover-only mode is enabled, just download covers and animated artwork
+	if dl_cover {
+		fmt.Println("Cover only mode - downloading artwork")
+		counter.Total++
+		
+		// Download album cover
+		err = writeCover(sanAlbumFolder, "cover", meta.Data[0].Attributes.Artwork.URL)
+		if err != nil {
+			fmt.Println("Failed to write cover.")
+			counter.Error++
+		} else {
+			fmt.Println("Album cover downloaded successfully")
+			counter.Success++
+		}
+
+		// Download artist cover if enabled
+		if Config.SaveArtistCover && !(strings.Contains(albumId, "pl.")) {
+			if len(meta.Data[0].Relationships.Artists.Data) > 0 {
+				err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
+				if err != nil {
+					fmt.Println("Failed to write artist cover.")
+					counter.Error++
+				} else {
+					fmt.Println("Artist cover downloaded successfully")
+				}
+			}
+		}
+
+		// Download animated artwork if available and enabled
+		if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video != "" {
+			fmt.Println("Found Animation Artwork.")
+
+			// Download square version
+			motionvideoUrlSquare, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video)
+			if err != nil {
+				fmt.Println("No motion video square:", err)
+			} else {
+				exists, err := fileExists(filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"))
+				if err != nil {
+					fmt.Println("Failed to check if animated artwork square exists.")
+				}
+				if exists {
+					fmt.Println("Animated artwork square already exists locally.")
+				} else {
+					fmt.Println("Animation Artwork Square Downloading...")
+					cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlSquare, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"))
+					if err := cmd.Run(); err != nil {
+						fmt.Printf("Animated artwork square download failed: %v\n", err)
+					} else {
+						fmt.Println("Animation Artwork Square Downloaded")
+					}
+				}
+			}
+
+			if Config.EmbyAnimatedArtwork {
+				// Convert square version to gif
+				cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder.jpg"))
+				if err := cmd3.Run(); err != nil {
+					fmt.Printf("Animated artwork square to gif conversion failed: %v\n", err)
+				}
+			}
+
+			// Download tall version
+			motionvideoUrlTall, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailTall.Video)
+			if err != nil {
+				fmt.Println("No motion video tall:", err)
+			} else {
+				exists, err := fileExists(filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
+				if err != nil {
+					fmt.Println("Failed to check if animated artwork tall exists.")
+				}
+				if exists {
+					fmt.Println("Animated artwork tall already exists locally.")
+				} else {
+					fmt.Println("Animation Artwork Tall Downloading...")
+					cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlTall, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
+					if err := cmd.Run(); err != nil {
+						fmt.Printf("Animated artwork tall download failed: %v\n", err)
+					} else {
+						fmt.Println("Animation Artwork Tall Downloaded")
+					}
+				}
+			}
+		}
+		
+		return nil
+	}
+
 	//get artist cover
 	if Config.SaveArtistCover && !(strings.Contains(albumId, "pl.")) {
 		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
@@ -992,6 +1082,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 			downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, &counter)
 		}
 	}
+
 	return nil
 }
 
@@ -1096,10 +1187,11 @@ func main() {
 	pflag.BoolVar(&dl_song, "song", false, "Enable single song download mode")
 	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
 	pflag.BoolVar(&debug_mode, "debug", false, "Enable debug mode to show audio quality information")
+	pflag.BoolVar(&dl_cover, "cover", false, "Download only album covers and animated artwork")
 	alac_max = pflag.Int("alac-max", Config.AlacMax, "Specify the max quality for download alac")
 	atmos_max = pflag.Int("atmos-max", Config.AtmosMax, "Specify the max quality for download atmos")
-	aac_type = pflag.String("aac-type", Config.AacType, "Select AAC type, aac aac-binaural aac-downmix")
-	mv_audio_type = pflag.String("mv-audio-type", Config.MVAudioType, "Select MV audio type, atmos ac3 aac")
+	aac_type = pflag.String("aac-type", Config.AacType, "Select AAC type: aac, aac-binaural, aac-downmix")
+	mv_audio_type = pflag.String("mv-audio-type", Config.MVAudioType, "Select MV audio type: atmos, ac3, aac")
 	mv_max = pflag.Int("mv-max", Config.MVMax, "Specify the max quality for download MV")
 
 	// Custom usage message for help
