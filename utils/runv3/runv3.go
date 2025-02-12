@@ -355,7 +355,10 @@ func ExtMvData (keyAndUrls string, savePath string)(error) {
 			fmt.Printf("下载链接 %s 失败：%v\n", url, err)
 			return err
 		}
-
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("链接 %s 响应失败：%v\n", url, resp.Status)
+			return errors.New(resp.Status)
+		}
 		// 将响应体写入输出文件
 		_, err = io.Copy(barWriter, resp.Body)
 		defer resp.Body.Close() // 注意及时关闭响应体，避免资源泄露
