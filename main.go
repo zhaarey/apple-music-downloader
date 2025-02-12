@@ -1777,7 +1777,7 @@ func extractMediaQuality(b string) (string, error) {
 						fmt.Println(err)
 					}
 					KHZ := float64(HZ) / 1000.0
-					Quality = fmt.Sprintf("%sB-%skHz", bitDepth, KHZ)
+					Quality = fmt.Sprintf("%sB-%.1fkHz", bitDepth, KHZ)
 					break
 				}
 			}
