@@ -182,7 +182,7 @@ func getUrlArtistName(artistUrl string, token string) (string, string, error) {
 	return obj.Data[0].Attributes.Name, obj.Data[0].ID , nil
 }
 
-func checkArtist(artistUrl string, token string) ([]string, error) {
+func checkArtist(artistUrl string, token string, relationship string) ([]string, error) {
 	storefront, artistId := checkUrlArtist(artistUrl)
 	Num := 0
 
@@ -190,7 +190,7 @@ func checkArtist(artistUrl string, token string) ([]string, error) {
 	var urls []string
 	var options []string
 	for {
-		req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/artists/%s/albums?limit=100&offset=%d&l=%s", storefront, artistId, Num, Config.Language), nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/artists/%s/%s?limit=100&offset=%d&l=%s", storefront, artistId, relationship, Num, Config.Language), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +227,7 @@ func checkArtist(artistUrl string, token string) ([]string, error) {
 		return urls, nil
 	}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Please select from the following options (multiple options separated by commas, ranges supported, or type 'all' to select all)")
+	fmt.Println("Please select from the following " + relationship + " options (multiple options separated by commas, ranges supported, or type 'all' to select all)")
 	fmt.Print("Enter your choice: ")
 	input, _ := reader.ReadString('\n')
 
@@ -1142,12 +1142,17 @@ func main() {
 			"{UrlArtistName}", LimitString(urlArtistName),
 			"{ArtistId}", urlArtistID,
 		).Replace(Config.ArtistFolderFormat)
-		newArgs, err := checkArtist(os.Args[0], token)
+		albumArgs, err := checkArtist(os.Args[0], token, "albums")
 		if err != nil {
-			fmt.Println("Failed to get artist.")
+			fmt.Println("Failed to get artist albums.")
 			return
 		}
-		os.Args = newArgs
+		mvArgs, err := checkArtist(os.Args[0], token, "music-videos")
+		if err != nil {
+			fmt.Println("Failed to get artist music-videos.")
+			return
+		}
+		os.Args = append(albumArgs, mvArgs...)
 	}
 	albumTotal := len(os.Args)
 	for {
