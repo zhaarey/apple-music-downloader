@@ -234,7 +234,7 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 	//table.SetFooter([]string{"", "", "Total", "$146.93"})
 	//table.SetAutoMergeCells(true)
 	//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
-	table.SetRowLine(true)
+	table.SetRowLine(false)
 	//table.AppendBulk(options)
 	table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
 		tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
@@ -908,7 +908,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 		if err != nil {
 			fmt.Println("no motion video square.\n", err)
 		} else {
-			exists, err := fileExists(filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"))
+			exists, err := fileExists(filepath.Join(sanAlbumFolder, "square_animated_artwork.mp4"))
 			if err != nil {
 				fmt.Println("Failed to check if animated artwork square exists.")
 			}
@@ -916,7 +916,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 				fmt.Println("Animated artwork square already exists locally.")
 			} else {
 				fmt.Println("Animation Artwork Square Downloading...")
-				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlSquare, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"))
+				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlSquare, "-c", "copy", filepath.Join(sanAlbumFolder, "square_animated_artwork.mp4"))
 				if err := cmd.Run(); err != nil {
 					fmt.Printf("animated artwork square dl err: %v\n", err)
 				} else {
@@ -927,7 +927,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 
 		if Config.EmbyAnimatedArtwork {
 			// Convert square version to gif
-			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "animated_artwork_square.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder.jpg"))
+			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(sanAlbumFolder, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(sanAlbumFolder, "folder.jpg"))
 			if err := cmd3.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
 			}
@@ -938,7 +938,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 		if err != nil {
 			fmt.Println("no motion video tall.\n", err)
 		} else {
-			exists, err := fileExists(filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
+			exists, err := fileExists(filepath.Join(sanAlbumFolder, "tall_animated_artwork.mp4"))
 			if err != nil {
 				fmt.Println("Failed to check if animated artwork tall exists.")
 			}
@@ -946,7 +946,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 				fmt.Println("Animated artwork tall already exists locally.")
 			} else {
 				fmt.Println("Animation Artwork Tall Downloading...")
-				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlTall, "-c", "copy", filepath.Join(sanAlbumFolder, "animated_artwork_tall.mp4"))
+				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlTall, "-c", "copy", filepath.Join(sanAlbumFolder, "tall_animated_artwork.mp4"))
 				if err := cmd.Run(); err != nil {
 					fmt.Printf("animated artwork tall dl err: %v\n", err)
 				} else {
@@ -981,7 +981,54 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 	if !dl_select {
 		selected = arr
 	} else {
+		var data [][]string
+		for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
+			trackNum++
+			var trackName string
+			if meta.Data[0].Type == "albums" {
+				trackName = fmt.Sprintf("%02d. %s", track.Attributes.TrackNumber, track.Attributes.Name)
+			} else {
+				trackName = fmt.Sprintf("%s - %s", track.Attributes.Name, track.Attributes.ArtistName)
+			}
+			data = append(data, []string{fmt.Sprint(trackNum),
+				trackName,
+				track.Attributes.ContentRating,
+				track.Type})
 
+		}
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"", "Track Name", "Rating", "Type"})
+		//table.SetFooter([]string{"", "", "Footer", "Footer4"})
+		table.SetRowLine(false)
+		//table.SetAutoMergeCells(true)
+		table.SetCaption(meta.Data[0].Type == "albums", fmt.Sprintf("Storefront: %s, %d tracks missing", strings.ToUpper(storefront), meta.Data[0].Attributes.TrackCount -trackTotal))
+		table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
+			tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
+			tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
+			tablewriter.Colors{tablewriter.BgCyanColor, tablewriter.FgWhiteColor})
+
+		table.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+			tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiRedColor},
+			tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+			tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
+		for _, row := range data {
+			if row[2] == "explicit" {
+				row[2] = "E"
+			} else if row[2] == "clean" {
+				row[2] = "C"
+			} else {
+				row[2] = "None"
+			}
+			if row[3] == "music-videos" {
+				row[3] = "MV"
+			} else if row[3] == "songs" {
+				row[3] = "SONG"
+			}
+			table.Append(row)
+		}
+		//table.AppendBulk(data)
+		table.Render()
+		fmt.Println("Please select from the track options above (multiple options separated by commas, ranges supported, or type 'all' to select all)")
 		fmt.Print("select: ")
 		reader := bufio.NewReader(os.Stdin)
 		input, err := reader.ReadString('\n')
@@ -989,29 +1036,54 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 			fmt.Println(err)
 		}
 		input = strings.TrimSpace(input)
-		inputs := strings.Fields(input)
-
-		for _, str := range inputs {
-			num, err := strconv.Atoi(str)
-			if err != nil {
-				fmt.Printf("wrong '%s', skip...\n", str)
-				continue
-			}
-
-			found := false
-			for i := 0; i < len(arr); i++ {
-				if arr[i] == num {
-					selected = append(selected, num)
-					found = true
-					break
+		if input == "all" {
+			fmt.Println("You have selected all options:")
+			selected = arr
+		} else {
+			selectedOptions := [][]string{}
+			parts := strings.Split(input, ",")
+			for _, part := range parts {
+				if strings.Contains(part, "-") { // Range setting
+					rangeParts := strings.Split(part, "-")
+					selectedOptions = append(selectedOptions, rangeParts)
+				} else { // Single option
+					selectedOptions = append(selectedOptions, []string{part})
 				}
 			}
-
-			if !found {
-				fmt.Printf("Option '%d' not found or already selected, skipping...\n", num)
+			//
+			for _, opt := range selectedOptions {
+				if len(opt) == 1 { // Single option
+					num, err := strconv.Atoi(opt[0])
+					if err != nil {
+						fmt.Println("Invalid option:", opt[0])
+						continue
+					}
+					if num > 0 && num <= len(arr) {
+						selected = append(selected, num)
+						//args = append(args, urls[num-1])
+					} else {
+						fmt.Println("Option out of range:", opt[0])
+					}
+				} else if len(opt) == 2 { // Range
+					start, err1 := strconv.Atoi(opt[0])
+					end, err2 := strconv.Atoi(opt[1])
+					if err1 != nil || err2 != nil {
+						fmt.Println("Invalid range:", opt)
+						continue
+					}
+					if start < 1 || end > len(arr) || start > end {
+						fmt.Println("Range out of range:", opt)
+						continue
+					}
+					for i := start; i <= end; i++ {
+						//fmt.Println(options[i-1])
+						selected = append(selected, i)
+					}
+				} else {
+					fmt.Println("Invalid option:", opt)
+				}
 			}
 		}
-
 		fmt.Println("Selected options:", selected)
 	}
 	for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
