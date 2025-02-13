@@ -20,18 +20,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/pflag"
-	"github.com/zhaarey/go-mp4tag"
-
-	"gopkg.in/yaml.v2"
-
-	"github.com/beevik/etree"
-	"github.com/grafov/m3u8"
-
 	"main/utils/runv2"
 	"main/utils/structs"
-
 	"main/utils/runv3"
+
+	"github.com/spf13/pflag"
+	"github.com/zhaarey/go-mp4tag"
+	"gopkg.in/yaml.v2"
+	"github.com/beevik/etree"
+	"github.com/grafov/m3u8"
+	"github.com/olekukonko/tablewriter"
+
 )
 
 var (
@@ -185,10 +184,10 @@ func getUrlArtistName(artistUrl string, token string) (string, string, error) {
 func checkArtist(artistUrl string, token string, relationship string) ([]string, error) {
 	storefront, artistId := checkUrlArtist(artistUrl)
 	Num := 0
-
+	id := 1
 	var args []string
 	var urls []string
-	var options []string
+	var options [][]string
 	for {
 		req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/artists/%s/%s?limit=100&offset=%d&l=%s", storefront, artistId, relationship, Num, Config.Language), nil)
 		if err != nil {
@@ -212,22 +211,30 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 		}
 		for _, album := range obj.Data {
 			urls = append(urls, album.Attributes.URL)
-			options = append(options, fmt.Sprintf("%s(%s)", album.Attributes.Name, album.ID))
+			//strings.Join(album.Attributes.AudioTraits, ";")
+			options = append(options, []string{fmt.Sprintf("%d", id), album.Attributes.Name, album.Attributes.ReleaseDate, album.ID})
+			id += 1
 		}
 		Num = Num + 100
 		if len(obj.Next) == 0 {
 			break
 		}
 	}
-	for i, option := range options {
-		fmt.Printf("%02d: %s\n", i+1, option)
-	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"", "Name", "Date", "Album ID"})
+	//table.SetFooter([]string{"", "", "Total", "$146.93"})
+	//table.SetAutoMergeCells(true)
+	//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
+	table.SetRowLine(true)
+	table.AppendBulk(options)
+	table.Render()
 	if artist_select {
 		fmt.Println("You have selected all options:")
 		return urls, nil
 	}
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Please select from the following " + relationship + " options (multiple options separated by commas, ranges supported, or type 'all' to select all)")
+	fmt.Println("Please select from the " + relationship + " options above (multiple options separated by commas, ranges supported, or type 'all' to select all)")
 	fmt.Print("Enter your choice: ")
 	input, _ := reader.ReadString('\n')
 
@@ -714,7 +721,12 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 				needCheck = true
 			}
 			if needCheck {
-				m3u8Url, err = checkM3u8(track.ID, "song")
+				fullM3u8Url, err := checkM3u8(track.ID, "song")
+				if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8"){
+				    m3u8Url = fullM3u8Url
+				} else {
+					fmt.Println("Failed to get best quality m3u8 from device m3u8 port, will use m3u8 from Web API")
+				}
 			}
 
 			_, _, err = extractMedia(m3u8Url, true)
@@ -1677,12 +1689,20 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 	})
 	if debug_mode && more_mode {
 		fmt.Println("\nDebug: All Available Variants:")
-		fmt.Println("-----------------------------")
+		var data [][]string
 		for _, variant := range master.Variants {
-			fmt.Printf("Codec: %s, Audio: %s, Bandwidth: %d\n",
-				variant.Codecs, variant.Audio, variant.Bandwidth)
+		    data = append(data, []string{variant.Codecs, variant.Audio, fmt.Sprint(variant.Bandwidth)})
+			//fmt.Printf("Codec: %s, Audio: %s, Bandwidth: %d\n",
+				//variant.Codecs, variant.Audio, variant.Bandwidth)
 		}
-		fmt.Println("-----------------------------")
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"Codec", "Audio", "Bandwidth"})
+		//table.SetFooter([]string{"", "", "Total", "$146.93"})
+		table.SetAutoMergeCells(true)
+		//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
+		table.SetRowLine(true)
+		table.AppendBulk(data)
+		table.Render()
 
 		var hasAAC, hasLossless, hasHiRes, hasAtmos, hasDolbyAudio bool
 		var aacQuality, losslessQuality, hiResQuality, atmosQuality, dolbyAudioQuality string
