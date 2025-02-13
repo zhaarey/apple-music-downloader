@@ -51,6 +51,7 @@ require (
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/libdns/libdns v0.2.2 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mholt/acmez/v3 v3.0.0 // indirect
 	github.com/mholt/archives v0.1.0 // indirect
 	github.com/miekg/dns v1.1.62 // indirect
@@ -93,6 +94,7 @@ require (
 
 require (
 	github.com/beevik/etree v1.3.0
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/zhaarey/go-mp4tag v0.0.0-20250210094042-22578afc09bf
 	gopkg.in/yaml.v2 v2.2.8
 )

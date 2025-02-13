@@ -6,7 +6,7 @@ lrc-format: "lrc"   #lrc or ttml
 embed-lrc: true     #Unable to embed ttml lyrics
 save-lrc-file: false
 save-artist-cover: false
-save-animated-artwork: false    # If enabled, requires ffmpeg
+save-animated-artwork: true    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
 embed-cover: true
 cover-size: 5000x5000
@@ -33,7 +33,7 @@ playlist-folder-format: "{PlaylistName}"
 song-file-format: "{SongNumer}. {SongName}"
 #{ArtistId} {ArtistName}/{UrlArtistName}
 #if artist-folder-format set "",will not make artist folder
-artist-folder-format: "{ArtistName}"
+artist-folder-format: "{UrlArtistName}"
 #if set "" will not add tag
 explicit-choice : "[E]"
 clean-choice : "[C]"
