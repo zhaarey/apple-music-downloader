@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"main/utils/runv2"
 	"main/utils/structs"
@@ -184,7 +185,7 @@ func getUrlArtistName(artistUrl string, token string) (string, string, error) {
 func checkArtist(artistUrl string, token string, relationship string) ([]string, error) {
 	storefront, artistId := checkUrlArtist(artistUrl)
 	Num := 0
-	id := 1
+	//id := 1
 	var args []string
 	var urls []string
 	var options [][]string
@@ -210,24 +211,45 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 			return nil, err
 		}
 		for _, album := range obj.Data {
-			urls = append(urls, album.Attributes.URL)
-			//strings.Join(album.Attributes.AudioTraits, ";")
-			options = append(options, []string{fmt.Sprintf("%d", id), album.Attributes.Name, album.Attributes.ReleaseDate, album.ID})
-			id += 1
+			options = append(options, []string{album.Attributes.Name, album.Attributes.ReleaseDate, album.ID, album.Attributes.URL})
 		}
 		Num = Num + 100
 		if len(obj.Next) == 0 {
 			break
 		}
 	}
+	sort.Slice(options, func(i, j int) bool {
+		// 将日期字符串解析为 time.Time 类型进行比较
+		dateI, _ := time.Parse("2006-01-02", options[i][1])
+		dateJ, _ := time.Parse("2006-01-02", options[j][1])
+		return dateI.Before(dateJ) // 返回 true 表示 i 在 j 前面
+	})
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"", "Name", "Date", "Album ID"})
+	if relationship == "albums" {
+		table.SetHeader([]string{"", "Album Name", "Date", "Album ID"})
+	}else if relationship == "music-videos" {
+		table.SetHeader([]string{"", "MV Name", "Date", "MV ID"})
+	}
 	//table.SetFooter([]string{"", "", "Total", "$146.93"})
 	//table.SetAutoMergeCells(true)
 	//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
 	table.SetRowLine(true)
-	table.AppendBulk(options)
+	//table.AppendBulk(options)
+	table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
+		tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
+		tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
+		tablewriter.Colors{tablewriter.BgCyanColor, tablewriter.FgWhiteColor})
+
+	table.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiRedColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
+	for i, v := range options {
+		urls = append(urls, v[3])
+		options[i] = append([]string{fmt.Sprint(i + 1)}, v[:3]...)
+		table.Append(options[i])
+	}
 	table.Render()
 	if artist_select {
 		fmt.Println("You have selected all options:")
