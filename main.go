@@ -1342,7 +1342,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 			tags = append(tags, fmt.Sprintf("album=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.AlbumName))
 			tags = append(tags, fmt.Sprintf("disk=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.DiscNumber, meta.Data[0].Relationships.Tracks.Data[trackTotal-1].Attributes.DiscNumber))
 			tags = append(tags, fmt.Sprintf("track=%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber))
-			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber, trackTotal))
+			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", meta.Data[0].Relationships.Tracks.Data[index].Attributes.TrackNumber, meta.Data[0].Attributes.TrackCount))
 			tags = append(tags, fmt.Sprintf("album_artist=%s", meta.Data[0].Attributes.ArtistName))
 			tags = append(tags, fmt.Sprintf("performer=%s", meta.Data[0].Relationships.Tracks.Data[index].Attributes.ArtistName))
 			tags = append(tags, fmt.Sprintf("copyright=%s", meta.Data[0].Attributes.Copyright))
