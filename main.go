@@ -1265,9 +1265,28 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		fmt.Println("\u26A0 Failed to get MV manifest:", err)
 		return nil
 	}
+
+	//获取传入的专辑信息当中该mv所在的位置
+	var trackTotal int
+	var trackNum int
+	var index int
+	if meta != nil {
+		trackTotal = len(meta.Data[0].Relationships.Tracks.Data)
+		for i, track := range meta.Data[0].Relationships.Tracks.Data {
+			if adamID == track.ID {
+				index = i
+				trackNum = i + 1
+			}
+		}
+	}
+
 	vidPath := filepath.Join(saveDir, fmt.Sprintf("%s_vid.mp4", adamID))
 	audPath := filepath.Join(saveDir, fmt.Sprintf("%s_aud.mp4", adamID))
-	mvOutPath := filepath.Join(saveDir, fmt.Sprintf("%s.mp4", forbiddenNames.ReplaceAllString(MVInfo.Data[0].Attributes.Name, "_")))
+	mvSaveName := MVInfo.Data[0].Attributes.Name
+	if meta != nil {
+		mvSaveName = fmt.Sprintf("%02d. %s", trackNum, MVInfo.Data[0].Attributes.Name)
+	}
+	mvOutPath := filepath.Join(saveDir, fmt.Sprintf("%s.mp4", forbiddenNames.ReplaceAllString(mvSaveName, "_")))
 
 	fmt.Println(MVInfo.Data[0].Attributes.Name)
 
@@ -1308,19 +1327,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		tags = append(tags, "rating=0")
 	}
 
-	//获取传入的专辑信息当中该mv所在的位置
-	var trackTotal int
-	var trackNum int
-	var index int
-	if meta != nil {
-		trackTotal = len(meta.Data[0].Relationships.Tracks.Data)
-		for i, track := range meta.Data[0].Relationships.Tracks.Data {
-			if adamID == track.ID {
-				index = i
-				trackNum = i + 1
-			}
-		}
-	}
 	//根据情况额外添加可使用的tags
 	if meta != nil {
 		if meta.Data[0].Type == "playlists" && !Config.UseSongInfoForPlaylist {
