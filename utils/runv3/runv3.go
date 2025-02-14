@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"file/filepath"
+	"path/filepath"
 	"github.com/gospider007/requests"
 	"google.golang.org/protobuf/proto"
 
