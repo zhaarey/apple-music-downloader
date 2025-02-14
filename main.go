@@ -31,6 +31,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/zhaarey/go-mp4tag"
 	"gopkg.in/yaml.v2"
+	"github.com/fatih/color"
 )
 
 var (
@@ -235,14 +236,14 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 	//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
 	table.SetRowLine(false)
 	//table.AppendBulk(options)
-	table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
-		tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
-		tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
-		tablewriter.Colors{tablewriter.BgCyanColor, tablewriter.FgWhiteColor})
+	table.SetHeaderColor(tablewriter.Colors{},
+		tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
 
-	table.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
-		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiRedColor},
-		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+	table.SetColumnColor(tablewriter.Colors{tablewriter.FgCyanColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgRedColor},
+		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
 	for i, v := range options {
 		urls = append(urls, v[3])
@@ -256,7 +257,8 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 	}
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Please select from the " + relationship + " options above (multiple options separated by commas, ranges supported, or type 'all' to select all)")
-	fmt.Print("Enter your choice: ")
+	cyanColor := color.New(color.FgCyan)
+	cyanColor.Print("Enter your choice: ")
 	input, _ := reader.ReadString('\n')
 
 	// Remove newline and whitespace
@@ -1001,14 +1003,14 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 		table.SetRowLine(false)
 		//table.SetAutoMergeCells(true)
 		table.SetCaption(meta.Data[0].Type == "albums", fmt.Sprintf("Storefront: %s, %d tracks missing", strings.ToUpper(storefront), meta.Data[0].Attributes.TrackCount-trackTotal))
-		table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
-			tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
-			tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
-			tablewriter.Colors{tablewriter.BgCyanColor, tablewriter.FgWhiteColor})
+		table.SetHeaderColor(tablewriter.Colors{},
+			tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold},
+			tablewriter.Colors{tablewriter.FgBlackColor, tablewriter.Bold},
+			tablewriter.Colors{tablewriter.FgBlackColor, tablewriter.Bold})
 
-		table.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
-			tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiRedColor},
-			tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+		table.SetColumnColor(tablewriter.Colors{tablewriter.FgCyanColor},
+			tablewriter.Colors{tablewriter.Bold, tablewriter.FgRedColor},
+			tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor},
 			tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
 		for _, row := range data {
 			if row[2] == "explicit" {
@@ -1028,7 +1030,8 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 		//table.AppendBulk(data)
 		table.Render()
 		fmt.Println("Please select from the track options above (multiple options separated by commas, ranges supported, or type 'all' to select all)")
-		fmt.Print("select: ")
+		cyanColor := color.New(color.FgCyan)
+		cyanColor.Print("select: ")
 		reader := bufio.NewReader(os.Stdin)
 		input, err := reader.ReadString('\n')
 		if err != nil {
