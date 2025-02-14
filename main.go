@@ -22,16 +22,15 @@ import (
 	"time"
 
 	"main/utils/runv2"
-	"main/utils/structs"
 	"main/utils/runv3"
+	"main/utils/structs"
 
-	"github.com/spf13/pflag"
-	"github.com/zhaarey/go-mp4tag"
-	"gopkg.in/yaml.v2"
 	"github.com/beevik/etree"
 	"github.com/grafov/m3u8"
 	"github.com/olekukonko/tablewriter"
-
+	"github.com/spf13/pflag"
+	"github.com/zhaarey/go-mp4tag"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -228,7 +227,7 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 	table := tablewriter.NewWriter(os.Stdout)
 	if relationship == "albums" {
 		table.SetHeader([]string{"", "Album Name", "Date", "Album ID"})
-	}else if relationship == "music-videos" {
+	} else if relationship == "music-videos" {
 		table.SetHeader([]string{"", "MV Name", "Date", "MV ID"})
 	}
 	//table.SetFooter([]string{"", "", "Total", "$146.93"})
@@ -744,8 +743,8 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 			}
 			if needCheck {
 				fullM3u8Url, err := checkM3u8(track.ID, "song")
-				if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8"){
-				    m3u8Url = fullM3u8Url
+				if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8") {
+					m3u8Url = fullM3u8Url
 				} else {
 					fmt.Println("Failed to get best quality m3u8 from device m3u8 port, will use m3u8 from Web API")
 				}
@@ -1001,7 +1000,7 @@ func rip(albumId string, token string, storefront string, mediaUserToken string,
 		//table.SetFooter([]string{"", "", "Footer", "Footer4"})
 		table.SetRowLine(false)
 		//table.SetAutoMergeCells(true)
-		table.SetCaption(meta.Data[0].Type == "albums", fmt.Sprintf("Storefront: %s, %d tracks missing", strings.ToUpper(storefront), meta.Data[0].Attributes.TrackCount -trackTotal))
+		table.SetCaption(meta.Data[0].Type == "albums", fmt.Sprintf("Storefront: %s, %d tracks missing", strings.ToUpper(storefront), meta.Data[0].Attributes.TrackCount-trackTotal))
 		table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
 			tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
 			tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
@@ -1369,6 +1368,9 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	}
 
 	mvm3u8url, _, _ := runv3.GetWebplayback(adamID, token, mediaUserToken, true)
+	if mvm3u8url == "" {
+		return errors.New("media-user-token may wrong or expired.")
+	}
 
 	os.MkdirAll(saveDir, os.ModePerm)
 	//video
@@ -1428,6 +1430,26 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		//tags = append(tags, fmt.Sprintf("album_artist=%s", MVInfo.Data[0].Attributes.ArtistName))
 		tags = append(tags, fmt.Sprintf("performer=%s", MVInfo.Data[0].Attributes.ArtistName))
 	}
+
+	// Extract and save thumbnail if enabled
+	if Config.SaveThumbnailImage {
+		// Get the highest quality thumbnail URL from the MV info
+		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
+		thumbURL = strings.Replace(thumbURL, "{w}x{h}", Config.CoverSize, 1)
+
+		// Generate base name without extension
+		baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
+
+		// Download and save thumbnail
+		err = writeCover(saveDir, baseThumbName, thumbURL)
+		if err != nil {
+			fmt.Println("Failed to save MV thumbnail:", err)
+		} else {
+			fmt.Println("MV thumbnail saved successfully")
+			tags = append(tags, fmt.Sprintf("cover=%s/%s.%s", saveDir, baseThumbName, Config.CoverFormat))
+		}
+	}
+
 	//mux and add tag
 	tagsString := strings.Join(tags, ":")
 	muxCmd := exec.Command("MP4Box", "-itags", tagsString, "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
@@ -1439,24 +1461,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	fmt.Printf("\rMV Remuxed.   \n")
 	defer os.Remove(vidPath)
 	defer os.Remove(audPath)
-
-	// Extract and save thumbnail if enabled
-	if Config.SaveThumbnailImage {
-		// Get the highest quality thumbnail URL from the MV info
-		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
-		thumbURL = strings.Replace(thumbURL, "{w}x{h}", Config.CoverSize, 1)
-		
-		// Generate base name without extension
-		baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
-		
-		// Download and save thumbnail
-		err = writeCover(saveDir, baseThumbName, thumbURL)
-		if err != nil {
-			fmt.Println("Failed to save MV thumbnail:", err)
-		} else {
-			fmt.Println("MV thumbnail saved successfully")
-		}
-	}
 
 	return nil
 }
@@ -1785,7 +1789,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 	}
 	resp, err := http.Get(b)
 	if err != nil {
-		return "", "",err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -1809,9 +1813,9 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 		fmt.Println("\nDebug: All Available Variants:")
 		var data [][]string
 		for _, variant := range master.Variants {
-		    data = append(data, []string{variant.Codecs, variant.Audio, fmt.Sprint(variant.Bandwidth)})
+			data = append(data, []string{variant.Codecs, variant.Audio, fmt.Sprint(variant.Bandwidth)})
 			//fmt.Printf("Codec: %s, Audio: %s, Bandwidth: %d\n",
-				//variant.Codecs, variant.Audio, variant.Bandwidth)
+			//variant.Codecs, variant.Audio, variant.Bandwidth)
 		}
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Codec", "Audio", "Bandwidth"})

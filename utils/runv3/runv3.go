@@ -4,25 +4,29 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+
 	"github.com/gospider007/requests"
 	"google.golang.org/protobuf/proto"
+
 	//"log/slog"
-	"os"
 	cdm "main/utils/runv3/cdm"
 	key "main/utils/runv3/key"
+	"os"
+
+	"bytes"
+	"errors"
+	"io"
 
 	"github.com/Eyevinn/mp4ff/mp4"
-	"bytes"
-	"io"
-	"errors"
 
 	//"io/ioutil"
-	"net/http"
 	"encoding/json"
-	"github.com/grafov/m3u8"
-	"strings"
-	"github.com/schollz/progressbar/v3"
+	"net/http"
 	"os/exec"
+	"strings"
+
+	"github.com/grafov/m3u8"
+	"github.com/schollz/progressbar/v3"
 )
 
 type PlaybackLicense struct {
@@ -32,24 +36,24 @@ type PlaybackLicense struct {
 	Status     int    `json:"status"`
 }
 
-// func log() {
-// 	f, err := os.OpenFile("log.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-// 	if err != nil {
-// 		slog.Error("error opening file: %s", err)
-// 	}
-// 	defer func(f *os.File) {
-// 		err := f.Close()
-// 		if err != nil {
-// 			slog.Error("error closing file: %s", err)
-// 		}
-// 	}(f)
-// 	opts := slog.HandlerOptions{
-// 		AddSource: true,
-// 		Level:     slog.LevelDebug,
-// 	}
-// 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &opts))
-// 	slog.SetDefault(logger)
-//}
+//	func log() {
+//		f, err := os.OpenFile("log.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+//		if err != nil {
+//			slog.Error("error opening file: %s", err)
+//		}
+//		defer func(f *os.File) {
+//			err := f.Close()
+//			if err != nil {
+//				slog.Error("error closing file: %s", err)
+//			}
+//		}(f)
+//		opts := slog.HandlerOptions{
+//			AddSource: true,
+//			Level:     slog.LevelDebug,
+//		}
+//		logger := slog.New(slog.NewJSONHandler(os.Stdout, &opts))
+//		slog.SetDefault(logger)
+//	}
 func getPSSH(contentId string, kidBase64 string) (string, error) {
 	kidBytes, err := base64.StdEncoding.DecodeString(kidBase64)
 	if err != nil {
@@ -145,10 +149,10 @@ func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool
 		fmt.Println("json err:", err)
 		return "", "", err
 	}
-	if mvmode {
-		return obj.List[0].HlsPlaylistUrl, "", nil
-	}
 	if len(obj.List) > 0 {
+		if mvmode {
+			return obj.List[0].HlsPlaylistUrl, "", nil
+		}
 		// 遍历 Assets
 		for i, _ := range obj.List[0].Assets {
 			if obj.List[0].Assets[i].Flavor == "28:ctrp256" {
@@ -163,15 +167,16 @@ func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool
 	}
 	return "", "", nil
 }
+
 type Songlist struct {
 	List []struct {
-		Hlsurl string `json:"hls-key-cert-url"`
+		Hlsurl         string `json:"hls-key-cert-url"`
 		HlsPlaylistUrl string `json:"hls-playlist-url"`
-		Assets []struct {
+		Assets         []struct {
 			Flavor string `json:"flavor"`
-			URL string `json:"URL"`
-		}`json:"assets"`
-	}`json:"songList"`
+			URL    string `json:"URL"`
+		} `json:"assets"`
+	} `json:"songList"`
 	Status int `json:"status"`
 }
 
@@ -202,9 +207,9 @@ func extractKidBase64(b string, mvmode bool) (string, string, error) {
 			kidbase64 = split[1]
 			lastSlashIndex := strings.LastIndex(b, "/")
 			// 截取最后一个斜杠之前的部分
-        		urlBuilder.WriteString(b[:lastSlashIndex])
-        		urlBuilder.WriteString("/")
-       			urlBuilder.WriteString(mediaPlaylist.Map.URI)
+			urlBuilder.WriteString(b[:lastSlashIndex])
+			urlBuilder.WriteString("/")
+			urlBuilder.WriteString(mediaPlaylist.Map.URI)
 			//fileurl = b[:lastSlashIndex] + "/" + mediaPlaylist.Map.URI
 			//fmt.Println("Extracted URI:", mediaPlaylist.Map.URI)
 			if mvmode {
@@ -212,9 +217,9 @@ func extractKidBase64(b string, mvmode bool) (string, string, error) {
 					if segment != nil {
 						//fmt.Println("Extracted URI:", segment.URI)
 						urlBuilder.WriteString(";")
-        					urlBuilder.WriteString(b[:lastSlashIndex])
-        					urlBuilder.WriteString("/")
-       						urlBuilder.WriteString(segment.URI)
+						urlBuilder.WriteString(b[:lastSlashIndex])
+						urlBuilder.WriteString("/")
+						urlBuilder.WriteString(segment.URI)
 						//fileurl = fileurl + ";" + b[:lastSlashIndex] + "/" + segment.URI
 					}
 				}
@@ -227,7 +232,7 @@ func extractKidBase64(b string, mvmode bool) (string, string, error) {
 	}
 	return kidbase64, urlBuilder.String(), nil
 }
-func extsong(b string)(bytes.Buffer){
+func extsong(b string) bytes.Buffer {
 	resp, err := http.Get(b)
 	if err != nil {
 		fmt.Printf("下载文件失败: %v\n", err)
@@ -255,8 +260,8 @@ func extsong(b string)(bytes.Buffer){
 	io.Copy(io.MultiWriter(&buffer, bar), resp.Body)
 	return buffer
 }
-func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmode bool)(string, error) {
-	var keystr string   //for mv key
+func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmode bool) (string, error) {
+	var keystr string //for mv key
 	var fileurl string
 	var kidBase64 string
 	var err error
@@ -281,7 +286,7 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmo
 		return "", err
 	}
 	headers := map[string]interface{}{
-		"authorization": "Bearer " + authtoken,
+		"authorization":            "Bearer " + authtoken,
 		"x-apple-music-user-token": mutoken,
 	}
 	client, _ := requests.NewClient(nil, requests.ClientOption{
@@ -330,7 +335,7 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmo
 	return "", nil
 }
 
-func ExtMvData (keyAndUrls string, savePath string)(error) {
+func ExtMvData(keyAndUrls string, savePath string) error {
 	segments := strings.Split(keyAndUrls, ";")
 	key := segments[0]
 	//fmt.Println(key)
@@ -345,7 +350,7 @@ func ExtMvData (keyAndUrls string, savePath string)(error) {
 
 	// 依次下载每个链接并写入文件
 	bar := progressbar.DefaultBytes(
-    		-1,
+		-1,
 		"Downloading...",
 	)
 	barWriter := io.MultiWriter(tempFile, bar)
@@ -383,7 +388,6 @@ func ExtMvData (keyAndUrls string, savePath string)(error) {
 	}
 	return nil
 }
-
 
 // DecryptMP4 decrypts a fragmented MP4 file with keys from widevice license. Supports CENC and CBCS schemes.
 func DecryptMP4(r io.Reader, key []byte, w io.Writer) error {
