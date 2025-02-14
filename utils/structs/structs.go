@@ -36,6 +36,7 @@ type ConfigSet struct {
 	DlAlbumcoverForPlaylist bool   `yaml:"dl-albumcover-for-playlist"`
 	MVAudioType             string `yaml:"mv-audio-type"`
 	MVMax                   int    `yaml:"mv-max"`
+	SaveThumbnailImage      bool   `yaml:"save-thumbnail-image"`
 }
 
 type Counter struct {

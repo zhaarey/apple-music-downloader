@@ -1440,6 +1440,24 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	defer os.Remove(vidPath)
 	defer os.Remove(audPath)
 
+	// Extract and save thumbnail if enabled
+	if Config.SaveThumbnailImage {
+		// Get the highest quality thumbnail URL from the MV info
+		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
+		thumbURL = strings.Replace(thumbURL, "{w}x{h}", Config.CoverSize, 1)
+		
+		// Generate base name without extension
+		baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
+		
+		// Download and save thumbnail
+		err = writeCover(saveDir, baseThumbName, thumbURL)
+		if err != nil {
+			fmt.Println("Failed to save MV thumbnail:", err)
+		} else {
+			fmt.Println("MV thumbnail saved successfully")
+		}
+	}
+
 	return nil
 }
 
