@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-
+	"path/filepath"
 	"github.com/gospider007/requests"
 	"google.golang.org/protobuf/proto"
 
@@ -377,7 +377,8 @@ func ExtMvData(keyAndUrls string, savePath string) error {
 	tempFile.Close()
 	fmt.Println("\nDownloaded.")
 
-	cmd1 := exec.Command("mp4decrypt", "--key", key, tempFile.Name(), savePath)
+	cmd1 := exec.Command("mp4decrypt", "--key", key, tempFile.Name(), filepath.Base(savePath))
+	cmd1.Dir = filepath.Dir(savePath) //设置mp4decrypt的工作目录以解决中文路径错误
 	outlog, err := cmd1.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Decrypt failed: %v\n", err)
