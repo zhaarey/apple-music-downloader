@@ -44,4 +44,3 @@ use-songinfo-for-playlist: false
 dl-albumcover-for-playlist: false
 mv-audio-type: atmos  #atmos ac3 aac
 mv-max: 2160
-save-thumbnail-image: false    #true or false of thumbnail image

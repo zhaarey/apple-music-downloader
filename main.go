@@ -1436,7 +1436,8 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 
 	// Extract and save thumbnail if enabled
 	var covPath string
-	if Config.SaveThumbnailImage {
+	//强制嵌入封面
+	if true {
 		// Get the highest quality thumbnail URL from the MV info
 		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
 
@@ -1448,7 +1449,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		if err != nil {
 			fmt.Println("Failed to save MV thumbnail:", err)
 		} else {
-			fmt.Println("MV thumbnail saved successfully")
+			//fmt.Println("MV thumbnail saved successfully")
 			tags = append(tags, fmt.Sprintf("cover=%s", covPath))
 		}
 	}
