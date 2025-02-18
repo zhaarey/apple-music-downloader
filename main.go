@@ -410,11 +410,11 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 	}
 	defer do.Body.Close()
 	obj := new(structs.SongLyrics)
-	err = json.NewDecoder(do.Body).Decode(&obj)
-	if err != nil {
-		return "", errors.New("failed to get lyrics")
-	} else {
+	_ = json.NewDecoder(do.Body).Decode(&obj)
+	if obj.Data != nil {
 		return obj.Data[0].Attributes.Ttml, nil
+	} else {
+		return "", errors.New("failed to get lyrics")
 	}
 }
 
