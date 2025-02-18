@@ -1282,7 +1282,7 @@ func main() {
 					"{ArtistId}", "",
 				).Replace(Config.ArtistFolderFormat)
 				if mvSaveDir != "" {
-					mvSaveDir = filepath.Join(Config.AlacSaveFolder, mvSaveDir)
+					mvSaveDir = filepath.Join(Config.AlacSaveFolder, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
 				} else {
 					mvSaveDir = Config.AlacSaveFolder
 				}
@@ -1354,12 +1354,18 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		}
 	}
 
+	if strings.HasSuffix(saveDir, ".") {
+		saveDir = strings.ReplaceAll(saveDir, ".", "")
+	}
+	saveDir = strings.TrimSpace(saveDir)
+
 	vidPath := filepath.Join(saveDir, fmt.Sprintf("%s_vid.mp4", adamID))
 	audPath := filepath.Join(saveDir, fmt.Sprintf("%s_aud.mp4", adamID))
 	mvSaveName := fmt.Sprintf("%s (%s)", MVInfo.Data[0].Attributes.Name, adamID)
 	if meta != nil {
 		mvSaveName = fmt.Sprintf("%02d. %s", trackNum, MVInfo.Data[0].Attributes.Name)
 	}
+
 	mvOutPath := filepath.Join(saveDir, fmt.Sprintf("%s.mp4", forbiddenNames.ReplaceAllString(mvSaveName, "_")))
 
 	fmt.Println(MVInfo.Data[0].Attributes.Name)
