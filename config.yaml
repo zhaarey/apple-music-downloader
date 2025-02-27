@@ -3,7 +3,7 @@ authorization-token: "your-authorization-token" #You don't need to change it; it
 language: ""         #supportedLanguage by each storefront --> https://gist.github.com/itouakirai/c8ba9df9dc65bd300094103b058731d0
 lrc-type: "lyrics"   #lyrics or syllable-lyrics
 lrc-format: "lrc"   #lrc or ttml
-embed-lrc: true     #Unable to embed ttml lyrics
+embed-lrc: true
 save-lrc-file: false
 save-artist-cover: false
 save-animated-artwork: false    # If enabled, requires ffmpeg
