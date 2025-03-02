@@ -134,6 +134,17 @@ func checkUrlPlaylist(url string) (string, string) {
 	}
 }
 
+func checkUrlStation(url string) (string, string) {
+	pat := regexp.MustCompile(`^(?:https:\/\/(?:beta\.music|music)\.apple\.com\/(\w{2})(?:\/station|\/station\/.+))\/(?:id)?(ra\.[\w-]+)(?:$|\?)`)
+	matches := pat.FindAllStringSubmatch(url, -1)
+
+	if matches == nil {
+		return "", ""
+	} else {
+		return matches[0][1], matches[0][2]
+	}
+}
+
 func checkUrlArtist(url string) (string, string) {
 	pat := regexp.MustCompile(`^(?:https:\/\/(?:beta\.music|music)\.apple\.com\/(\w{2})(?:\/artist|\/artist\/.+))\/(?:id)?(\d[^\D]+)(?:$|\?)`)
 	matches := pat.FindAllStringSubmatch(url, -1)
@@ -562,7 +573,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		//fmt.Sprintf("lyrics=%s", lrc),
 	}
 	if Config.EmbedCover {
-		if strings.Contains(track.PreID, "pl.") && Config.DlAlbumcoverForPlaylist {
+		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {
 			track.CoverPath, err = writeCover(track.SaveDir, track.ID, track.Resp.Attributes.Artwork.URL)
 			if err != nil {
 				fmt.Println("Failed to write cover.")
@@ -577,7 +588,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		counter.Error++
 		return
 	}
-	if strings.Contains(track.PreID, "pl.") && Config.DlAlbumcoverForPlaylist {
+	if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {
 		if err := os.Remove(track.CoverPath); err != nil {
 			fmt.Printf("Error deleting file: %s\n", track.CoverPath)
 			counter.Error++
@@ -598,6 +609,136 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	counter.Success++
 	okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
 }
+
+func ripStation(albumId string, token string, storefront string, mediaUserToken string) error {
+	station := task.NewStation(storefront, albumId)
+	err := station.GetResp(mediaUserToken, token, Config.Language)
+	if err != nil {
+		return err
+	}
+	meta := station.Resp
+
+	var Codec string
+	if dl_atmos {
+		Codec = "ATMOS"
+	} else if dl_aac {
+		Codec = "AAC"
+	} else {
+		Codec = "ALAC"
+	}
+	station.Codec = Codec
+	// Get Artist Folder
+	var singerFoldername string
+	if Config.ArtistFolderFormat != "" {
+		singerFoldername = strings.NewReplacer(
+			"{ArtistName}", "Apple Music Station",
+			"{ArtistId}", "",
+			"{UrlArtistName}", "Apple Music Station",
+		).Replace(Config.ArtistFolderFormat)
+		if strings.HasSuffix(singerFoldername, ".") {
+			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
+		}
+		singerFoldername = strings.TrimSpace(singerFoldername)
+		fmt.Println(singerFoldername)
+	}
+	singerFolder := filepath.Join(Config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	if dl_atmos {
+		singerFolder = filepath.Join(Config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
+	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
+	station.SaveDir = singerFolder
+
+	//Get Playlist Folder Name
+	playlistFolder := strings.NewReplacer(
+		"{ArtistName}", "Apple Music Station",
+		"{PlaylistName}", LimitString(meta.Data[0].Attributes.Name),
+		"{PlaylistId}", station.ID,
+		"{Quality}", "",
+		"{Codec}", Codec,
+		"{Tag}", "",
+	).Replace(Config.PlaylistFolderFormat)
+	if strings.HasSuffix(playlistFolder, ".") {
+		playlistFolder = strings.ReplaceAll(playlistFolder, ".", "")
+	}
+	playlistFolder = strings.TrimSpace(playlistFolder)
+	playlistFolderPath := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(playlistFolder, "_"))
+	os.MkdirAll(playlistFolderPath, os.ModePerm)
+	station.SaveName = playlistFolder
+	fmt.Println(playlistFolder)
+	//先省略封面相关的获取
+	//get playlist cover
+	covPath, err := writeCover(playlistFolderPath, "cover", meta.Data[0].Attributes.Artwork.URL)
+	if err != nil {
+		fmt.Println("Failed to write cover.")
+	}
+	//get animated artwork
+	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionSquare.Video != "" {
+		fmt.Println("Found Animation Artwork.")
+
+		// Download square version
+		motionvideoUrlSquare, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionSquare.Video)
+		if err != nil {
+			fmt.Println("no motion video square.\n", err)
+		} else {
+			exists, err := fileExists(filepath.Join(playlistFolderPath, "square_animated_artwork.mp4"))
+			if err != nil {
+				fmt.Println("Failed to check if animated artwork square exists.")
+			}
+			if exists {
+				fmt.Println("Animated artwork square already exists locally.")
+			} else {
+				fmt.Println("Animation Artwork Square Downloading...")
+				cmd := exec.Command("ffmpeg", "-loglevel", "quiet", "-y", "-i", motionvideoUrlSquare, "-c", "copy", filepath.Join(playlistFolderPath, "square_animated_artwork.mp4"))
+				if err := cmd.Run(); err != nil {
+					fmt.Printf("animated artwork square dl err: %v\n", err)
+				} else {
+					fmt.Println("Animation Artwork Square Downloaded")
+				}
+			}
+		}
+
+		if Config.EmbyAnimatedArtwork {
+			// Convert square version to gif
+			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(playlistFolderPath, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(playlistFolderPath, "folder.jpg"))
+			if err := cmd3.Run(); err != nil {
+				fmt.Printf("animated artwork square to gif err: %v\n", err)
+			}
+		}
+	}
+
+	for i := range station.Tracks {
+		station.Tracks[i].CoverPath = covPath
+		station.Tracks[i].SaveDir = playlistFolderPath
+		station.Tracks[i].Codec = Codec
+	}
+
+	trackTotal := len(station.Tracks)
+	arr := make([]int, trackTotal)
+	for i := 0; i < trackTotal; i++ {
+		arr[i] = i + 1
+	}
+	var selected []int
+
+	if true {
+		selected = arr
+	}
+	//Download tracks
+	for i := range station.Tracks {
+		i++
+		// if isInArray(okDict[playlistId], i) {
+		// 	//fmt.Println("已完成直接跳过.\n")
+		// 	counter.Total++
+		// 	counter.Success++
+		// 	continue
+		// }
+		if isInArray(selected, i) {
+			ripTrack(&station.Tracks[i-1], token, mediaUserToken)
+			//downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, covPath)
+		}
+	}
+	return nil
+}
+
 func ripAlbum(albumId string, token string, storefront string, mediaUserToken string, urlArg_i string) error {
 	album := task.NewAlbum(storefront, albumId)
 	err := album.GetResp(token, Config.Language)
@@ -832,8 +973,8 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			}
 		}
 	}
-
-	for i, _ := range album.Tracks {
+	//填充子track信息
+	for i := range album.Tracks {
 		album.Tracks[i].CoverPath = covPath
 		album.Tracks[i].SaveDir = albumFolderPath
 		album.Tracks[i].Codec = Codec
@@ -850,7 +991,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			//fmt.Println("URL does not contain parameter 'i'. Please ensure the URL includes 'i' or use another mode.")
 			//return nil
 		} else {
-			for i, _ := range album.Tracks {
+			for i := range album.Tracks {
 				if urlArg_i == album.Tracks[i].ID {
 					ripTrack(&album.Tracks[i], token, mediaUserToken)
 					//downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, albumFolderPath, Codec, covPath)
@@ -867,7 +1008,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		selected = album.ShowSelect()
 	}
 	//Download tracks
-	for i, _ := range album.Tracks {
+	for i := range album.Tracks {
 		i++
 		if isInArray(okDict[albumId], i) {
 			//fmt.Println("已完成直接跳过.\n")
@@ -1047,7 +1188,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		fmt.Println("Failed to write cover.")
 	}
 
-	for i, _ := range playlist.Tracks {
+	for i := range playlist.Tracks {
 		playlist.Tracks[i].CoverPath = covPath
 		playlist.Tracks[i].SaveDir = playlistFolderPath
 		playlist.Tracks[i].Codec = Codec
@@ -1122,7 +1263,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		selected = playlist.ShowSelect()
 	}
 	//Download tracks
-	for i, _ := range playlist.Tracks {
+	for i := range playlist.Tracks {
 		i++
 		if isInArray(okDict[playlistId], i) {
 			//fmt.Println("已完成直接跳过.\n")
@@ -1189,7 +1330,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		t.AlbumSort = track.PlaylistData.Attributes.Name
 		t.AlbumArtist = track.PlaylistData.Attributes.ArtistName
 		t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
-	} else if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
+	} else if (track.PreType == "playlists" && Config.UseSongInfoForPlaylist) || track.PreType == "stations" {
 		//使用提前获取到的播放列表下track所在的专辑信息
 		len := len(track.AlbumData.Relationships.Tracks.Data)
 		t.DiscTotal = int16(track.AlbumData.Relationships.Tracks.Data[len-1].Attributes.DiscNumber)
@@ -1371,6 +1512,16 @@ func main() {
 				err := ripPlaylist(albumId, token, storefront, Config.MediaUserToken)
 				if err != nil {
 					fmt.Println("Failed to rip playlist:", err)
+				}
+			} else if strings.Contains(urlRaw, "/station/") {
+				storefront, albumId = checkUrlStation(urlRaw)
+				if len(Config.MediaUserToken) <= 50 {
+					fmt.Println("meida-user-token is not set, skip station dl")
+					continue
+				}
+				err := ripStation(albumId, token, storefront, Config.MediaUserToken)
+				if err != nil {
+					fmt.Println("Failed to rip station:", err)
 				}
 			} else {
 				fmt.Println("Invalid URL.")
