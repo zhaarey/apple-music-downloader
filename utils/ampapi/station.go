@@ -45,6 +45,46 @@ func GetStationResp(storefront string, id string, language string, token string)
 	return obj, nil
 }
 
+func GetStationAssetsUrl(id string, mutoken string, token string) (string, error) {
+	var err error
+	if token == "" {
+		token, err = GetToken()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	req, err := http.NewRequest("GET", "https://amp-api.music.apple.com/v1/play/assets", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("Origin", "https://music.apple.com")
+	req.Header.Set("Media-User-Token", mutoken)
+	query := url.Values{}
+	//query.Set("omit[resource]", "autos")
+	//query.Set("extend", "editorialVideo")
+	query.Set("id", id)
+	query.Set("kind", "radioStation")
+	query.Set("keyFormat", "web")
+	req.URL.RawQuery = query.Encode()
+	do, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer do.Body.Close()
+	if do.StatusCode != http.StatusOK {
+		return "", errors.New(do.Status)
+	}
+	obj := new(StationAssets)
+	err = json.NewDecoder(do.Body).Decode(&obj)
+	if err != nil {
+		return "", err
+	}
+	return obj.Results.Assets[0].Url, nil
+}
+
 func GetStationNextTracks(id, mutoken, language, token string) (*TrackResp, error) {
 	var err error
 	if token == "" {
@@ -90,6 +130,17 @@ type StationResp struct {
 	Href string            `json:"href"`
 	Next string            `json:"next"`
 	Data []StationRespData `json:"data"`
+}
+
+type StationAssets struct {
+	Results struct {
+		Assets []struct {
+			KeyServerUrl              string `json:"keyServerUrl"`
+			Url                       string `json:"url"`
+			WidevineKeyCertificateUrl string `json:"widevineKeyCertificateUrl"`
+			FairPlayKeyCertificateUrl string `json:"fairPlayKeyCertificateUrl"`
+		} `json:"assets"`
+	} `json:"results"`
 }
 
 type StationRespData struct {

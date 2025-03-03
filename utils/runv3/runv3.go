@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"path/filepath"
+
 	"github.com/gospider007/requests"
 	"google.golang.org/protobuf/proto"
 
@@ -154,7 +155,7 @@ func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool
 			return obj.List[0].HlsPlaylistUrl, "", nil
 		}
 		// 遍历 Assets
-		for i, _ := range obj.List[0].Assets {
+		for i := range obj.List[0].Assets {
 			if obj.List[0].Assets[i].Flavor == "28:ctrp256" {
 				kidBase64, fileurl, err := extractKidBase64(obj.List[0].Assets[i].URL, false)
 				if err != nil {
@@ -298,10 +299,19 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmo
 		AfterRequest:  AfterRequest,
 	}
 	key.CdmInit()
-	keystr, keybt, err := key.GetKey(ctx, "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense", pssh, nil)
-	if err != nil {
-		fmt.Println(err)
-		return "", err
+	var keybt []byte
+	if strings.Contains(adamId, "ra.") {
+		keystr, keybt, err = key.GetKey(ctx, "https://play.itunes.apple.com/WebObjects/MZPlay.woa/web/radio/versions/1/license", pssh, nil)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+	} else {
+		keystr, keybt, err = key.GetKey(ctx, "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense", pssh, nil)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
 	}
 	if mvmode {
 		keyAndUrls := "1:" + keystr + ";" + fileurl

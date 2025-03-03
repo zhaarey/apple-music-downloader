@@ -50,10 +50,10 @@ func (a *Station) GetResp(mutoken, token, l string) error {
 	a.Resp = *resp
 	//简化高频调用名称
 	a.Type = a.Resp.Data[0].Attributes.PlayParams.Format
-	if a.Type != "tracks" {
-		return errors.New("stream类型暂未开发")
-	}
 	a.Name = a.Resp.Data[0].Attributes.Name
+	if a.Type != "tracks" {
+		return nil
+	}
 	tracksResp, err := ampapi.GetStationNextTracks(a.ID, mutoken, a.Language, token)
 	if err != nil {
 		return errors.New("error getting station tracks response")

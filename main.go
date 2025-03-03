@@ -465,7 +465,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
 		} else if needDlAacLc {
-			Quality = "256kbps"
+			Quality = "256Kbps"
 		} else {
 			_, Quality, err = extractMedia(track.M3u8, true)
 			if err != nil {
@@ -651,7 +651,7 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	//Get Playlist Folder Name
 	playlistFolder := strings.NewReplacer(
 		"{ArtistName}", "Apple Music Station",
-		"{PlaylistName}", LimitString(meta.Data[0].Attributes.Name),
+		"{PlaylistName}", LimitString(station.Name),
 		"{PlaylistId}", station.ID,
 		"{Quality}", "",
 		"{Codec}", Codec,
@@ -671,6 +671,8 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	if err != nil {
 		fmt.Println("Failed to write cover.")
 	}
+	station.CoverPath = covPath
+
 	//get animated artwork
 	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionSquare.Video != "" {
 		fmt.Println("Found Animation Artwork.")
@@ -704,6 +706,73 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
 			}
 		}
+	}
+	// 处理stream类型的station
+	if station.Type == "stream" {
+		counter.Total++
+		if isInArray(okDict[station.ID], 1) {
+			counter.Success++
+			return nil
+		}
+		songName := strings.NewReplacer(
+			"{SongId}", station.ID,
+			"{SongNumer}", "01",
+			"{SongName}", LimitString(station.Name),
+			"{DiscNumber}", "1",
+			"{TrackNumber}", "01",
+			"{Quality}", "256Kbps",
+			"{Tag}", "",
+			"{Codec}", "AAC",
+		).Replace(Config.SongFileFormat)
+		fmt.Println(songName)
+		trackPath := filepath.Join(playlistFolderPath, fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_")))
+		exists, _ := fileExists(trackPath)
+		if exists {
+			counter.Success++
+			okDict[station.ID] = append(okDict[station.ID], 1)
+
+			fmt.Println("Radio already exists locally.")
+			return nil
+		}
+		assetsUrl, err := ampapi.GetStationAssetsUrl(station.ID, mediaUserToken, token)
+		if err != nil {
+			fmt.Println("Failed to get station assets url.", err)
+			counter.Error++
+			return err
+		}
+		trackM3U8 := strings.ReplaceAll(assetsUrl, "index.m3u8", "256/prog_index.m3u8")
+		//testM3U8 := "https://itsliveradio.apple.com/bb/aod/exp_aod/jpopnowradio/AkinaNakamori/cmaf/256/prog_index.m3u8"
+		keyAndUrls, _ := runv3.Run(station.ID, trackM3U8, token, mediaUserToken, true)
+		err = runv3.ExtMvData(keyAndUrls, trackPath)
+		if err != nil {
+			fmt.Println("Failed to download station stream.", err)
+			counter.Error++
+			return err
+		}
+		//tags
+		tags := []string{
+			"tool=",
+			"disk=1/1",
+			"track=1",
+			"tracknum=1/1",
+			fmt.Sprintf("artist=%s", "Apple Music Station"),
+			fmt.Sprintf("performer=%s", "Apple Music Station"),
+			fmt.Sprintf("album_artist=%s", "Apple Music Station"),
+			fmt.Sprintf("artist=%s", "Apple Music Station"),
+			fmt.Sprintf("album=%s", station.Name),
+			fmt.Sprintf("title=%s", station.Name),
+		}
+		if Config.EmbedCover {
+			tags = append(tags, fmt.Sprintf("cover=%s", station.CoverPath))
+		}
+		tagsString := strings.Join(tags, ":")
+		cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Embed failed: %v\n", err)
+		}
+		counter.Success++
+		okDict[station.ID] = append(okDict[station.ID], 1)
+		return nil
 	}
 
 	for i := range station.Tracks {
@@ -1113,7 +1182,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
 		} else if dl_aac && Config.AacType == "aac-lc" {
-			Quality = "256kbps"
+			Quality = "256Kbps"
 		} else {
 			manifest1, err := ampapi.GetSongResp(storefront, meta.Data[0].Relationships.Tracks.Data[0].ID, playlist.Language, token)
 			if err != nil {
@@ -1121,7 +1190,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 			} else {
 				if manifest1.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls == "" {
 					Codec = "AAC"
-					Quality = "256kbps"
+					Quality = "256Kbps"
 					//fmt.Println("Unavailable.\n")
 				} else {
 					needCheck := false
