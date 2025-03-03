@@ -578,8 +578,8 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			if err != nil {
 				fmt.Println("Failed to write cover.")
 			}
-			tags = append(tags, fmt.Sprintf("cover=%s", track.CoverPath))
 		}
+		tags = append(tags, fmt.Sprintf("cover=%s", track.CoverPath))
 	}
 	tagsString := strings.Join(tags, ":")
 	cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
