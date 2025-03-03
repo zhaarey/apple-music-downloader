@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/grafov/m3u8"
 	"github.com/schollz/progressbar/v3"
@@ -166,7 +167,7 @@ func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool
 			continue
 		}
 	}
-	return "", "", nil
+	return "", "", errors.New("Unavailable")
 }
 
 type Songlist struct {
@@ -355,35 +356,56 @@ func ExtMvData(keyAndUrls string, savePath string) error {
 		fmt.Printf("创建文件失败：%v\n", err)
 		return err
 	}
-	defer tempFile.Close()
 	defer os.Remove(tempFile.Name())
-
+	defer tempFile.Close()
 	// 依次下载每个链接并写入文件
 	bar := progressbar.DefaultBytes(
 		-1,
 		"Downloading...",
 	)
 	barWriter := io.MultiWriter(tempFile, bar)
-	for _, url := range urls {
-		resp, err := http.Get(url)
-		if err != nil {
-			fmt.Printf("下载链接 %s 失败：%v\n", url, err)
+	pipeReaders := make([]*io.PipeReader, len(urls))
+	var wg sync.WaitGroup
+	//最多同时5个下载请求
+	sem :=make(chan int, 10)
+	go func(pipeReaders []*io.PipeReader) {
+    	for i, url := range urls {
+    	    pr, pw := io.Pipe()
+    		pipeReaders[i] = pr
+    		sem <- 1
+    		wg.Add(1)
+    		go func(i int, url string, pw *io.PipeWriter) {
+    		    //fmt.Printf("协程 %d 开始\n", i)
+    			defer wg.Done()
+    			resp, err := http.Get(url)
+    			if err != nil {
+    				// 出错时，通过 CloseWithError 通知后续读取端
+    				pw.CloseWithError(err)
+    				fmt.Printf("下载 %s 失败: %v\n", url, err)
+    				return
+    			}
+    			defer resp.Body.Close()
+    			// 将 HTTP 响应体通过 pipe 写出（实现流式传输）
+    			_, err = io.Copy(pw, resp.Body)
+    			// 将可能的错误传递给 pipe
+    			pw.CloseWithError(err)
+    		}(i, url, pw)
+    	}
+    }(pipeReaders)
+	// 按顺序读取每个 pipe 的数据并写入文件
+	for i := range len(urls) {
+	    <-sem
+	    //fmt.Printf("写入 %d 开始\n", i)
+		if _, err := io.Copy(barWriter, pipeReaders[i]); err != nil {
+			fmt.Printf("写入第 %d 部分失败: %v\n", i+1, err)
 			return err
 		}
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("链接 %s 响应失败：%v\n", url, resp.Status)
-			return errors.New(resp.Status)
-		}
-		// 将响应体写入输出文件
-		_, err = io.Copy(barWriter, resp.Body)
-		defer resp.Body.Close() // 注意及时关闭响应体，避免资源泄露
-		if err != nil {
-			fmt.Printf("写入文件失败：%v\n", err)
-			return err
-		}
-
-		//fmt.Printf("第 %d 个链接 %s 下载并写入完成\n", idx+1, url)
+		pipeReaders[i].Close() // 及时关闭 read
+		//fmt.Printf("写入 %d 成功\n", i)
 	}
+
+	// 等待所有下载任务完成
+	wg.Wait()
 	tempFile.Close()
 	fmt.Println("\nDownloaded.")
 

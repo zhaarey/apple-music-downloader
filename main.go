@@ -442,7 +442,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			counter.Unavailable++
 			return
 		}
-		fmt.Println("Unavailable, Try DL AAC-LC")
+		fmt.Println("Unavailable, trying to dl aac-lc")
 		needDlAacLc = true
 	}
 	needCheck := false
@@ -463,7 +463,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	var Quality string
 	if strings.Contains(Config.SongFileFormat, "Quality") {
 		if dl_atmos {
-			Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
+			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
 		} else if needDlAacLc {
 			Quality = "256Kbps"
 		} else {
@@ -549,6 +549,10 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		_, err := runv3.Run(track.ID, trackPath, token, mediaUserToken, false)
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc:", err)
+			if err.Error() == "Unavailable"{
+				counter.Unavailable++
+				return
+			}
 			counter.Error++
 			return
 		}
@@ -903,9 +907,9 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	var Quality string
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
-			Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
+			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
 		} else if dl_aac && Config.AacType == "aac-lc" {
-			Quality = "256kbps"
+			Quality = "256Kbps"
 		} else {
 			manifest1, err := ampapi.GetSongResp(storefront, meta.Data[0].Relationships.Tracks.Data[0].ID, album.Language, token)
 			if err != nil {
@@ -913,7 +917,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			} else {
 				if manifest1.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls == "" {
 					Codec = "AAC"
-					Quality = "256kbps"
+					Quality = "256Kbps"
 					//fmt.Println("Unavailable.\n")
 				} else {
 					needCheck := false
@@ -1180,7 +1184,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	var Quality string
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
-			Quality = fmt.Sprintf("%dkbps", Config.AtmosMax-2000)
+			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
 		} else if dl_aac && Config.AacType == "aac-lc" {
 			Quality = "256Kbps"
 		} else {
@@ -1945,7 +1949,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 						currentBitrate, _ = strconv.Atoi(current)
 					}
 					if bitrate > currentBitrate {
-						aacQuality = fmt.Sprintf("AAC | 2 Channel | %d kbps", bitrate)
+						aacQuality = fmt.Sprintf("AAC | 2 Channel | %d Kbps", bitrate)
 					}
 				}
 			} else if variant.Codecs == "ec-3" && strings.Contains(variant.Audio, "atmos") { // Dolby Atmos
@@ -1964,7 +1968,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 						currentBitrate, _ = strconv.Atoi(current)
 					}
 					if bitrate > currentBitrate {
-						atmosQuality = fmt.Sprintf("E-AC-3 | 16 Channel | %d kbps", bitrate)
+						atmosQuality = fmt.Sprintf("E-AC-3 | 16 Channel | %d Kbps", bitrate)
 					}
 				}
 			} else if variant.Codecs == "alac" { // ALAC (Lossless or Hi-Res)
@@ -1986,7 +1990,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 				split := strings.Split(variant.Audio, "-")
 				if len(split) > 0 {
 					bitrate, _ := strconv.Atoi(split[len(split)-1])
-					dolbyAudioQuality = fmt.Sprintf("AC-3 |  16 Channel | %d kbps", bitrate)
+					dolbyAudioQuality = fmt.Sprintf("AC-3 |  16 Channel | %d Kbps", bitrate)
 				}
 			}
 		}
@@ -2007,7 +2011,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 		if dl_atmos {
 			if variant.Codecs == "ec-3" && strings.Contains(variant.Audio, "atmos") {
 				if debug_mode && !more_mode {
-					fmt.Printf("Debug: Found Dolby Atmos variant - %s (Bitrate: %d kbps)\n",
+					fmt.Printf("Debug: Found Dolby Atmos variant - %s (Bitrate: %d Kbps)\n",
 						variant.Audio, variant.Bandwidth/1000)
 				}
 				split := strings.Split(variant.Audio, "-")
@@ -2025,12 +2029,12 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 						return "", "", err
 					}
 					streamUrl = streamUrlTemp
-					Quality = fmt.Sprintf("%s kbps", split[len(split)-1])
+					Quality = fmt.Sprintf("%s Kbps", split[len(split)-1])
 					break
 				}
 			} else if variant.Codecs == "ac-3" { // Add Dolby Audio support
 				if debug_mode && !more_mode {
-					fmt.Printf("Debug: Found Dolby Audio variant - %s (Bitrate: %d kbps)\n",
+					fmt.Printf("Debug: Found Dolby Audio variant - %s (Bitrate: %d Kbps)\n",
 						variant.Audio, variant.Bandwidth/1000)
 				}
 				streamUrlTemp, err := masterUrl.Parse(variant.URI)
@@ -2039,7 +2043,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 				}
 				streamUrl = streamUrlTemp
 				split := strings.Split(variant.Audio, "-")
-				Quality = fmt.Sprintf("%s kbps", split[len(split)-1])
+				Quality = fmt.Sprintf("%s Kbps", split[len(split)-1])
 				break
 			}
 		} else if dl_aac {
@@ -2059,7 +2063,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 					}
 					streamUrl = streamUrlTemp
 					split := strings.Split(variant.Audio, "-")
-					Quality = fmt.Sprintf("%s kbps", split[2])
+					Quality = fmt.Sprintf("%s Kbps", split[2])
 					break
 				}
 			}
