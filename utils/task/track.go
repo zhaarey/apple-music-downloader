@@ -38,7 +38,13 @@ func (t *Track) GetAlbumData(token string) error {
 		return err
 	}
 	t.AlbumData = resp.Data[0]
-	//len := len(resp.Data[0].Relationships.Tracks.Data)
-	//t.DiscTotal = resp.Data[0].Relationships.Tracks.Data[len-1].Attributes.DiscNumber
+	//尝试获取该track所在album的disk总数
+	if len(resp.Data) > 0 {
+		len := len(resp.Data[0].Relationships.Tracks.Data)
+		if len > 0 {
+			t.DiscTotal = resp.Data[0].Relationships.Tracks.Data[len-1].Attributes.DiscNumber
+		}
+	}
+
 	return nil
 }

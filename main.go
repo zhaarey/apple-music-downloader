@@ -406,7 +406,10 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	var err error
 	counter.Total++
 	fmt.Printf("Track %d of %d: %s\n", track.TaskNum, track.TaskTotal, track.Type)
-
+	//提前获取到的播放列表下track所在的专辑信息
+	if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
+		track.GetAlbumData(token)
+	}
 	//mv dl dev
 	if track.Type == "music-videos" {
 		if len(mediaUserToken) <= 50 {
@@ -418,10 +421,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			fmt.Println("mp4decrypt is not found, skip MV dl")
 			counter.Success++
 			return
-		}
-		//提前获取到的播放列表下track所在的专辑信息
-		if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
-			track.GetAlbumData(token)
 		}
 		err := mvDownloader(track.ID, track.SaveDir, token, track.Storefront, mediaUserToken, track)
 		if err != nil {
@@ -436,7 +435,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	if dl_aac && Config.AacType == "aac-lc" {
 		needDlAacLc = true
 	}
-	if track.WebM3u8 == "" {
+	if track.WebM3u8 == "" && !needDlAacLc {
 		if dl_atmos {
 			fmt.Println("Unavailable")
 			counter.Unavailable++
@@ -549,7 +548,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		_, err := runv3.Run(track.ID, trackPath, token, mediaUserToken, false)
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc:", err)
-			if err.Error() == "Unavailable"{
+			if err.Error() == "Unavailable" {
 				counter.Unavailable++
 				return
 			}
@@ -600,10 +599,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		}
 	}
 	track.SavePath = trackPath
-	//提前获取到的播放列表下track所在的专辑信息
-	if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
-		track.GetAlbumData(token)
-	}
 	err = writeMP4Tags(track, lrc)
 	if err != nil {
 		fmt.Println("\u26A0 Failed to write tags in media:", err)
@@ -724,7 +719,7 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			"{SongNumer}", "01",
 			"{SongName}", LimitString(station.Name),
 			"{DiscNumber}", "1",
-			"{TrackNumber}", "01",
+			"{TrackNumber}", "1",
 			"{Quality}", "256Kbps",
 			"{Tag}", "",
 			"{Codec}", "AAC",
@@ -985,7 +980,15 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	os.MkdirAll(albumFolderPath, os.ModePerm) // Create album folder
 	album.SaveName = albumFolderName
 	fmt.Println(albumFolderName)
-	//先省略封面相关的获取
+	//get artist cover
+	if Config.SaveArtistCover {
+		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
+			_, err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
+			if err != nil {
+				fmt.Println("Failed to write artist cover.")
+			}
+		}
+	}
 	//get playlist cover
 	covPath, err := writeCover(albumFolderPath, "cover", meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
@@ -1405,9 +1408,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		t.AlbumArtist = track.PlaylistData.Attributes.ArtistName
 		t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
 	} else if (track.PreType == "playlists" || track.PreType == "stations") && Config.UseSongInfoForPlaylist {
-		//使用提前获取到的播放列表下track所在的专辑信息
-		len := len(track.AlbumData.Relationships.Tracks.Data)
-		t.DiscTotal = int16(track.AlbumData.Relationships.Tracks.Data[len-1].Attributes.DiscNumber)
+		t.DiscTotal = int16(track.DiscTotal)
 		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
 		t.AlbumArtist = track.AlbumData.Attributes.ArtistName
 		t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
@@ -1693,8 +1694,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 			//tags = append(tags, fmt.Sprintf("UPC=%s", track.PlaylistData.Attributes.Upc))
 		} else if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
 			tags = append(tags, fmt.Sprintf("album=%s", track.AlbumData.Attributes.Name))
-			len := len(track.AlbumData.Relationships.Tracks.Data)
-			tags = append(tags, fmt.Sprintf("disk=%d/%d", track.Resp.Attributes.DiscNumber, track.AlbumData.Relationships.Tracks.Data[len-1].Attributes.DiscNumber))
+			tags = append(tags, fmt.Sprintf("disk=%d/%d", track.Resp.Attributes.DiscNumber, track.DiscTotal))
 			tags = append(tags, fmt.Sprintf("track=%d", track.Resp.Attributes.TrackNumber))
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", track.Resp.Attributes.TrackNumber, track.AlbumData.Attributes.TrackCount))
 			tags = append(tags, fmt.Sprintf("album_artist=%s", track.AlbumData.Attributes.ArtistName))
