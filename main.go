@@ -405,7 +405,7 @@ func contains(slice []string, item string) bool {
 func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	var err error
 	counter.Total++
-	fmt.Printf("Track %d of %d:\n", track.TaskNum, track.TaskTotal)
+	fmt.Printf("Track %d of %d: %s\n", track.TaskNum, track.TaskTotal, track.Type)
 
 	//mv dl dev
 	if track.Type == "music-videos" {
@@ -620,6 +620,7 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	if err != nil {
 		return err
 	}
+	fmt.Println(" -", station.Type)
 	meta := station.Resp
 
 	var Codec string
@@ -1394,7 +1395,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		t.ItunesArtistID = int32(artistID)
 	}
 
-	if track.PreType == "playlists" && !Config.UseSongInfoForPlaylist {
+	if (track.PreType == "playlists" || track.PreType == "stations") && !Config.UseSongInfoForPlaylist {
 		t.DiscNumber = 1
 		t.DiscTotal = 1
 		t.TrackNumber = int16(track.TaskNum)
@@ -1403,7 +1404,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		t.AlbumSort = track.PlaylistData.Attributes.Name
 		t.AlbumArtist = track.PlaylistData.Attributes.ArtistName
 		t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
-	} else if (track.PreType == "playlists" && Config.UseSongInfoForPlaylist) || track.PreType == "stations" {
+	} else if (track.PreType == "playlists" || track.PreType == "stations") && Config.UseSongInfoForPlaylist {
 		//使用提前获取到的播放列表下track所在的专辑信息
 		len := len(track.AlbumData.Relationships.Tracks.Data)
 		t.DiscTotal = int16(track.AlbumData.Relationships.Tracks.Data[len-1].Attributes.DiscNumber)
@@ -1522,22 +1523,23 @@ func main() {
 	albumTotal := len(os.Args)
 	for {
 		for albumNum, urlRaw := range os.Args {
-			fmt.Printf("Album %d of %d:\n", albumNum+1, albumTotal)
+			fmt.Printf("Queue %d of %d: ", albumNum+1, albumTotal)
 			var storefront, albumId string
 
 			//mv dl dev
 			if strings.Contains(urlRaw, "/music-video/") {
+				fmt.Println("Music Video")
 				if debug_mode {
 					continue
 				}
 				counter.Total++
 				if len(Config.MediaUserToken) <= 50 {
-					fmt.Println("meida-user-token is not set, skip MV dl")
+					fmt.Println(": meida-user-token is not set, skip MV dl")
 					counter.Success++
 					continue
 				}
 				if _, err := exec.LookPath("mp4decrypt"); err != nil {
-					fmt.Println("mp4decrypt is not found, skip MV dl")
+					fmt.Println(": mp4decrypt is not found, skip MV dl")
 					counter.Success++
 					continue
 				}
@@ -1562,6 +1564,7 @@ func main() {
 				continue
 			}
 			if strings.Contains(urlRaw, "/song/") {
+				fmt.Printf("Song->")
 				urlRaw, err = getUrlSong(urlRaw, token)
 				dl_song = true
 				if err != nil {
@@ -1575,21 +1578,24 @@ func main() {
 			var urlArg_i = parse.Query().Get("i")
 
 			if strings.Contains(urlRaw, "/album/") {
+				fmt.Println("Album")
 				storefront, albumId = checkUrl(urlRaw)
 				err := ripAlbum(albumId, token, storefront, Config.MediaUserToken, urlArg_i)
 				if err != nil {
 					fmt.Println("Failed to rip album:", err)
 				}
 			} else if strings.Contains(urlRaw, "/playlist/") {
+				fmt.Println("Playlist")
 				storefront, albumId = checkUrlPlaylist(urlRaw)
 				err := ripPlaylist(albumId, token, storefront, Config.MediaUserToken)
 				if err != nil {
 					fmt.Println("Failed to rip playlist:", err)
 				}
 			} else if strings.Contains(urlRaw, "/station/") {
+				fmt.Printf("Station")
 				storefront, albumId = checkUrlStation(urlRaw)
 				if len(Config.MediaUserToken) <= 50 {
-					fmt.Println("meida-user-token is not set, skip station dl")
+					fmt.Println(": meida-user-token is not set, skip station dl")
 					continue
 				}
 				err := ripStation(albumId, token, storefront, Config.MediaUserToken)
@@ -1597,7 +1603,7 @@ func main() {
 					fmt.Println("Failed to rip station:", err)
 				}
 			} else {
-				fmt.Println("Invalid URL.")
+				fmt.Println("Invalid type")
 			}
 		}
 		fmt.Printf("=======  [\u2714 ] Completed: %d/%d  |  [\u26A0 ] Warnings: %d  |  [\u2716 ] Errors: %d  =======\n", counter.Success, counter.Total, counter.Unavailable+counter.NotSong, counter.Error)

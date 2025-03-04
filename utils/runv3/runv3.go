@@ -367,35 +367,35 @@ func ExtMvData(keyAndUrls string, savePath string) error {
 	pipeReaders := make([]*io.PipeReader, len(urls))
 	var wg sync.WaitGroup
 	//最多同时5个下载请求
-	sem :=make(chan int, 10)
+	sem :=make(chan int, 5)
 	go func(pipeReaders []*io.PipeReader) {
-    	for i, url := range urls {
-    	    pr, pw := io.Pipe()
-    		pipeReaders[i] = pr
-    		sem <- 1
-    		wg.Add(1)
-    		go func(i int, url string, pw *io.PipeWriter) {
-    		    //fmt.Printf("协程 %d 开始\n", i)
-    			defer wg.Done()
-    			resp, err := http.Get(url)
-    			if err != nil {
-    				// 出错时，通过 CloseWithError 通知后续读取端
-    				pw.CloseWithError(err)
-    				fmt.Printf("下载 %s 失败: %v\n", url, err)
-    				return
-    			}
-    			defer resp.Body.Close()
-    			// 将 HTTP 响应体通过 pipe 写出（实现流式传输）
-    			_, err = io.Copy(pw, resp.Body)
-    			// 将可能的错误传递给 pipe
-    			pw.CloseWithError(err)
-    		}(i, url, pw)
-    	}
-    }(pipeReaders)
+		for i, url := range urls {
+		pr, pw := io.Pipe()
+			pipeReaders[i] = pr
+			sem <- 1
+			wg.Add(1)
+			go func(i int, url string, pw *io.PipeWriter) {
+			//fmt.Printf("协程 %d 开始\n", i)
+				defer wg.Done()
+				resp, err := http.Get(url)
+				if err != nil {
+					// 出错时，通过 CloseWithError 通知后续读取端
+					pw.CloseWithError(err)
+					fmt.Printf("下载 %s 失败: %v\n", url, err)
+					return
+				}
+				defer resp.Body.Close()
+				// 将 HTTP 响应体通过 pipe 写出（实现流式传输）
+				_, err = io.Copy(pw, resp.Body)
+				// 将可能的错误传递给 pipe
+				pw.CloseWithError(err)
+			}(i, url, pw)
+		}
+	}(pipeReaders)
 	// 按顺序读取每个 pipe 的数据并写入文件
 	for i := range len(urls) {
-	    <-sem
-	    //fmt.Printf("写入 %d 开始\n", i)
+		<-sem
+		//fmt.Printf("写入 %d 开始\n", i)
 		if _, err := io.Copy(barWriter, pipeReaders[i]); err != nil {
 			fmt.Printf("写入第 %d 部分失败: %v\n", i+1, err)
 			return err

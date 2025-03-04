@@ -88,6 +88,8 @@ func (a *Station) GetResp(mutoken, token, l string) error {
 			PreID:     a.ID,
 			AlbumData: albumResp.Data[0],
 		})
+		a.Tracks[i].PlaylistData.Attributes.Name = a.Name
+		a.Tracks[i].PlaylistData.Attributes.ArtistName = "Apple Music Station"
 	}
 	return nil
 }
