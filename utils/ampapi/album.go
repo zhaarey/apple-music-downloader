@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 func GetAlbumResp(storefront string, id string, language string, token string) (*AlbumResp, error) {
@@ -58,7 +59,7 @@ func GetAlbumRespByHref(href string, language string, token string) (*AlbumResp,
 			return nil, err
 		}
 	}
-
+	href = strings.Split(href, "?")[0]
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com%s/albums", href), nil)
 	if err != nil {
 		return nil, err
