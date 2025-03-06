@@ -50,22 +50,17 @@ func GetPlaylistResp(storefront string, id string, language string, token string
 	if len(obj.Data[0].Relationships.Tracks.Next) > 0 {
 		next := obj.Data[0].Relationships.Tracks.Next
 		for {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com/%s", next), nil)
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com%s", next), nil)
 			if err != nil {
 				return nil, err
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 			req.Header.Set("Origin", "https://music.apple.com")
-			query := url.Values{}
+			query := req.URL.Query()
 			query.Set("omit[resource]", "autos")
-			query.Set("include", "tracks,artists,record-labels,albums")
-			query.Set("include[songs]", "artists")
-			//query.Set("fields[artists]", "name,artwork")
-			//query.Set("fields[albums:albums]", "artistName,artwork,name,releaseDate,url")
-			//query.Set("fields[record-labels]", "name")
+			query.Set("include", "artists")
 			query.Set("extend", "editorialVideo,extendedAssetUrls")
-			query.Set("l", language)
 			req.URL.RawQuery = query.Encode()
 			do, err := http.DefaultClient.Do(req)
 			if err != nil {
