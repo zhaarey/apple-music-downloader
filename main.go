@@ -52,15 +52,28 @@ var (
 )
 
 func loadConfig() error {
-	// 读取config.yaml文件内容
-	data, err := os.ReadFile("config.yaml")
-	if err != nil {
-		return err
+	// 首先尝试从环境变量获取配置路径
+	configPath := os.Getenv("AMDL_CONFIG_PATH")
+	if configPath == "" {
+		// 如果没有设置环境变量,则使用二进制文件所在目录
+		exe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("failed to get executable path: %v", err)
+		}
+		exeDir := filepath.Dir(exe)
+		configPath = filepath.Join(exeDir, "config.yaml")
 	}
+
+	// 读取config.yaml文件内容
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file at %s: %v", configPath, err)
+	}
+
 	// 将yaml解析到config变量中
 	err = yaml.Unmarshal(data, &Config)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse config: %v", err)
 	}
 	return nil
 }
