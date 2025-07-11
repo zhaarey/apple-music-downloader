@@ -26,7 +26,6 @@ type SongLyrics struct {
 	} `json:"data"`
 }
 
-
 func Get(storefront, songId, lrcType, language, lrcFormat, token, mediaUserToken string) (string, error) {
 	if len(mediaUserToken) < 50 {
 		return "", errors.New("MediaUserToken not set")
@@ -166,7 +165,7 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 		return "", err
 	}
 	var lrcLines []string
-	parseTime := func(timeValue string) (string, error) {
+	parseTime := func(timeValue string, newLine bool) (string, error) {
 		var h, m, s, ms int
 		if strings.Contains(timeValue, ":") {
 			_, err = fmt.Sscanf(timeValue, "%d:%d:%d.%d", &h, &m, &s, &ms)
@@ -183,7 +182,11 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 		}
 		m += h * 60
 		ms = ms / 10
-		return fmt.Sprintf("[%02d:%02d.%02d]", m, s, ms), nil
+		if newLine {
+			return fmt.Sprintf("[%02d:%02d.%02d]<%02d:%02d.%02d>", m, s, ms, m, s, ms), nil
+		} else {
+			return fmt.Sprintf("<%02d:%02d.%02d>", m, s, ms), nil
+		}
 	}
 	divs := parsedTTML.FindElement("tt").FindElement("body").FindElements("div")
 	//get trans
@@ -217,11 +220,11 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 				if lyric.SelectAttr("begin") == nil {
 					continue
 				}
-				beginTime, err := parseTime(lyric.SelectAttr("begin").Value)
+				beginTime, err := parseTime(lyric.SelectAttr("begin").Value, i == 0)
 				if err != nil {
 					return "", err
 				}
-				endTime, err = parseTime(lyric.SelectAttr("end").Value)
+				endTime, err = parseTime(lyric.SelectAttr("end").Value, false)
 				if err != nil {
 					return "", err
 				}
