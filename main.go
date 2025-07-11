@@ -813,6 +813,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	err := album.GetResp(token, Config.Language)
 	if err != nil {
 		fmt.Println("Failed to get album response.")
+		return err
 	}
 	meta := album.Resp
 	//debug mode
