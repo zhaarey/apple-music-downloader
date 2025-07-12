@@ -217,7 +217,7 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 						return "", err
 				}
 
-				endTime, err = parseTime(lyric.SelectAttr("end").Value, i)
+				endTime, err = parseTime(lyric.SelectAttr("end").Value, 1)
 				if err != nil {
 					return "", err
 				}
