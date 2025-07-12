@@ -253,13 +253,13 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 											for _, span := range trans.Child {
 												if _, ok := span.(*etree.CharData); ok {
 													textTmp = append(textTmp, span.(*etree.CharData).Data)
-												} else {
+												} /*else {
 													textTmp = append(textTmp, span.(*etree.Element).Text())
-												}
+												}*/
 											}
 											transTxt = strings.Join(textTmp, "")
 										} else {
-											transTxt = lyric.SelectAttr("text").Value
+											transTxt = trans.SelectAttr("text").Value
 										}
 										//fmt.Println(transTxt)
 										transLine = transBeginTime + transTxt
