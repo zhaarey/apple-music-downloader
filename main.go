@@ -645,6 +645,9 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	if dl_atmos {
 		singerFolder = filepath.Join(Config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
+	if dl_aac {
+		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
 	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
 	station.SaveDir = singerFolder
 
@@ -897,6 +900,9 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	singerFolder := filepath.Join(Config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	if dl_atmos {
 		singerFolder = filepath.Join(Config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
+	if dl_aac {
+		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
 	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
 	album.SaveDir = singerFolder
@@ -1181,6 +1187,9 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	singerFolder := filepath.Join(Config.AlacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	if dl_atmos {
 		singerFolder = filepath.Join(Config.AtmosSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
+	if dl_aac {
+		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
 	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
 	playlist.SaveDir = singerFolder
