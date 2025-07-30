@@ -16,6 +16,7 @@ type SongLyrics struct {
 		Type       string `json:"type"`
 		Attributes struct {
 			Ttml       string `json:"ttml"`
+			TtmlLocalizations       string `json:"ttmlLocalizations"`
 			PlayParams struct {
 				Id          string `json:"id"`
 				Kind        string `json:"kind"`
@@ -25,7 +26,6 @@ type SongLyrics struct {
 		} `json:"attributes"`
 	} `json:"data"`
 }
-
 
 func Get(storefront, songId, lrcType, language, lrcFormat, token, mediaUserToken string) (string, error) {
 	if len(mediaUserToken) < 50 {
@@ -50,7 +50,7 @@ func Get(storefront, songId, lrcType, language, lrcFormat, token, mediaUserToken
 }
 func getSongLyrics(songId string, storefront string, token string, userToken string, lrcType string, language string) (string, error) {
 	req, err := http.NewRequest("GET",
-		fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/songs/%s/%s?l=%s", storefront, songId, lrcType, language), nil)
+		fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/songs/%s/%s?l=%s&extend=ttmlLocalizations", storefront, songId, lrcType, language), nil)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +67,10 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 	obj := new(SongLyrics)
 	_ = json.NewDecoder(do.Body).Decode(&obj)
 	if obj.Data != nil {
-		return obj.Data[0].Attributes.Ttml, nil
+		if len(obj.Data[0].Attributes.Ttml) > 0 {
+			return obj.Data[0].Attributes.Ttml, nil
+		}
+		return obj.Data[0].Attributes.TtmlLocalizations, nil
 	} else {
 		return "", errors.New("failed to get lyrics")
 	}
@@ -166,7 +169,7 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 		return "", err
 	}
 	var lrcLines []string
-	parseTime := func(timeValue string) (string, error) {
+	parseTime := func(timeValue string, newLine int) (string, error) {
 		var h, m, s, ms int
 		if strings.Contains(timeValue, ":") {
 			_, err = fmt.Sscanf(timeValue, "%d:%d:%d.%d", &h, &m, &s, &ms)
@@ -183,30 +186,22 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 		}
 		m += h * 60
 		ms = ms / 10
-		return fmt.Sprintf("[%02d:%02d.%02d]", m, s, ms), nil
-	}
-	divs := parsedTTML.FindElement("tt").FindElement("body").FindElements("div")
-	//get trans
-	if len(parsedTTML.FindElement("tt").FindElements("head")) > 0 {
-		if len(parsedTTML.FindElement("tt").FindElement("head").FindElements("metadata")) > 0 {
-			Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
-			if len(Metadata.FindElements("iTunesMetadata")) > 0 {
-				iTunesMetadata := Metadata.FindElement("iTunesMetadata")
-				if len(iTunesMetadata.FindElements("translations")) > 0 {
-					if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
-						divs = iTunesMetadata.FindElement("translations").FindElements("translation")
-					}
-				}
-			}
+		if newLine == 0 {
+			return fmt.Sprintf("[%02d:%02d.%02d]<%02d:%02d.%02d>", m, s, ms, m, s, ms), nil
+		} else if newLine == -1 {
+			return fmt.Sprintf("[%02d:%02d.%02d]", m, s, ms), nil
+		} else {
+			return fmt.Sprintf("<%02d:%02d.%02d>", m, s, ms), nil
 		}
 	}
+	divs := parsedTTML.FindElement("tt").FindElement("body").FindElements("div")
 	for _, div := range divs {
-		for _, item := range div.ChildElements() {
+		for _, item := range div.ChildElements() {     //LINES
 			var lrcSyllables []string
 			var i int = 0
-			var endTime string
-			for _, lyrics := range item.Child {
-				if _, ok := lyrics.(*etree.CharData); ok {
+			var endTime, transLine string
+			for _, lyrics := range item.Child {    //WORDS
+				if _, ok := lyrics.(*etree.CharData); ok {   //是否为span之间的空格
 					if i > 0 {
 						lrcSyllables = append(lrcSyllables, " ")
 						continue
@@ -217,11 +212,12 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 				if lyric.SelectAttr("begin") == nil {
 					continue
 				}
-				beginTime, err := parseTime(lyric.SelectAttr("begin").Value)
+				beginTime, err := parseTime(lyric.SelectAttr("begin").Value, i)
 				if err != nil {
-					return "", err
+						return "", err
 				}
-				endTime, err = parseTime(lyric.SelectAttr("end").Value)
+
+				endTime, err = parseTime(lyric.SelectAttr("end").Value, 1)
 				if err != nil {
 					return "", err
 				}
@@ -240,6 +236,39 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 					text = lyric.SelectAttr("text").Value
 				}
 				lrcSyllables = append(lrcSyllables, fmt.Sprintf("%s%s", beginTime, text))
+				if i == 0 {
+					transBeginTime, _ := parseTime(lyric.SelectAttr("begin").Value, -1)
+					if len(parsedTTML.FindElement("tt").FindElements("head")) > 0 {
+						if len(parsedTTML.FindElement("tt").FindElement("head").FindElements("metadata")) > 0 {
+							Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
+							if len(Metadata.FindElements("iTunesMetadata")) > 0 {
+								iTunesMetadata := Metadata.FindElement("iTunesMetadata")
+								if len(iTunesMetadata.FindElements("translations")) > 0 {
+									if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
+										xpath := fmt.Sprintf("//text[@for='%s']", item.SelectAttr("itunes:key").Value)
+										trans := iTunesMetadata.FindElement("translations").FindElement("translation").FindElement(xpath)
+										var transTxt string
+										if trans.SelectAttr("text") == nil {
+											var textTmp []string
+											for _, span := range trans.Child {
+												if _, ok := span.(*etree.CharData); ok {
+													textTmp = append(textTmp, span.(*etree.CharData).Data)
+												} /*else {
+													textTmp = append(textTmp, span.(*etree.Element).Text())
+												}*/
+											}
+											transTxt = strings.Join(textTmp, "")
+										} else {
+											transTxt = trans.SelectAttr("text").Value
+										}
+										//fmt.Println(transTxt)
+										transLine = transBeginTime + transTxt
+									}
+								}
+							}
+						}
+					}
+				}
 				i += 1
 			}
 			//endTime, err := parseTime(item.SelectAttr("end").Value)
@@ -247,6 +276,9 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 			//	return "", err
 			//}
 			lrcLines = append(lrcLines, strings.Join(lrcSyllables, "")+endTime)
+			if len(transLine) > 0 {
+				lrcLines = append(lrcLines, transLine)
+			}
 		}
 	}
 	return strings.Join(lrcLines, "\n"), nil
