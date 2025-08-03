@@ -105,20 +105,22 @@ func TtmlToLrc(ttml string) (string, error) {
 	for _, item := range parsedTTML.FindElement("tt").FindElement("body").ChildElements() {
 		for _, lyric := range item.ChildElements() {
 			var h, m, s, ms int
-			if lyric.SelectAttr("begin") == nil {
+			beginAttr := lyric.SelectAttr("begin")
+			if beginAttr == nil {
 				return "", errors.New("no synchronised lyrics")
 			}
-			if strings.Contains(lyric.SelectAttr("begin").Value, ":") {
-				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d:%d.%d", &h, &m, &s, &ms)
+			beginValue := beginAttr.Value
+			if strings.Contains(beginValue, ":") {
+				_, err = fmt.Sscanf(beginValue, "%d:%d:%d.%d", &h, &m, &s, &ms)
 				if err != nil {
-					_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d.%d", &m, &s, &ms)
+					_, err = fmt.Sscanf(beginValue, "%d:%d.%d", &m, &s, &ms)
 					if err != nil {
-						_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d:%d", &m, &s)
+						_, err = fmt.Sscanf(beginValue, "%d:%d", &m, &s)
 					}
 					h = 0
 				}
 			} else {
-				_, err = fmt.Sscanf(lyric.SelectAttr("begin").Value, "%d.%d", &s, &ms)
+				_, err = fmt.Sscanf(beginValue, "%d.%d", &s, &ms)
 				h, m = 0, 0
 			}
 			if err != nil {
@@ -135,7 +137,9 @@ func TtmlToLrc(ttml string) (string, error) {
 							if len(iTunesMetadata.FindElement("translations").FindElements("translation")) > 0 {
 								xpath := fmt.Sprintf("//text[@for='%s']", lyric.SelectAttr("itunes:key").Value)
 								trans := iTunesMetadata.FindElement("translations").FindElement("translation").FindElement(xpath)
-								lyric = trans
+								if trans != nil {
+									lyric = trans
+								}
 							}
 						}
 					}
