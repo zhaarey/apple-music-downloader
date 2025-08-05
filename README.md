@@ -45,3 +45,19 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
 3. Find the cookie named `media-user-token` and copy its value
 4. Paste the cookie value obtained in step 3 into the config.yaml and save it
 5. Start the script as usual
+
+## Get translation and pronunciation lyrics (Beta)
+
+1. Open [Apple Music](https://beta.music.apple.com) and log in.
+2. Open the Developer tools, click `Network` tab.
+3. Search a song which is available for translation and pronunciation lyrics (recommend K-Pop songs).
+4. Press Ctrl+R and let Developer tools sniff network data.
+5. Play a song and then click lyric button, sniff will show a data called `syllable-lyrics`.
+6. Stop sniff (small red circles button on top left), then click `Fetch/XHR` tabs.
+7. Click `syllable-lyrics` data, see requested URL.
+8. Find this line `.../syllable-lyrics?l=<copy all the language value from here>&extend=ttmlLocalizations`.
+9. Paste the language value obtained in step 8 into the config.yaml and save it.
+10. If don't need pronunciation, do this `...%5D=<remove this value>&extend...` on config.yaml and save it.
+11. Start the script as usual.
+
+Noted: These features are only in beta version right now.
