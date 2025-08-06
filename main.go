@@ -53,18 +53,57 @@ var (
 	okDict         = make(map[string][]int)
 )
 
+// 去掉环境变量的加载，顺便把写到全局变量的代码移出来了
 func loadConfig() error {
-	// 读取config.yaml文件内容
-	data, err := os.ReadFile("config.yaml")
-	if err != nil {
-		return err
+	var configPath string
+	var err error
+	var exe string
+	exe, err = os.Executable()
+	if err == nil {
+		exeDir := filepath.Dir(exe)
+		configPath = filepath.Join(exeDir, "config.yaml")
+		if _, errStat := os.Stat(configPath); os.IsNotExist(errStat) {
+			configPath = "config.yaml"
+		}
+	} else {
+		configPath = "config.yaml"
 	}
+	err = ApplyConfig(configPath)
+	if err == nil {
+		fmt.Printf("Successfully loaded default configuration from: %s\n", configPath)
+	}
+	return err
+}
+
+// 接收一个文件路径，尝试读取并解析成 YAML，然后填充到全局的 Config 变量中。
+func ApplyConfig(path string) error {
+	// 读取config.yaml文件内容
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read file at '%s': %v", path, err)
+	}
+
 	// 将yaml解析到config变量中
 	err = yaml.Unmarshal(data, &Config)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse YAML from '%s': %v", path, err)
 	}
 	return nil
+}
+
+// 遍历os.Args查找--config参数.
+func findConfigPath(args []string) string {
+	for i, arg := range args {
+		if arg == "--config" {
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+		}
+		if strings.HasPrefix(arg, "--config=") {
+			return strings.TrimPrefix(arg, "--config=")
+		}
+	}
+	return "" // 没有找到 --config 参数
 }
 
 func LimitString(s string) string {
@@ -1459,12 +1498,24 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 }
 
 func main() {
-	err := loadConfig()
-	if err != nil {
-		fmt.Printf("load Config failed: %v", err)
-		return
+	configPath := findConfigPath(os.Args)
+	if configPath != "" {
+		err := ApplyConfig(configPath)
+		if err == nil {
+			fmt.Printf("Successfully loaded configuration from: %s\n", configPath)
+		} else {
+			fmt.Printf("Error loading configuration: %v\n", err)
+			return
+		}
+	} else {
+		err := loadConfig()
+		if err != nil {
+			fmt.Printf("Error loading configuration: %v\n", err)
+			return
+		}
 	}
 	token, err := ampapi.GetToken()
+
 	if err != nil {
 		if Config.AuthorizationToken != "" && Config.AuthorizationToken != "your-authorization-token" {
 			token = strings.Replace(Config.AuthorizationToken, "Bearer ", "", -1)
@@ -1480,6 +1531,7 @@ func main() {
 	pflag.BoolVar(&dl_song, "song", false, "Enable single song download mode")
 	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
 	pflag.BoolVar(&debug_mode, "debug", false, "Enable debug mode to show audio quality information")
+	pflag.String("config", "", "Specify the path to the config.yaml file")
 	alac_max = pflag.Int("alac-max", Config.AlacMax, "Specify the max quality for download alac")
 	atmos_max = pflag.Int("atmos-max", Config.AtmosMax, "Specify the max quality for download atmos")
 	aac_type = pflag.String("aac-type", Config.AacType, "Select AAC type, aac aac-binaural aac-downmix")
