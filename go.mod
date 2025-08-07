@@ -14,7 +14,6 @@ require (
 )
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.3.7 // indirect
 	github.com/PuerkitoBio/goquery v1.10.1 // indirect
 	github.com/STARRY-S/zip v0.2.1 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
@@ -98,6 +97,7 @@ require (
 )
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/beevik/etree v1.3.0
 	github.com/fatih/color v1.18.0
 	github.com/olekukonko/tablewriter v0.0.5
