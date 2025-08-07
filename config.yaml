@@ -45,3 +45,5 @@ use-songinfo-for-playlist: false
 dl-albumcover-for-playlist: false
 mv-audio-type: atmos  #atmos ac3 aac
 mv-max: 2160
+Storefront: "enter your storefront" #country-code that is shown in urls i.e (us, ca, jp etc..)
+

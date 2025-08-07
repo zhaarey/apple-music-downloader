@@ -1,6 +1,7 @@
 package structs
 
 type ConfigSet struct {
+	Storefront              string `yaml:"storefront"` 
 	MediaUserToken          string `yaml:"media-user-token"`
 	AuthorizationToken      string `yaml:"authorization-token"`
 	Language                string `yaml:"language"`
