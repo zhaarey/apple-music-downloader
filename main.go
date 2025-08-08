@@ -63,7 +63,7 @@ func loadConfig() error {
 	if err != nil {
 		return err
 	}
-	if Config.Storefront == "" {
+	if len(Config.Storefront) != 2 {
 		Config.Storefront = "us"
 	}
 	return nil
@@ -452,8 +452,8 @@ func promptForQuality(item SearchResultItem, token string) (string, error) {
 	}
 
 	prompt := &survey.Select{
-		Message: "Select a quality to download:",
-		Options: qualityOptions,
+		Message:  "Select a quality to download:",
+		Options:  qualityOptions,
 		PageSize: 5,
 	}
 

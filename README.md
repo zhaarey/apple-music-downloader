@@ -9,6 +9,7 @@ English / [简体中文](./README-CN.md)
 3. Support downloading singers `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351` `--all-album` Automatically select all albums of the artist
 4. The download decryption part is replaced with Sendy McSenderson to decrypt while downloading, and solve the lack of memory when decrypting large files
 5. MV Download, installation required[mp4decrypt](https://www.bento4.com/downloads/)
+6. Add interactive search with arrow-key navigation `go run main.go --search [song/album/artist] "search_term"`
 
 ### Special thanks to `chocomint` for creating `agent-arm64.js`
 
