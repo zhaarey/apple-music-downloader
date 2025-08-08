@@ -27,6 +27,7 @@ import (
 	"main/utils/structs"
 	"main/utils/task"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 	"github.com/grafov/m3u8"
 	"github.com/olekukonko/tablewriter"
@@ -54,15 +55,16 @@ var (
 )
 
 func loadConfig() error {
-	// 读取config.yaml文件内容
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {
 		return err
 	}
-	// 将yaml解析到config变量中
 	err = yaml.Unmarshal(data, &Config)
 	if err != nil {
 		return err
+	}
+	if Config.Storefront == "" {
+		Config.Storefront = "us"
 	}
 	return nil
 }
@@ -243,11 +245,7 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 	} else if relationship == "music-videos" {
 		table.SetHeader([]string{"", "MV Name", "Date", "MV ID"})
 	}
-	//table.SetFooter([]string{"", "", "Total", "$146.93"})
-	//table.SetAutoMergeCells(true)
-	//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
 	table.SetRowLine(false)
-	//table.AppendBulk(options)
 	table.SetHeaderColor(tablewriter.Colors{},
 		tablewriter.Colors{tablewriter.FgRedColor, tablewriter.Bold},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor},
@@ -273,29 +271,26 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 	cyanColor.Print("Enter your choice: ")
 	input, _ := reader.ReadString('\n')
 
-	// Remove newline and whitespace
 	input = strings.TrimSpace(input)
 	if input == "all" {
 		fmt.Println("You have selected all options:")
 		return urls, nil
 	}
 
-	// Split input into string slices
 	selectedOptions := [][]string{}
 	parts := strings.Split(input, ",")
 	for _, part := range parts {
-		if strings.Contains(part, "-") { // Range setting
+		if strings.Contains(part, "-") {
 			rangeParts := strings.Split(part, "-")
 			selectedOptions = append(selectedOptions, rangeParts)
-		} else { // Single option
+		} else {
 			selectedOptions = append(selectedOptions, []string{part})
 		}
 	}
 
-	// Print selected options
 	fmt.Println("You have selected the following options:")
 	for _, opt := range selectedOptions {
-		if len(opt) == 1 { // Single option
+		if len(opt) == 1 {
 			num, err := strconv.Atoi(opt[0])
 			if err != nil {
 				fmt.Println("Invalid option:", opt[0])
@@ -307,7 +302,7 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 			} else {
 				fmt.Println("Option out of range:", opt[0])
 			}
-		} else if len(opt) == 2 { // Range
+		} else if len(opt) == 2 {
 			start, err1 := strconv.Atoi(opt[0])
 			end, err2 := strconv.Atoi(opt[1])
 			if err1 != nil || err2 != nil {
@@ -401,6 +396,215 @@ func contains(slice []string, item string) bool {
 	}
 	return false
 }
+
+// START: New functions for search functionality
+
+// SearchResultItem is a unified struct to hold search results for display.
+type SearchResultItem struct {
+	Type   string
+	Name   string
+	Detail string
+	URL    string
+	ID     string
+}
+
+// QualityOption holds information about a downloadable quality.
+type QualityOption struct {
+	ID          string
+	Description string
+}
+
+// setDlFlags configures the global download flags based on the user's quality selection.
+func setDlFlags(quality string) {
+	dl_atmos = false
+	dl_aac = false
+
+	switch quality {
+	case "atmos":
+		dl_atmos = true
+		fmt.Println("Quality set to: Dolby Atmos")
+	case "aac":
+		dl_aac = true
+		*aac_type = "aac"
+		fmt.Println("Quality set to: High-Quality (AAC)")
+	case "alac":
+		fmt.Println("Quality set to: Lossless (ALAC)")
+	}
+}
+
+// promptForQuality asks the user to select a download quality for the chosen media.
+func promptForQuality(item SearchResultItem, token string) (string, error) {
+	if item.Type == "Artist" {
+		fmt.Println("Artist selected. Proceeding to list all albums/videos.")
+		return "default", nil
+	}
+
+	fmt.Printf("\nFetching available qualities for: %s\n", item.Name)
+
+	qualities := []QualityOption{
+		{ID: "alac", Description: "Lossless (ALAC)"},
+		{ID: "aac", Description: "High-Quality (AAC)"},
+		{ID: "atmos", Description: "Dolby Atmos"},
+	}
+	qualityOptions := []string{}
+	for _, q := range qualities {
+		qualityOptions = append(qualityOptions, q.Description)
+	}
+
+	prompt := &survey.Select{
+		Message: "Select a quality to download:",
+		Options: qualityOptions,
+		PageSize: 5,
+	}
+
+	selectedIndex := 0
+	err := survey.AskOne(prompt, &selectedIndex)
+	if err != nil {
+		// This can happen if the user presses Ctrl+C
+		return "", nil
+	}
+
+	return qualities[selectedIndex].ID, nil
+}
+
+// handleSearch manages the entire interactive search process.
+func handleSearch(searchType string, queryParts []string, token string) (string, error) {
+	query := strings.Join(queryParts, " ")
+	validTypes := map[string]bool{"album": true, "song": true, "artist": true}
+	if !validTypes[searchType] {
+		return "", fmt.Errorf("invalid search type: %s. Use 'album', 'song', or 'artist'", searchType)
+	}
+
+	fmt.Printf("Searching for %ss: \"%s\" in storefront \"%s\"\n", searchType, query, Config.Storefront)
+
+	offset := 0
+	limit := 15 // Increased limit for better navigation
+
+	apiSearchType := searchType + "s"
+
+	for {
+		searchResp, err := ampapi.Search(Config.Storefront, query, apiSearchType, Config.Language, token, limit, offset)
+		if err != nil {
+			return "", fmt.Errorf("error fetching search results: %w", err)
+		}
+
+		var items []SearchResultItem
+		var displayOptions []string
+		hasNext := false
+
+		// Special options for navigation
+		const prevPageOpt = "⬅️  Previous Page"
+		const nextPageOpt = "➡️  Next Page"
+
+		// Add previous page option if applicable
+		if offset > 0 {
+			displayOptions = append(displayOptions, prevPageOpt)
+		}
+
+		switch searchType {
+		case "album":
+			if searchResp.Results.Albums != nil {
+				for _, item := range searchResp.Results.Albums.Data {
+					year := ""
+					if len(item.Attributes.ReleaseDate) >= 4 {
+						year = item.Attributes.ReleaseDate[:4]
+					}
+					trackInfo := fmt.Sprintf("%d tracks", item.Attributes.TrackCount)
+					detail := fmt.Sprintf("%s (%s, %s)", item.Attributes.ArtistName, year, trackInfo)
+					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", item.Attributes.Name, detail))
+					items = append(items, SearchResultItem{Type: "Album", URL: item.Attributes.URL, ID: item.ID})
+				}
+				hasNext = searchResp.Results.Albums.Next != ""
+			}
+		case "song":
+			if searchResp.Results.Songs != nil {
+				for _, item := range searchResp.Results.Songs.Data {
+					detail := fmt.Sprintf("%s (%s)", item.Attributes.ArtistName, item.Attributes.AlbumName)
+					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", item.Attributes.Name, detail))
+					items = append(items, SearchResultItem{Type: "Song", URL: item.Attributes.URL, ID: item.ID})
+				}
+				hasNext = searchResp.Results.Songs.Next != ""
+			}
+		case "artist":
+			if searchResp.Results.Artists != nil {
+				for _, item := range searchResp.Results.Artists.Data {
+					detail := ""
+					if len(item.Attributes.GenreNames) > 0 {
+						detail = strings.Join(item.Attributes.GenreNames, ", ")
+					}
+					displayOptions = append(displayOptions, fmt.Sprintf("%s (%s)", item.Attributes.Name, detail))
+					items = append(items, SearchResultItem{Type: "Artist", URL: item.Attributes.URL, ID: item.ID})
+				}
+				hasNext = searchResp.Results.Artists.Next != ""
+			}
+		}
+
+		if len(items) == 0 && offset == 0 {
+			fmt.Println("No results found.")
+			return "", nil
+		}
+
+		// Add next page option if applicable
+		if hasNext {
+			displayOptions = append(displayOptions, nextPageOpt)
+		}
+
+		prompt := &survey.Select{
+			Message:  "Use arrow keys to navigate, Enter to select:",
+			Options:  displayOptions,
+			PageSize: limit, // Show a full page of results
+		}
+
+		selectedIndex := 0
+		err = survey.AskOne(prompt, &selectedIndex)
+		if err != nil {
+			// User pressed Ctrl+C
+			return "", nil
+		}
+
+		selectedOption := displayOptions[selectedIndex]
+
+		// Handle pagination
+		if selectedOption == nextPageOpt {
+			offset += limit
+			continue
+		}
+		if selectedOption == prevPageOpt {
+			offset -= limit
+			continue
+		}
+
+		// Adjust index to match the `items` slice if "Previous Page" was an option
+		itemIndex := selectedIndex
+		if offset > 0 {
+			itemIndex--
+		}
+
+		selectedItem := items[itemIndex]
+
+		// Automatically set single song download flag
+		if selectedItem.Type == "Song" {
+			dl_song = true
+		}
+
+		quality, err := promptForQuality(selectedItem, token)
+		if err != nil {
+			return "", fmt.Errorf("could not process quality selection: %w", err)
+		}
+		if quality == "" { // User cancelled quality selection
+			fmt.Println("Selection cancelled.")
+			return "", nil
+		}
+
+		if quality != "default" {
+			setDlFlags(quality)
+		}
+
+		return selectedItem.URL, nil
+	}
+}
+
+// END: New functions for search functionality
 
 func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	var err error
@@ -573,7 +777,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	tags := []string{
 		"tool=",
 		fmt.Sprintf("artist=%s", track.Resp.Attributes.ArtistName),
-		//fmt.Sprintf("lyrics=%s", lrc),
 	}
 	if Config.EmbedCover {
 		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {
@@ -627,7 +830,6 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 		Codec = "ALAC"
 	}
 	station.Codec = Codec
-	// Get Artist Folder
 	var singerFoldername string
 	if Config.ArtistFolderFormat != "" {
 		singerFoldername = strings.NewReplacer(
@@ -648,10 +850,9 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	if dl_aac {
 		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
-	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
+	os.MkdirAll(singerFolder, os.ModePerm)
 	station.SaveDir = singerFolder
 
-	//Get Playlist Folder Name
 	playlistFolder := strings.NewReplacer(
 		"{ArtistName}", "Apple Music Station",
 		"{PlaylistName}", LimitString(station.Name),
@@ -668,19 +869,16 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	os.MkdirAll(playlistFolderPath, os.ModePerm)
 	station.SaveName = playlistFolder
 	fmt.Println(playlistFolder)
-	//先省略封面相关的获取
-	//get playlist cover
+
 	covPath, err := writeCover(playlistFolderPath, "cover", meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
 		fmt.Println("Failed to write cover.")
 	}
 	station.CoverPath = covPath
 
-	//get animated artwork
 	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionSquare.Video != "" {
 		fmt.Println("Found Animation Artwork.")
 
-		// Download square version
 		motionvideoUrlSquare, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionSquare.Video)
 		if err != nil {
 			fmt.Println("no motion video square.\n", err)
@@ -703,14 +901,12 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 		}
 
 		if Config.EmbyAnimatedArtwork {
-			// Convert square version to gif
 			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(playlistFolderPath, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(playlistFolderPath, "folder.jpg"))
 			if err := cmd3.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
 			}
 		}
 	}
-	// 处理stream类型的station
 	if station.Type == "stream" {
 		counter.Total++
 		if isInArray(okDict[station.ID], 1) {
@@ -744,7 +940,6 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			return err
 		}
 		trackM3U8 := strings.ReplaceAll(assetsUrl, "index.m3u8", "256/prog_index.m3u8")
-		//testM3U8 := "https://itsliveradio.apple.com/bb/aod/exp_aod/jpopnowradio/AkinaNakamori/cmaf/256/prog_index.m3u8"
 		keyAndUrls, _ := runv3.Run(station.ID, trackM3U8, token, mediaUserToken, true)
 		err = runv3.ExtMvData(keyAndUrls, trackPath)
 		if err != nil {
@@ -752,7 +947,6 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			counter.Error++
 			return err
 		}
-		//tags
 		tags := []string{
 			"tool=",
 			"disk=1/1",
@@ -761,7 +955,6 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			fmt.Sprintf("artist=%s", "Apple Music Station"),
 			fmt.Sprintf("performer=%s", "Apple Music Station"),
 			fmt.Sprintf("album_artist=%s", "Apple Music Station"),
-			fmt.Sprintf("artist=%s", "Apple Music Station"),
 			fmt.Sprintf("album=%s", station.Name),
 			fmt.Sprintf("title=%s", station.Name),
 		}
@@ -794,18 +987,10 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	if true {
 		selected = arr
 	}
-	//Download tracks
 	for i := range station.Tracks {
 		i++
-		// if isInArray(okDict[playlistId], i) {
-		// 	//fmt.Println("已完成直接跳过.\n")
-		// 	counter.Total++
-		// 	counter.Success++
-		// 	continue
-		// }
 		if isInArray(selected, i) {
 			ripTrack(&station.Tracks[i-1], token, mediaUserToken)
-			//downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, covPath)
 		}
 	}
 	return nil
@@ -819,9 +1004,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		return err
 	}
 	meta := album.Resp
-	//debug mode
 	if debug_mode {
-		// Print album info
 		fmt.Println(meta.Data[0].Attributes.ArtistName)
 		fmt.Println(meta.Data[0].Attributes.Name)
 
@@ -837,11 +1020,9 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			}
 
 			var m3u8Url string
-			//Web端m3u8
 			if manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls != "" {
 				m3u8Url = manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls
 			}
-			//设备端满血m3u8
 			needCheck := false
 			if Config.GetM3u8Mode == "all" {
 				needCheck = true
@@ -863,9 +1044,8 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 				continue
 			}
 		}
-		return nil // Return directly without showing statistics
+		return nil
 	}
-	// Get Codec
 	var Codec string
 	if dl_atmos {
 		Codec = "ATMOS"
@@ -875,7 +1055,6 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		Codec = "ALAC"
 	}
 	album.Codec = Codec
-	// Get Artist Folder
 	var singerFoldername string
 	if Config.ArtistFolderFormat != "" {
 		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
@@ -904,9 +1083,8 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	if dl_aac {
 		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
-	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
+	os.MkdirAll(singerFolder, os.ModePerm)
 	album.SaveDir = singerFolder
-	//Get Quality
 	var Quality string
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
@@ -921,7 +1099,6 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 				if manifest1.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls == "" {
 					Codec = "AAC"
 					Quality = "256Kbps"
-					//fmt.Println("Unavailable.\n")
 				} else {
 					needCheck := false
 
@@ -945,7 +1122,6 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			}
 		}
 	}
-	//Set Album Folder Tags
 	stringsToJoin := []string{}
 	if meta.Data[0].Attributes.IsAppleDigitalMaster || meta.Data[0].Attributes.IsMasteredForItunes {
 		if Config.AppleMasterChoice != "" {
@@ -963,7 +1139,6 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
-	//Get Album Folder Name
 	var albumFolderName string
 	albumFolderName = strings.NewReplacer(
 		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
@@ -984,10 +1159,9 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	}
 	albumFolderName = strings.TrimSpace(albumFolderName)
 	albumFolderPath := filepath.Join(singerFolder, forbiddenNames.ReplaceAllString(albumFolderName, "_"))
-	os.MkdirAll(albumFolderPath, os.ModePerm) // Create album folder
+	os.MkdirAll(albumFolderPath, os.ModePerm)
 	album.SaveName = albumFolderName
 	fmt.Println(albumFolderName)
-	//get artist cover
 	if Config.SaveArtistCover {
 		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
 			_, err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
@@ -996,16 +1170,13 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			}
 		}
 	}
-	//get playlist cover
 	covPath, err := writeCover(albumFolderPath, "cover", meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
 		fmt.Println("Failed to write cover.")
 	}
-	//get animated artwork
 	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video != "" {
 		fmt.Println("Found Animation Artwork.")
 
-		// Download square version
 		motionvideoUrlSquare, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video)
 		if err != nil {
 			fmt.Println("no motion video square.\n", err)
@@ -1028,14 +1199,12 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		}
 
 		if Config.EmbyAnimatedArtwork {
-			// Convert square version to gif
 			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(albumFolderPath, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(albumFolderPath, "folder.jpg"))
 			if err := cmd3.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
 			}
 		}
 
-		// Download tall version
 		motionvideoUrlTall, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailTall.Video)
 		if err != nil {
 			fmt.Println("no motion video tall.\n", err)
@@ -1057,13 +1226,11 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 			}
 		}
 	}
-	//填充子track信息
 	for i := range album.Tracks {
 		album.Tracks[i].CoverPath = covPath
 		album.Tracks[i].SaveDir = albumFolderPath
 		album.Tracks[i].Codec = Codec
 	}
-	//Get selected tracks
 	trackTotal := len(meta.Data[0].Relationships.Tracks.Data)
 	arr := make([]int, trackTotal)
 	for i := 0; i < trackTotal; i++ {
@@ -1072,13 +1239,10 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 
 	if dl_song {
 		if urlArg_i == "" {
-			//fmt.Println("URL does not contain parameter 'i'. Please ensure the URL includes 'i' or use another mode.")
-			//return nil
 		} else {
 			for i := range album.Tracks {
 				if urlArg_i == album.Tracks[i].ID {
 					ripTrack(&album.Tracks[i], token, mediaUserToken)
-					//downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, albumFolderPath, Codec, covPath)
 					return nil
 				}
 			}
@@ -1091,18 +1255,15 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	} else {
 		selected = album.ShowSelect()
 	}
-	//Download tracks
 	for i := range album.Tracks {
 		i++
 		if isInArray(okDict[albumId], i) {
-			//fmt.Println("已完成直接跳过.\n")
 			counter.Total++
 			counter.Success++
 			continue
 		}
 		if isInArray(selected, i) {
 			ripTrack(&album.Tracks[i-1], token, mediaUserToken)
-			//downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, covPath)
 		}
 	}
 	return nil
@@ -1117,7 +1278,6 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	}
 	meta := playlist.Resp
 	if debug_mode {
-		// Print album info
 		fmt.Println(meta.Data[0].Attributes.ArtistName)
 		fmt.Println(meta.Data[0].Attributes.Name)
 
@@ -1133,11 +1293,9 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 			}
 
 			var m3u8Url string
-			//Web端m3u8
 			if manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls != "" {
 				m3u8Url = manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls
 			}
-			//设备端满血m3u8
 			needCheck := false
 			if Config.GetM3u8Mode == "all" {
 				needCheck = true
@@ -1159,7 +1317,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 				continue
 			}
 		}
-		return nil // Return directly without showing statistics
+		return nil
 	}
 	var Codec string
 	if dl_atmos {
@@ -1170,7 +1328,6 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		Codec = "ALAC"
 	}
 	playlist.Codec = Codec
-	// Get Artist Folder
 	var singerFoldername string
 	if Config.ArtistFolderFormat != "" {
 		singerFoldername = strings.NewReplacer(
@@ -1191,9 +1348,8 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	if dl_aac {
 		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
-	os.MkdirAll(singerFolder, os.ModePerm) // Create artist folder
+	os.MkdirAll(singerFolder, os.ModePerm)
 	playlist.SaveDir = singerFolder
-	//Get Quality
 
 	var Quality string
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
@@ -1209,7 +1365,6 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 				if manifest1.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls == "" {
 					Codec = "AAC"
 					Quality = "256Kbps"
-					//fmt.Println("Unavailable.\n")
 				} else {
 					needCheck := false
 
@@ -1233,7 +1388,6 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 			}
 		}
 	}
-	//Set Playlist Folder Tags
 	stringsToJoin := []string{}
 	if meta.Data[0].Attributes.IsAppleDigitalMaster || meta.Data[0].Attributes.IsMasteredForItunes {
 		if Config.AppleMasterChoice != "" {
@@ -1251,7 +1405,6 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
-	//Get Playlist Folder Name
 	playlistFolder := strings.NewReplacer(
 		"{ArtistName}", "Apple Music",
 		"{PlaylistName}", LimitString(meta.Data[0].Attributes.Name),
@@ -1268,8 +1421,6 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	os.MkdirAll(playlistFolderPath, os.ModePerm)
 	playlist.SaveName = playlistFolder
 	fmt.Println(playlistFolder)
-	//先省略封面相关的获取
-	//get playlist cover
 	covPath, err := writeCover(playlistFolderPath, "cover", meta.Data[0].Attributes.Artwork.URL)
 	if err != nil {
 		fmt.Println("Failed to write cover.")
@@ -1281,11 +1432,9 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		playlist.Tracks[i].Codec = Codec
 	}
 
-	//get animated artwork
 	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video != "" {
 		fmt.Println("Found Animation Artwork.")
 
-		// Download square version
 		motionvideoUrlSquare, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video)
 		if err != nil {
 			fmt.Println("no motion video square.\n", err)
@@ -1308,14 +1457,12 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		}
 
 		if Config.EmbyAnimatedArtwork {
-			// Convert square version to gif
 			cmd3 := exec.Command("ffmpeg", "-i", filepath.Join(playlistFolderPath, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(playlistFolderPath, "folder.jpg"))
 			if err := cmd3.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
 			}
 		}
 
-		// Download tall version
 		motionvideoUrlTall, err := extractVideo(meta.Data[0].Attributes.EditorialVideo.MotionDetailTall.Video)
 		if err != nil {
 			fmt.Println("no motion video tall.\n", err)
@@ -1349,18 +1496,15 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	} else {
 		selected = playlist.ShowSelect()
 	}
-	//Download tracks
 	for i := range playlist.Tracks {
 		i++
 		if isInArray(okDict[playlistId], i) {
-			//fmt.Println("已完成直接跳过.\n")
 			counter.Total++
 			counter.Success++
 			continue
 		}
 		if isInArray(selected, i) {
 			ripTrack(&playlist.Tracks[i-1], token, mediaUserToken)
-			//downloadTrack(trackNum, trackTotal, meta, track, albumId, token, storefront, mediaUserToken, sanAlbumFolder, Codec, covPath)
 		}
 	}
 	return nil
@@ -1381,15 +1525,12 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		},
 		Composer:     track.Resp.Attributes.ComposerName,
 		ComposerSort: track.Resp.Attributes.ComposerName,
-		//Date:         meta.Data[0].Attributes.ReleaseDate,
-		CustomGenre: track.Resp.Attributes.GenreNames[0],
-		//Copyright:    meta.Data[0].Attributes.Copyright,
-		//Publisher:    meta.Data[0].Attributes.RecordLabel,
-		Lyrics:      lrc,
-		TrackNumber: int16(track.Resp.Attributes.TrackNumber),
-		DiscNumber:  int16(track.Resp.Attributes.DiscNumber),
-		Album:       track.Resp.Attributes.AlbumName,
-		AlbumSort:   track.Resp.Attributes.AlbumName,
+		CustomGenre:  track.Resp.Attributes.GenreNames[0],
+		Lyrics:       lrc,
+		TrackNumber:  int16(track.Resp.Attributes.TrackNumber),
+		DiscNumber:   int16(track.Resp.Attributes.DiscNumber),
+		Album:        track.Resp.Attributes.AlbumName,
+		AlbumSort:    track.Resp.Attributes.AlbumName,
 	}
 
 	if track.PreType == "albums" {
@@ -1473,7 +1614,8 @@ func main() {
 			return
 		}
 	}
-	// Define command-line flags
+	var search_type string
+	pflag.StringVar(&search_type, "search", "", "Search for 'album', 'song', or 'artist'. Provide query after flags.")
 	pflag.BoolVar(&dl_atmos, "atmos", false, "Enable atmos download mode")
 	pflag.BoolVar(&dl_aac, "aac", false, "Enable adm-aac download mode")
 	pflag.BoolVar(&dl_select, "select", false, "Enable selective download")
@@ -1486,14 +1628,13 @@ func main() {
 	mv_audio_type = pflag.String("mv-audio-type", Config.MVAudioType, "Select MV audio type, atmos ac3 aac")
 	mv_max = pflag.Int("mv-max", Config.MVMax, "Specify the max quality for download MV")
 
-	// Custom usage message for help
 	pflag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options] url1 url2 ...\n", "[main | main.exe | go run main.go]")
-		fmt.Println("Options:")
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", "[main | main.exe | go run main.go]")
+		fmt.Fprintf(os.Stderr, "Search Usage: %s --search [album|song|artist] [query]\n", "[main | main.exe | go run main.go]")
+		fmt.Println("\nOptions:")
 		pflag.PrintDefaults()
 	}
 
-	// Parse the flag arguments
 	pflag.Parse()
 	Config.AlacMax = *alac_max
 	Config.AtmosMax = *atmos_max
@@ -1502,19 +1643,38 @@ func main() {
 	Config.MVMax = *mv_max
 
 	args := pflag.Args()
-	if len(args) == 0 {
-		fmt.Println("No URLs provided. Please provide at least one URL.")
-		pflag.Usage()
-		return
+
+	if search_type != "" {
+		if len(args) == 0 {
+			fmt.Println("Error: --search flag requires a query.")
+			pflag.Usage()
+			return
+		}
+		selectedUrl, err := handleSearch(search_type, args, token)
+		if err != nil {
+			fmt.Printf("\nSearch process failed: %v\n", err)
+			return
+		}
+		if selectedUrl == "" {
+			fmt.Println("\nExiting.")
+			return
+		}
+		os.Args = []string{selectedUrl}
+	} else {
+		if len(args) == 0 {
+			fmt.Println("No URLs provided. Please provide at least one URL.")
+			pflag.Usage()
+			return
+		}
+		os.Args = args
 	}
-	os.Args = args
+
 	if strings.Contains(os.Args[0], "/artist/") {
 		urlArtistName, urlArtistID, err := getUrlArtistName(os.Args[0], token)
 		if err != nil {
 			fmt.Println("Failed to get artistname.")
 			return
 		}
-		//fmt.Println("get artistname:", urlArtistName)
 		Config.ArtistFolderFormat = strings.NewReplacer(
 			"{UrlArtistName}", LimitString(urlArtistName),
 			"{ArtistId}", urlArtistID,
@@ -1527,7 +1687,6 @@ func main() {
 		mvArgs, err := checkArtist(os.Args[0], token, "music-videos")
 		if err != nil {
 			fmt.Println("Failed to get artist music-videos.")
-			//return
 		}
 		os.Args = append(albumArgs, mvArgs...)
 	}
@@ -1537,7 +1696,6 @@ func main() {
 			fmt.Printf("Queue %d of %d: ", albumNum+1, albumTotal)
 			var storefront, albumId string
 
-			//mv dl dev
 			if strings.Contains(urlRaw, "/music-video/") {
 				fmt.Println("Music Video")
 				if debug_mode {
@@ -1576,11 +1734,14 @@ func main() {
 			}
 			if strings.Contains(urlRaw, "/song/") {
 				fmt.Printf("Song->")
-				urlRaw, err = getUrlSong(urlRaw, token)
-				dl_song = true
-				if err != nil {
-					fmt.Println("Failed to get Song info.")
+				// When dl_song is true from search, we don't need to re-fetch the album URL
+				if !dl_song {
+					urlRaw, err = getUrlSong(urlRaw, token)
+					if err != nil {
+						fmt.Println("Failed to get Song info.")
+					}
 				}
+				dl_song = true
 			}
 			parse, err := url.Parse(urlRaw)
 			if err != nil {
@@ -1663,16 +1824,13 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	}
 
 	os.MkdirAll(saveDir, os.ModePerm)
-	//video
 	videom3u8url, _ := extractVideo(mvm3u8url)
 	videokeyAndUrls, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true)
 	_ = runv3.ExtMvData(videokeyAndUrls, vidPath)
-	//audio
 	audiom3u8url, _ := extractMvAudio(mvm3u8url)
 	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true)
 	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
 
-	//tags
 	tags := []string{
 		"tool=",
 		fmt.Sprintf("artist=%s", MVInfo.Data[0].Attributes.ArtistName),
@@ -1682,7 +1840,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		fmt.Sprintf("ISRC=%s", MVInfo.Data[0].Attributes.Isrc),
 	}
 
-	// ContentRating tag
 	if MVInfo.Data[0].Attributes.ContentRating == "explicit" {
 		tags = append(tags, "rating=1")
 	} else if MVInfo.Data[0].Attributes.ContentRating == "clean" {
@@ -1691,7 +1848,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		tags = append(tags, "rating=0")
 	}
 
-	//根据情况额外添加可使用的tags
 	if track != nil {
 		if track.PreType == "playlists" && !Config.UseSongInfoForPlaylist {
 			tags = append(tags, "disk=1/1")
@@ -1700,8 +1856,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", track.TaskNum, track.TaskTotal))
 			tags = append(tags, fmt.Sprintf("album_artist=%s", track.PlaylistData.Attributes.ArtistName))
 			tags = append(tags, fmt.Sprintf("performer=%s", track.Resp.Attributes.ArtistName))
-			//tags = append(tags, fmt.Sprintf("copyright=%s", track.PlaylistData.Attributes.Copyright))
-			//tags = append(tags, fmt.Sprintf("UPC=%s", track.PlaylistData.Attributes.Upc))
 		} else if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
 			tags = append(tags, fmt.Sprintf("album=%s", track.AlbumData.Attributes.Name))
 			tags = append(tags, fmt.Sprintf("disk=%d/%d", track.Resp.Attributes.DiscNumber, track.DiscTotal))
@@ -1726,31 +1880,21 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		tags = append(tags, fmt.Sprintf("disk=%d", MVInfo.Data[0].Attributes.DiscNumber))
 		tags = append(tags, fmt.Sprintf("track=%d", MVInfo.Data[0].Attributes.TrackNumber))
 		tags = append(tags, fmt.Sprintf("tracknum=%d", MVInfo.Data[0].Attributes.TrackNumber))
-		//tags = append(tags, fmt.Sprintf("album_artist=%s", MVInfo.Data[0].Attributes.ArtistName))
 		tags = append(tags, fmt.Sprintf("performer=%s", MVInfo.Data[0].Attributes.ArtistName))
 	}
 
-	// Extract and save thumbnail if enabled
 	var covPath string
-	//强制嵌入封面
 	if true {
-		// Get the highest quality thumbnail URL from the MV info
 		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
-
-		// Generate base name without extension
 		baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
-
-		// Download and save thumbnail
 		covPath, err = writeCover(saveDir, baseThumbName, thumbURL)
 		if err != nil {
 			fmt.Println("Failed to save MV thumbnail:", err)
 		} else {
-			//fmt.Println("MV thumbnail saved successfully")
 			tags = append(tags, fmt.Sprintf("cover=%s", covPath))
 		}
 	}
 
-	//mux and add tag
 	tagsString := strings.Join(tags, ":")
 	muxCmd := exec.Command("MP4Box", "-itags", tagsString, "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
 	fmt.Printf("MV Remuxing...")
@@ -1858,11 +2002,9 @@ func checkM3u8(b string, f string) (string, error) {
 			fmt.Println("Connected to device")
 		}
 
-		// Send the length of adamID and the adamID itself
 		adamIDBuffer := []byte(adamID)
 		lengthBuffer := []byte{byte(len(adamIDBuffer))}
 
-		// Write length and adamID to the connection
 		_, err = conn.Write(lengthBuffer)
 		if err != nil {
 			fmt.Println("Error writing length to device:", err)
@@ -1875,14 +2017,11 @@ func checkM3u8(b string, f string) (string, error) {
 			return "none", err
 		}
 
-		// Read the response (URL) from the device
 		response, err := bufio.NewReader(conn).ReadBytes('\n')
 		if err != nil {
 			fmt.Println("Error reading response from device:", err)
 			return "none", err
 		}
-
-		// Trim any newline characters from the response
 
 		response = bytes.TrimSpace(response)
 		if len(response) > 0 {
@@ -1936,14 +2075,10 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 		var data [][]string
 		for _, variant := range master.Variants {
 			data = append(data, []string{variant.Codecs, variant.Audio, fmt.Sprint(variant.Bandwidth)})
-			//fmt.Printf("Codec: %s, Audio: %s, Bandwidth: %d\n",
-			//variant.Codecs, variant.Audio, variant.Bandwidth)
 		}
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Codec", "Audio", "Bandwidth"})
-		//table.SetFooter([]string{"", "", "Total", "$146.93"})
 		table.SetAutoMergeCells(true)
-		//table.SetAutoMergeCellsByColumnIndex([]int{1,2,3})
 		table.SetRowLine(true)
 		table.AppendBulk(data)
 		table.Render()
@@ -1951,7 +2086,6 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 		var hasAAC, hasLossless, hasHiRes, hasAtmos, hasDolbyAudio bool
 		var aacQuality, losslessQuality, hiResQuality, atmosQuality, dolbyAudioQuality string
 
-		// Check for all formats
 		for _, variant := range master.Variants {
 			if variant.Codecs == "mp4a.40.2" { // AAC
 				hasAAC = true
@@ -1973,7 +2107,6 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 				split := strings.Split(variant.Audio, "-")
 				if len(split) > 0 {
 					bitrateStr := split[len(split)-1]
-					// Remove leading "2" if present in "2768"
 					if len(bitrateStr) == 4 && bitrateStr[0] == '2' {
 						bitrateStr = bitrateStr[1:]
 					}
