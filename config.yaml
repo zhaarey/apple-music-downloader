@@ -45,5 +45,8 @@ use-songinfo-for-playlist: false
 dl-albumcover-for-playlist: false
 mv-audio-type: atmos  #atmos ac3 aac
 mv-max: 2160
-storefront: "enter your storefront" #country-code that is shown in urls i.e (us, ca, jp etc..)
-
+# storefront will be used only in searching. 
+# storefront is the 2-letter country code that are available in the urls (jp, ca, us etc.).
+# if your account is from Japan, you must use jp.
+# if the storefront is different from your account, you will see a "failed to get lyrics" error in most of the songs. By default the storefront is set to US if not set.
+storefront: "enter your account storefront"
