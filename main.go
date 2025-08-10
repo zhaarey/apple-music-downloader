@@ -1734,14 +1734,16 @@ func main() {
 			}
 			if strings.Contains(urlRaw, "/song/") {
 				fmt.Printf("Song->")
-				// When dl_song is true from search, we don't need to re-fetch the album URL
-				if !dl_song {
-					urlRaw, err = getUrlSong(urlRaw, token)
-					if err != nil {
-						fmt.Println("Failed to get Song info.")
-					}
+				storefront, songId := checkUrlSong(urlRaw)
+				if storefront == "" || songId == "" {
+					fmt.Println("Invalid song URL format.")
+					continue
 				}
-				dl_song = true
+				err := ripSong(songId, token, storefront, Config.MediaUserToken)
+				if err != nil {
+					fmt.Println("Failed to rip song:", err)
+				}
+				continue
 			}
 			parse, err := url.Parse(urlRaw)
 			if err != nil {
@@ -2308,4 +2310,26 @@ func extractVideo(c string) (string, error) {
 	}
 
 	return streamUrl.String(), nil
+}
+
+func ripSong(songId string, token string, storefront string, mediaUserToken string) error {
+	// Get song info to find album ID
+	manifest, err := ampapi.GetSongResp(storefront, songId, Config.Language, token)
+	if err != nil {
+		fmt.Println("Failed to get song response.")
+		return err
+	}
+	
+	songData := manifest.Data[0]
+	albumId := songData.Relationships.Albums.Data[0].ID
+	
+	// Use album approach but only download the specific song
+	dl_song = true
+	err = ripAlbum(albumId, token, storefront, mediaUserToken, songId)
+	if err != nil {
+		fmt.Println("Failed to rip song:", err)
+		return err
+	}
+	
+	return nil
 }
