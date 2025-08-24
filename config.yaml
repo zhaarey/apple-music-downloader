@@ -13,6 +13,7 @@ cover-size: 5000x5000
 cover-format: jpg       #jpg png or original
 alac-save-folder: AM-DL downloads
 atmos-save-folder: AM-DL-Atmos downloads
+aac-save-folder: AM-DL-AAC downloads
 max-memory-limit: 256 # MB
 decrypt-m3u8-port: "127.0.0.1:10020"
 get-m3u8-port: "127.0.0.1:20020"
@@ -44,3 +45,8 @@ use-songinfo-for-playlist: false
 dl-albumcover-for-playlist: false
 mv-audio-type: atmos  #atmos ac3 aac
 mv-max: 2160
+# storefront will be used only in searching. 
+# storefront is the 2-letter country code that are available in the urls (jp, ca, us etc.).
+# if your account is from Japan, you must use jp.
+# if the storefront is different from your account, you will see a "failed to get lyrics" error in most of the songs. By default the storefront is set to US if not set.
+storefront: "enter your account storefront"
