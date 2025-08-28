@@ -348,7 +348,7 @@ func writeCover(sanAlbumFolder, name string, url string) (string, error) {
 		parts := re.Split(url, 2)
 		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
 	}
-	url = strings.Replace(url, "{w}x{h}", Config.CoverSize + "x" + Config.CoverSize, 1)
+	url = strings.Replace(url, "{w}x{h}", Config.CoverSize+"x"+Config.CoverSize, 1)
 	if Config.CoverFormat == "original" {
 		url = strings.Replace(url, "is1-ssl.mzstatic.com/image/thumb", "a5.mzstatic.com/us/r1000/0", 1)
 		url = url[:strings.LastIndex(url, "/")]
@@ -364,7 +364,7 @@ func writeCover(sanAlbumFolder, name string, url string) (string, error) {
 	}
 	defer do.Body.Close()
 	if do.StatusCode != http.StatusOK {
-		if (Config.CoverFormat == "original") {
+		if Config.CoverFormat == "original" {
 			fmt.Println("Failed to get cover, falling back to " + ext + " url.")
 			splitByDot := strings.Split(originalUrl, ".")
 			last := splitByDot[len(splitByDot)-1]
@@ -2348,10 +2348,10 @@ func ripSong(songId string, token string, storefront string, mediaUserToken stri
 		fmt.Println("Failed to get song response.")
 		return err
 	}
-	
+
 	songData := manifest.Data[0]
 	albumId := songData.Relationships.Albums.Data[0].ID
-	
+
 	// Use album approach but only download the specific song
 	dl_song = true
 	err = ripAlbum(albumId, token, storefront, mediaUserToken, songId)
@@ -2359,6 +2359,6 @@ func ripSong(songId string, token string, storefront string, mediaUserToken stri
 		fmt.Println("Failed to rip song:", err)
 		return err
 	}
-	
+
 	return nil
 }
