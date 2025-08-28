@@ -325,11 +325,15 @@ func checkArtist(artistUrl string, token string, relationship string) ([]string,
 }
 
 func writeCover(sanAlbumFolder, name string, url string) (string, error) {
-	covPath := filepath.Join(sanAlbumFolder, name+"."+Config.CoverFormat)
+	originalUrl := url
+	var ext string
+	var covPath string
 	if Config.CoverFormat == "original" {
-		ext := strings.Split(url, "/")[len(strings.Split(url, "/"))-2]
+		ext = strings.Split(url, "/")[len(strings.Split(url, "/"))-2]
 		ext = ext[strings.LastIndex(ext, ".")+1:]
 		covPath = filepath.Join(sanAlbumFolder, name+"."+ext)
+	} else {
+		covPath = filepath.Join(sanAlbumFolder, name+"."+Config.CoverFormat)
 	}
 	exists, err := fileExists(covPath)
 	if err != nil {
@@ -344,7 +348,7 @@ func writeCover(sanAlbumFolder, name string, url string) (string, error) {
 		parts := re.Split(url, 2)
 		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
 	}
-	url = strings.Replace(url, "{w}x{h}", Config.CoverSize, 1)
+	url = strings.Replace(url, "{w}x{h}", Config.CoverSize + "x" + Config.CoverSize, 1)
 	if Config.CoverFormat == "original" {
 		url = strings.Replace(url, "is1-ssl.mzstatic.com/image/thumb", "a5.mzstatic.com/us/r1000/0", 1)
 		url = url[:strings.LastIndex(url, "/")]
@@ -360,7 +364,32 @@ func writeCover(sanAlbumFolder, name string, url string) (string, error) {
 	}
 	defer do.Body.Close()
 	if do.StatusCode != http.StatusOK {
-		return "", errors.New(do.Status)
+		if (Config.CoverFormat == "original") {
+			fmt.Println("Failed to get cover, falling back to " + ext + " url.")
+			splitByDot := strings.Split(originalUrl, ".")
+			last := splitByDot[len(splitByDot)-1]
+			fallback := originalUrl[:len(originalUrl)-len(last)] + ext
+			fallback = strings.Replace(fallback, "{w}x{h}", Config.CoverSize+"x"+Config.CoverSize, 1)
+			fmt.Println("Fallback URL:", fallback)
+			req, err = http.NewRequest("GET", fallback, nil)
+			if err != nil {
+				fmt.Println("Failed to create request for fallback url.")
+				return "", err
+			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+			do, err = http.DefaultClient.Do(req)
+			if err != nil {
+				fmt.Println("Failed to get cover from fallback url.")
+				return "", err
+			}
+			defer do.Body.Close()
+			if do.StatusCode != http.StatusOK {
+				fmt.Println(fallback)
+				return "", errors.New(do.Status)
+			}
+		} else {
+			return "", errors.New(do.Status)
+		}
 	}
 	f, err := os.Create(covPath)
 	if err != nil {
