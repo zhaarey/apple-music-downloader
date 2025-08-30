@@ -348,7 +348,7 @@ func writeCover(sanAlbumFolder, name string, url string) (string, error) {
 		parts := re.Split(url, 2)
 		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
 	}
-	url = strings.Replace(url, "{w}x{h}", Config.CoverSize+"x"+Config.CoverSize, 1)
+	url = strings.Replace(url, "{w}x{h}", Config.CoverSize, 1)
 	if Config.CoverFormat == "original" {
 		url = strings.Replace(url, "is1-ssl.mzstatic.com/image/thumb", "a5.mzstatic.com/us/r1000/0", 1)
 		url = url[:strings.LastIndex(url, "/")]
@@ -369,7 +369,7 @@ func writeCover(sanAlbumFolder, name string, url string) (string, error) {
 			splitByDot := strings.Split(originalUrl, ".")
 			last := splitByDot[len(splitByDot)-1]
 			fallback := originalUrl[:len(originalUrl)-len(last)] + ext
-			fallback = strings.Replace(fallback, "{w}x{h}", Config.CoverSize+"x"+Config.CoverSize, 1)
+			fallback = strings.Replace(fallback, "{w}x{h}", Config.CoverSize, 1)
 			fmt.Println("Fallback URL:", fallback)
 			req, err = http.NewRequest("GET", fallback, nil)
 			if err != nil {
