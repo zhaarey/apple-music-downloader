@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/gospider007/requests"
+	"github.com/go-resty/resty/v2"
 	"google.golang.org/protobuf/proto"
 
-	//"log/slog"
 	cdm "main/utils/runv3/cdm"
 	key "main/utils/runv3/key"
 	"os"
@@ -20,13 +19,11 @@ import (
 
 	"github.com/Eyevinn/mp4ff/mp4"
 
-	//"io/ioutil"
 	"encoding/json"
 	"net/http"
 	"os/exec"
 	"strings"
 	"sync"
-	//"time"
 
 	"github.com/grafov/m3u8"
 	"github.com/schollz/progressbar/v3"
@@ -39,24 +36,6 @@ type PlaybackLicense struct {
 	Status     int    `json:"status"`
 }
 
-//	func log() {
-//		f, err := os.OpenFile("log.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-//		if err != nil {
-//			slog.Error("error opening file: %s", err)
-//		}
-//		defer func(f *os.File) {
-//			err := f.Close()
-//			if err != nil {
-//				slog.Error("error closing file: %s", err)
-//			}
-//		}(f)
-//		opts := slog.HandlerOptions{
-//			AddSource: true,
-//			Level:     slog.LevelDebug,
-//		}
-//		logger := slog.New(slog.NewJSONHandler(os.Stdout, &opts))
-//		slog.SetDefault(logger)
-//	}
 func getPSSH(contentId string, kidBase64 string) (string, error) {
 	kidBytes, err := base64.StdEncoding.DecodeString(kidBase64)
 	if err != nil {
@@ -80,40 +59,49 @@ func getPSSH(contentId string, kidBase64 string) (string, error) {
 	pssh := base64.StdEncoding.EncodeToString(widevineCenc)
 	return pssh, nil
 }
-func BeforeRequest(cl *requests.Client, preCtx context.Context, method string, href string, options ...requests.RequestOption) (resp *requests.Response, err error) {
-	data := options[0].Data
+
+func BeforeRequest(cl *resty.Client, ctx context.Context, url string, body []byte) (*resty.Response, error) {
 	jsondata := map[string]interface{}{
-		"challenge":      base64.StdEncoding.EncodeToString(data.([]byte)),
+		"challenge":      base64.StdEncoding.EncodeToString(body), // 'body' is passed in directly
 		"key-system":     "com.widevine.alpha",
-		"uri":            "data:;base64," + preCtx.Value("pssh").(string),
-		"adamId":         preCtx.Value("adamId").(string),
+		"uri":            "data:;base64," + ctx.Value("pssh").(string),
+		"adamId":         ctx.Value("adamId").(string),
 		"isLibrary":      false,
 		"user-initiated": true,
 	}
-	options[0].Data = nil
-	options[0].Json = jsondata
-	resp, err = cl.Request(preCtx, method, href, options...)
+
+	resp, err := cl.R().
+		SetContext(ctx).
+		SetBody(jsondata).
+		Post(url)
+
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	return
+	return resp, err
 }
-func AfterRequest(Response *requests.Response) ([]byte, error) {
-	var ResponseData PlaybackLicense
-	_, err := Response.Json(&ResponseData)
+
+func AfterRequest(response *resty.Response) ([]byte, error) {
+	var responseData PlaybackLicense
+
+	err := json.Unmarshal(response.Body(), &responseData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse response: %v", err)
+		return nil, fmt.Errorf("failed to parse response JSON: %v", err)
 	}
-	if ResponseData.ErrorCode != 0 || ResponseData.Status != 0 {
-		return nil, fmt.Errorf("error code: %d", ResponseData.ErrorCode)
+
+	if responseData.ErrorCode != 0 || responseData.Status != 0 {
+		return nil, fmt.Errorf("error in license response, code: %d, status: %d", responseData.ErrorCode, responseData.Status)
 	}
-	License, err := base64.StdEncoding.DecodeString(ResponseData.License)
+
+	license, err := base64.StdEncoding.DecodeString(responseData.License)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode license: %v", err)
 	}
-	return License, nil
+
+	return license, nil
 }
+
 func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool) (string, string, error) {
 	url := "https://play.music.apple.com/WebObjects/MZPlay.woa/wa/webPlayback"
 	postData := map[string]string{
@@ -288,13 +276,12 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmo
 		fmt.Println(err)
 		return "", err
 	}
-	headers := map[string]interface{}{
+	headers := map[string]string{
 		"authorization":            "Bearer " + authtoken,
 		"x-apple-music-user-token": mutoken,
 	}
-	client, _ := requests.NewClient(nil, requests.ClientOption{
-		Headers: headers,
-	})
+	client := resty.New()
+	client.SetHeaders(headers)
 	key := key.Key{
 		ReqCli:        client,
 		BeforeRequest: BeforeRequest,
