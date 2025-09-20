@@ -50,3 +50,10 @@ mv-max: 2160
 # if your account is from Japan, you must use jp.
 # if the storefront is different from your account, you will see a "failed to get lyrics" error in most of the songs. By default the storefront is set to US if not set.
 storefront: "enter your account storefront"
+# Conversion settings
+convert-after-download: false     # Enable post-download conversion (requires ffmpeg)
+convert-format: "flac"            # flac | mp3 | opus | wav | copy (no re-encode)
+convert-keep-original: false       # Keep original file after successful conversion
+convert-skip-if-source-matches: true  # If already in target format, skip
+ffmpeg-path: "ffmpeg"             # Override if ffmpeg is not in PATH
+convert-extra-args: ""            # Additional raw args appended (advanced)
