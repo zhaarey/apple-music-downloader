@@ -45,18 +45,18 @@ func GetStationResp(storefront string, id string, language string, token string)
 	return obj, nil
 }
 
-func GetStationAssetsUrl(id string, mutoken string, token string) (string, error) {
+func GetStationAssetsUrlAndServerUrl(id string, mutoken string, token string) (string, string, error) {
 	var err error
 	if token == "" {
 		token, err = GetToken()
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
 	req, err := http.NewRequest("GET", "https://amp-api.music.apple.com/v1/play/assets", nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
@@ -71,18 +71,18 @@ func GetStationAssetsUrl(id string, mutoken string, token string) (string, error
 	req.URL.RawQuery = query.Encode()
 	do, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer do.Body.Close()
 	if do.StatusCode != http.StatusOK {
-		return "", errors.New(do.Status)
+		return "", "", errors.New(do.Status)
 	}
 	obj := new(StationAssets)
 	err = json.NewDecoder(do.Body).Decode(&obj)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return obj.Results.Assets[0].Url, nil
+	return obj.Results.Assets[0].Url, obj.Results.Assets[0].KeyServerUrl, nil
 }
 
 func GetStationNextTracks(id, mutoken, language, token string) (*TrackResp, error) {
