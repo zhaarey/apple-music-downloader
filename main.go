@@ -778,7 +778,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			counter.Error++
 			return
 		}
-		_, err := runv3.Run(track.ID, trackPath, token, mediaUserToken, false)
+		_, err := runv3.Run(track.ID, trackPath, token, mediaUserToken, false, "")
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc:", err)
 			if err.Error() == "Unavailable" {
@@ -962,14 +962,14 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			fmt.Println("Radio already exists locally.")
 			return nil
 		}
-		assetsUrl, err := ampapi.GetStationAssetsUrl(station.ID, mediaUserToken, token)
+		assetsUrl, serverUrl, err := ampapi.GetStationAssetsUrlAndServerUrl(station.ID, mediaUserToken, token)
 		if err != nil {
 			fmt.Println("Failed to get station assets url.", err)
 			counter.Error++
 			return err
 		}
 		trackM3U8 := strings.ReplaceAll(assetsUrl, "index.m3u8", "256/prog_index.m3u8")
-		keyAndUrls, _ := runv3.Run(station.ID, trackM3U8, token, mediaUserToken, true)
+		keyAndUrls, _ := runv3.Run(station.ID, trackM3U8, token, mediaUserToken, true, serverUrl)
 		err = runv3.ExtMvData(keyAndUrls, trackPath)
 		if err != nil {
 			fmt.Println("Failed to download station stream.", err)
@@ -1849,17 +1849,17 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		return nil
 	}
 
-	mvm3u8url, _, _ := runv3.GetWebplayback(adamID, token, mediaUserToken, true)
+	mvm3u8url, _, _, _ := runv3.GetWebplayback(adamID, token, mediaUserToken, true)
 	if mvm3u8url == "" {
 		return errors.New("media-user-token may wrong or expired")
 	}
 
 	os.MkdirAll(saveDir, os.ModePerm)
 	videom3u8url, _ := extractVideo(mvm3u8url)
-	videokeyAndUrls, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true)
+	videokeyAndUrls, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(videokeyAndUrls, vidPath)
 	audiom3u8url, _ := extractMvAudio(mvm3u8url)
-	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true)
+	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
 
 	tags := []string{
