@@ -754,10 +754,12 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	var err error
 	counter.Total++
 	fmt.Printf("Track %d of %d: %s\n", track.TaskNum, track.TaskTotal, track.Type)
+
 	//提前获取到的播放列表下track所在的专辑信息
 	if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
 		track.GetAlbumData(token)
 	}
+
 	//mv dl dev
 	if track.Type == "music-videos" {
 		if len(mediaUserToken) <= 50 {
@@ -779,6 +781,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		counter.Success++
 		return
 	}
+
 	needDlAacLc := false
 	if dl_aac && Config.AacType == "aac-lc" {
 		needDlAacLc = true
@@ -858,6 +861,17 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	trackPath := filepath.Join(track.SaveDir, track.SaveName)
 	lrcFilename := fmt.Sprintf("%s.%s", forbiddenNames.ReplaceAllString(songName, "_"), Config.LrcFormat)
 
+	// Determine possible post-conversion target file (so we can skip re-download)
+	var convertedPath string
+	considerConverted := false
+	if Config.ConvertAfterDownload &&
+		Config.ConvertFormat != "" &&
+		strings.ToLower(Config.ConvertFormat) != "copy" &&
+		!Config.ConvertKeepOriginal {
+		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + strings.ToLower(Config.ConvertFormat)
+		considerConverted = true
+	}
+
 	//get lrc
 	var lrc string = ""
 	if Config.EmbedLrc || Config.SaveLrcFile {
@@ -877,16 +891,27 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		}
 	}
 
-	exists, err := fileExists(trackPath)
+	// Existence check now considers converted output (if original was deleted)
+	existsOriginal, err := fileExists(trackPath)
 	if err != nil {
 		fmt.Println("Failed to check if track exists.")
 	}
-	if exists {
+	if existsOriginal {
 		fmt.Println("Track already exists locally.")
 		counter.Success++
 		okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
 		return
 	}
+	if considerConverted {
+		existsConverted, err2 := fileExists(convertedPath)
+		if err2 == nil && existsConverted {
+			fmt.Println("Converted track already exists locally.")
+			counter.Success++
+			okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+			return
+		}
+	}
+
 	if needDlAacLc {
 		if len(mediaUserToken) <= 50 {
 			fmt.Println("Invalid media-user-token")
