@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Eyevinn/mp4ff/mp4"
+	"github.com/itouakirai/mp4ff/mp4"
 	"github.com/grafov/m3u8"
 
 	"encoding/binary"
