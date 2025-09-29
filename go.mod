@@ -38,7 +38,7 @@ require (
 	github.com/beevik/etree v1.3.0
 	github.com/fatih/color v1.18.0
 	github.com/go-resty/resty/v2 v2.16.5
-	github.com/itouakirai/mp4ff v0.0.0-20250925134252-75574f4c6b73
+	github.com/itouakirai/mp4ff v0.0.0-20250929054714-77e796d393ee
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/zhaarey/go-mp4tag v0.0.0-20250210094042-22578afc09bf
 	gopkg.in/yaml.v2 v2.2.8
