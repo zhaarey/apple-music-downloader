@@ -180,6 +180,7 @@ func getUrlArtistName(artistUrl string, token string) (string, string, error) {
 	req.Header.Set("Origin", "https://music.apple.com")
 	query := url.Values{}
 	query.Set("l", Config.Language)
+	req.URL.RawQuery = query.Encode()
 	do, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", "", err
