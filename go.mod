@@ -3,7 +3,6 @@ module main
 go 1.23.1
 
 require (
-	github.com/Eyevinn/mp4ff v0.50.0 // indirect
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1
 	github.com/grafov/m3u8 v0.11.1
 	github.com/schollz/progressbar/v3 v3.14.6
@@ -13,6 +12,7 @@ require (
 )
 
 require (
+	github.com/Eyevinn/mp4ff v0.50.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
