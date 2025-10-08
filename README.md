@@ -27,9 +27,14 @@ For acquisition`aac-lc` `MV` `lyrics` You must fill in the information with a su
 
 Original script by Sorrow. Modified by me to include some fixes and improvements.
 
+## Setup
+
+1. First time setup: Run `go mod download` to download all required dependencies
+2. Make sure the decryption program [wrapper](https://github.com/zhaarey/wrapper) is running
+
 ## How to use
-1. Make sure the decryption program [wrapper](https://github.com/zhaarey/wrapper) is running
-2. Start downloading some albums: `go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511`.
+
+1. Start downloading some albums: `go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511`.
 3. Start downloading single song: `go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512` or `go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520`.
 4. Start downloading select: `go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511` input numbers separated by spaces.
 5. Start downloading some playlists: `go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b` or `go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N`.

@@ -650,20 +650,31 @@ func isLossySource(ext string, codec string) bool {
 
 // CONVERSION FEATURE: Build ffmpeg arguments for desired target.
 func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) ([]string, error) {
-	args := []string{"-y", "-i", inPath, "-vn"}
+	// Base arguments: -y (overwrite), -i (input)
+	args := []string{"-y", "-i", inPath}
+
+	// Map all streams and metadata by default
+	args = append(args, "-map", "0", "-map_metadata", "0")
+
 	switch targetFmt {
 	case "flac":
-		args = append(args, "-c:a", "flac")
+		// For FLAC, we need to strip video streams as FLAC doesn't support them
+		args = append(args, "-vn", "-c:a", "flac")
 	case "mp3":
-		// VBR quality 2 ~ high quality
-		args = append(args, "-c:a", "libmp3lame", "-qscale:a", "2")
+		// Keep album art for MP3, convert other video streams if any
+		args = append(args, "-c:v", "mjpeg", "-c:a", "libmp3lame", "-qscale:a", "2")
 	case "opus":
-		// Medium/high quality
-		args = append(args, "-c:a", "libopus", "-b:a", "192k", "-vbr", "on")
+		// Opus in Ogg container, keep album art
+		args = append(args, "-c:v", "mjpeg", "-c:a", "libopus", "-b:a", "192k", "-vbr", "on")
 	case "wav":
-		args = append(args, "-c:a", "pcm_s16le")
+		// WAV doesn't support embedded images
+		args = append(args, "-vn", "-c:a", "pcm_s16le")
+	case "alacipod":
+		// Apple Lossless optimized for iPod/iOS (44.1kHz)
+		// Keep album art and convert to compatible format if needed
+		args = append(args, "-c:v", "mjpeg", "-c:a", "alac", "-ar", "44100")
 	case "copy":
-		// Just container copy (probably pointless for same container)
+		// Just container copy - copy everything as is
 		args = append(args, "-c", "copy")
 	default:
 		return nil, fmt.Errorf("unsupported convert-format: %s", targetFmt)
@@ -691,21 +702,66 @@ func convertIfNeeded(track *task.Track) {
 	ext := strings.ToLower(filepath.Ext(srcPath))
 	targetFmt := strings.ToLower(Config.ConvertFormat)
 
-	// Map extension for output
-	if targetFmt == "copy" {
+	// Determine output extension based on format
+	var outExt string
+	switch targetFmt {
+	case "alacipod":
+		outExt = ".m4a" // ALAC must use .m4a extension
+	case "copy":
 		fmt.Println("Convert (copy) requested; skipping because it produces no new format.")
+		return
+	default:
+		outExt = "." + targetFmt
+	}
+
+	// Helper function to check audio format and sample rate
+	checkAudioParams := func(path string) (isAlac bool, sampleRate int, err error) {
+		cmd := exec.Command(Config.FFmpegPath, "-i", path)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		cmd.Run() // We expect this to "fail" as -i just gets info
+		output := stderr.String()
+
+		isAlac = strings.Contains(output, "alac")
+
+		// Extract sample rate using regex
+		re := regexp.MustCompile(`(\d+) Hz`)
+		if matches := re.FindStringSubmatch(output); len(matches) > 1 {
+			sampleRate, _ = strconv.Atoi(matches[1])
+		}
+
 		return
 	}
 
 	if Config.ConvertSkipIfSourceMatch {
-		if ext == "."+targetFmt {
+		if targetFmt == "alacipod" && ext == ".m4a" {
+			// For alacipod, check both format and sample rate
+			isAlac, sampleRate, err := checkAudioParams(srcPath)
+			if err == nil && isAlac && sampleRate == 44100 {
+				fmt.Printf("Source is already ALAC at 44.1kHz, skipping conversion.\n")
+				return
+			}
+		} else if ext == "."+targetFmt {
 			fmt.Printf("Conversion skipped (already %s)\n", targetFmt)
 			return
 		}
 	}
 
-	outBase := strings.TrimSuffix(srcPath, ext)
-	outPath := outBase + "." + targetFmt
+	// Create output path in converted directory
+	relPath, err := filepath.Rel(Config.AlacSaveFolder, srcPath)
+	if err != nil {
+		fmt.Printf("Failed to get relative path: %v\n", err)
+		return
+	}
+
+	convertedBaseDir := filepath.Join(filepath.Dir(Config.AlacSaveFolder), "converted_"+filepath.Base(Config.AlacSaveFolder))
+	outPath := filepath.Join(convertedBaseDir, strings.TrimSuffix(relPath, ext)+outExt)
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
+		fmt.Printf("Failed to create output directory: %v\n", err)
+		return
+	}
 
 	// Warn about lossy -> lossless
 	if Config.ConvertWarnLossyToLossless && (targetFmt == "flac" || targetFmt == "wav") &&
@@ -726,28 +782,46 @@ func convertIfNeeded(track *task.Track) {
 
 	fmt.Printf("Converting -> %s ...\n", targetFmt)
 	cmd := exec.Command(Config.FFmpegPath, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+
+	// Debug: Print the full command
+	fmt.Printf("FFmpeg command: %s %s\n", Config.FFmpegPath, strings.Join(args, " "))
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
-		fmt.Println("Conversion failed:", err)
-		// leave original
+		fmt.Printf("Conversion failed: %v\nFFmpeg error output:\n%s\n", err, stderr.String())
 		return
 	}
+
 	fmt.Printf("Conversion completed in %s: %s\n", time.Since(start).Truncate(time.Millisecond), filepath.Base(outPath))
 
+	// Copy cover art if it exists
+	coverFiles := []string{"cover.jpg", "cover.png"}
+	for _, coverName := range coverFiles {
+		srcCover := filepath.Join(filepath.Dir(srcPath), coverName)
+		if _, err := os.Stat(srcCover); err == nil {
+			dstCover := filepath.Join(filepath.Dir(outPath), coverName)
+			if err := copyFile(srcCover, dstCover); err != nil {
+				fmt.Printf("Warning: Failed to copy cover art: %v\n", err)
+			} else {
+				fmt.Printf("Copied cover art: %s\n", coverName)
+			}
+			break // Found and copied one cover file, no need to check others
+		}
+	}
+
+	// Update track to point to converted file
+	track.SavePath = outPath
+	track.SaveName = filepath.Base(outPath)
+
+	// Remove original if not keeping it
 	if !Config.ConvertKeepOriginal {
 		if err := os.Remove(srcPath); err != nil {
 			fmt.Println("Failed to remove original after conversion:", err)
 		} else {
-			track.SavePath = outPath
-			track.SaveName = filepath.Base(outPath)
 			fmt.Println("Original removed.")
 		}
-	} else {
-		// Keep both but point track to new file (optional decision)
-		track.SavePath = outPath
-		track.SaveName = filepath.Base(outPath)
 	}
 }
 
@@ -2503,6 +2577,35 @@ func ripSong(songId string, token string, storefront string, mediaUserToken stri
 	if err != nil {
 		fmt.Println("Failed to rip song:", err)
 		return err
+	}
+
+	return nil
+}
+
+// copyFile copies a file from src to dst, creating parent directories if needed
+func copyFile(src, dst string) error {
+	// Ensure destination directory exists
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %v", err)
+	}
+
+	// Open source file
+	source, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %v", err)
+	}
+	defer source.Close()
+
+	// Create destination file
+	destination, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %v", err)
+	}
+	defer destination.Close()
+
+	// Copy the contents
+	if _, err := io.Copy(destination, source); err != nil {
+		return fmt.Errorf("failed to copy file contents: %v", err)
 	}
 
 	return nil
