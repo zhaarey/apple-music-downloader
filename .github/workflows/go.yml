@@ -1,13 +1,11 @@
-name: Go
+name: Go Release
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    tags:
+      - 'v*'
 
 jobs:
-
   build-windows:
     runs-on: windows-latest
     steps:
@@ -17,21 +15,22 @@ jobs:
       with:
         go-version: '1.23.1'
     - name: Build
+      run: go build -o main.exe -v ./main.go
+    - name: Package artifact
+      shell: pwsh
       run: |
-        go build -o main.exe -v ./main.go
-    - name: Create a new directory and copy files
-      run: |
-        mkdir -p alac
+        mkdir alac
         cp agent.js alac/
         cp agent-arm64.js alac/
         cp config.yaml alac/
         cp README.md alac/
         cp main.exe alac/
-    - name: Upload apple-music-alac-atmos-downloader
+        Compress-Archive -Path alac/* -DestinationPath apple-music-downloader-windows.zip
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: apple-music-alac-atmos-downloader-windows
-        path: alac/*
+        name: apple-music-downloader-windows
+        path: apple-music-downloader-windows.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -42,21 +41,21 @@ jobs:
       with:
         go-version: '1.23.1'
     - name: Build
+      run: go build -o main -v ./main.go
+    - name: Package artifact
       run: |
-        go build -o main -v ./main.go
-    - name: Create a new directory and copy files
-      run: |
-        mkdir -p alac
+        mkdir alac
         cp agent.js alac/
         cp agent-arm64.js alac/
         cp config.yaml alac/
         cp README.md alac/
         cp main alac/
-    - name: Upload apple-music-alac-atmos-downloader
+        zip -r apple-music-downloader-linux.zip alac
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: apple-music-alac-atmos-downloader-linux
-        path: alac/*
+        name: apple-music-downloader-linux
+        path: apple-music-downloader-linux.zip
 
   build-macos:
     runs-on: macos-latest
@@ -67,18 +66,34 @@ jobs:
       with:
         go-version: '1.23.1'
     - name: Build
+      run: go build -o main -v ./main.go
+    - name: Package artifact
       run: |
-        go build -o main -v ./main.go
-    - name: Create a new directory and copy files
-      run: |
-        mkdir -p alac
+        mkdir alac
         cp agent.js alac/
         cp agent-arm64.js alac/
         cp config.yaml alac/
         cp README.md alac/
         cp main alac/
-    - name: Upload apple-music-alac-atmos-downloader
+        zip -r apple-music-downloader-macos.zip alac
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: apple-music-alac-atmos-downloader-macos
-        path: alac/*
+        name: apple-music-downloader-macos
+        path: apple-music-downloader-macos.zip
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-macos]
+    permissions:
+      contents: write
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    - name: Create Release and Upload Assets
+      uses: softprops/action-gh-release@v2
+      with:
+        files: artifacts/*/*.zip
+        draft: true
