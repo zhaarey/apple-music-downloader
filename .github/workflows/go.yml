@@ -25,12 +25,12 @@ jobs:
         cp config.yaml alac/
         cp README.md alac/
         cp main.exe alac/
-        Compress-Archive -Path alac/* -DestinationPath apple-music-downloader-windows.zip
+        Compress-Archive -Path alac/* -DestinationPath apple-music-downloader_windows-x86_64.zip
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: apple-music-downloader-windows
-        path: apple-music-downloader-windows.zip
+        name: apple-music-downloader_windows-x86_64
+        path: apple-music-downloader_windows-x86_64.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -50,14 +50,14 @@ jobs:
         cp config.yaml alac/
         cp README.md alac/
         cp main alac/
-        zip -r apple-music-downloader-linux.zip alac
+        zip -r apple-music-downloader_linux-x86_64.zip alac
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: apple-music-downloader-linux
-        path: apple-music-downloader-linux.zip
+        name: apple-music-downloader_linux-x86_64
+        path: apple-music-downloader_linux-x86_64.zip
 
-  build-macos:
+  build-macos-apple-silicon:
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
@@ -75,16 +75,41 @@ jobs:
         cp config.yaml alac/
         cp README.md alac/
         cp main alac/
-        zip -r apple-music-downloader-macos.zip alac
+        zip -r apple-music-downloader_macos-apple-silicon.zip alac
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: apple-music-downloader-macos
-        path: apple-music-downloader-macos.zip
+        name: apple-music-downloader_macos-apple-silicon
+        path: apple-music-downloader_macos-apple-silicon.zip
+
+  build-macos-intel:
+    runs-on: macos-15-intel
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23.1'
+    - name: Build
+      run: go build -o main -v ./main.go
+    - name: Package artifact
+      run: |
+        mkdir alac
+        cp agent.js alac/
+        cp agent-arm64.js alac/
+        cp config.yaml alac/
+        cp README.md alac/
+        cp main alac/
+        zip -r apple-music-downloader_macos-intel-x86_64.zip alac
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: apple-music-downloader_macos-intel-x86_64
+        path: apple-music-downloader_macos-intel-x86_64.zip
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows, build-linux, build-macos-apple-silicon, build-macos-intel]
     permissions:
       contents: write
     steps:
