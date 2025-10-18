@@ -2007,7 +2007,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	audiom3u8url, _ := extractMvAudio(mvm3u8url)
 	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
-	defer os.Remove(vudPath)
+	defer os.Remove(audPath)
 
 	tags := []string{
 		"tool=",
