@@ -2003,9 +2003,11 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	videom3u8url, _ := extractVideo(mvm3u8url)
 	videokeyAndUrls, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(videokeyAndUrls, vidPath)
+	defer os.Remove(vidPath)
 	audiom3u8url, _ := extractMvAudio(mvm3u8url)
 	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
+	defer os.Remove(vudPath)
 
 	tags := []string{
 		"tool=",
@@ -2070,6 +2072,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 			tags = append(tags, fmt.Sprintf("cover=%s", covPath))
 		}
 	}
+	defer os.Remove(covPath)
 
 	tagsString := strings.Join(tags, ":")
 	muxCmd := exec.Command("MP4Box", "-itags", tagsString, "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
@@ -2079,10 +2082,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		return err
 	}
 	fmt.Printf("\rMV Remuxed.   \n")
-	defer os.Remove(vidPath)
-	defer os.Remove(audPath)
-	defer os.Remove(covPath)
-
 	return nil
 }
 
