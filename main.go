@@ -872,7 +872,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + strings.ToLower(Config.ConvertFormat)
 		considerConverted = true
 	}
-
 	//get lrc
 	var lrc string = ""
 	if Config.EmbedLrc || Config.SaveLrcFile {
@@ -1336,8 +1335,8 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	os.MkdirAll(albumFolderPath, os.ModePerm)
 	album.SaveName = albumFolderName
 	fmt.Println(albumFolderName)
-	if Config.SaveArtistCover {
-		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
+	if Config.SaveArtistCover && len(meta.Data[0].Relationships.Artists.Data) > 0{
+		if meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url != "" {
 			_, err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
 			if err != nil {
 				fmt.Println("Failed to write artist cover.")
