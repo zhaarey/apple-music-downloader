@@ -872,7 +872,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + strings.ToLower(Config.ConvertFormat)
 		considerConverted = true
 	}
-
 	//get lrc
 	var lrc string = ""
 	if Config.EmbedLrc || Config.SaveLrcFile {
@@ -944,9 +943,10 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			return
 		}
 	}
+	//这里利用MP4box将fmp4转化为mp4，并添加ilst box与cover，方便后面的mp4tag添加更多自定义标签
 	tags := []string{
 		"tool=",
-		fmt.Sprintf("artist=%s", track.Resp.Attributes.ArtistName),
+		"artist=AppleMusic",
 	}
 	if Config.EmbedCover {
 		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {
@@ -1336,8 +1336,8 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	os.MkdirAll(albumFolderPath, os.ModePerm)
 	album.SaveName = albumFolderName
 	fmt.Println(albumFolderName)
-	if Config.SaveArtistCover {
-		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
+	if Config.SaveArtistCover && len(meta.Data[0].Relationships.Artists.Data) > 0{
+		if meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url != "" {
 			_, err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
 			if err != nil {
 				fmt.Println("Failed to write artist cover.")
@@ -2003,9 +2003,11 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	videom3u8url, _ := extractVideo(mvm3u8url)
 	videokeyAndUrls, _ := runv3.Run(adamID, videom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(videokeyAndUrls, vidPath)
+	defer os.Remove(vidPath)
 	audiom3u8url, _ := extractMvAudio(mvm3u8url)
 	audiokeyAndUrls, _ := runv3.Run(adamID, audiom3u8url, token, mediaUserToken, true, "")
 	_ = runv3.ExtMvData(audiokeyAndUrls, audPath)
+	defer os.Remove(audPath)
 
 	tags := []string{
 		"tool=",
@@ -2070,6 +2072,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 			tags = append(tags, fmt.Sprintf("cover=%s", covPath))
 		}
 	}
+	defer os.Remove(covPath)
 
 	tagsString := strings.Join(tags, ":")
 	muxCmd := exec.Command("MP4Box", "-itags", tagsString, "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
@@ -2079,10 +2082,6 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		return err
 	}
 	fmt.Printf("\rMV Remuxed.   \n")
-	defer os.Remove(vidPath)
-	defer os.Remove(audPath)
-	defer os.Remove(covPath)
-
 	return nil
 }
 
