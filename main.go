@@ -943,9 +943,10 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			return
 		}
 	}
+	//这里利用MP4box将fmp4转化为mp4，并添加ilst box与cover，方便后面的mp4tag添加更多自定义标签
 	tags := []string{
 		"tool=",
-		fmt.Sprintf("artist=%s", track.Resp.Attributes.ArtistName),
+		"artist=AppleMusic",
 	}
 	if Config.EmbedCover {
 		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {

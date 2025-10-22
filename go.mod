@@ -40,6 +40,6 @@ require (
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/itouakirai/mp4ff v0.0.0-20250930132656-98812935a1c7
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/zhaarey/go-mp4tag v0.0.0-20250210094042-22578afc09bf
+	github.com/zhaarey/go-mp4tag v0.0.0-20251021234435-2c70f6b1bf76
 	gopkg.in/yaml.v2 v2.2.8
 )
