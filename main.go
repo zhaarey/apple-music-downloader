@@ -707,10 +707,15 @@ func convertIfNeeded(track *task.Track) {
 	outBase := strings.TrimSuffix(srcPath, ext)
 	outPath := outBase + "." + targetFmt
 
-	// Warn about lossy -> lossless
-	if Config.ConvertWarnLossyToLossless && (targetFmt == "flac" || targetFmt == "wav") &&
-		isLossySource(ext, track.Codec) {
-		fmt.Println("Warning: Converting lossy source to lossless container will not improve quality.")
+	// Handle lossy -> lossless cases: optionally skip or warn
+	if (targetFmt == "flac" || targetFmt == "wav") && isLossySource(ext, track.Codec) {
+		if Config.ConvertSkipLossyToLossless {
+			fmt.Println("Skipping conversion: source appears lossy and target is lossless; configured to skip.")
+			return
+		}
+		if Config.ConvertWarnLossyToLossless {
+			fmt.Println("Warning: Converting lossy source to lossless container will not improve quality.")
+		}
 	}
 
 	if _, err := exec.LookPath(Config.FFmpegPath); err != nil {
