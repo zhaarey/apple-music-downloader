@@ -45,6 +45,7 @@ type ConfigSet struct {
 	FFmpegPath                 string `yaml:"ffmpeg-path"`
 	ConvertExtraArgs           string `yaml:"convert-extra-args"`
 	ConvertWarnLossyToLossless bool   `yaml:"convert-warn-lossy-to-lossless"`
+	ConvertSkipLossyToLossless bool   `yaml:"convert-skip-lossy-to-lossless"`
 }
 
 type Counter struct {
