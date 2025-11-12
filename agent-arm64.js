@@ -134,29 +134,43 @@ function getKdContext(adamId, uri) {
 async function handleDecryptionConnection(socket) {
     try {
         while (true) {
-            const adamIdSize = (await socket.input.readAll(1)).unwrap().readU8();
+            const adamIdSizeBuffer = await socket.input.readAll(1);
+            if (adamIdSizeBuffer.byteLength === 0) break;
+            
+            const adamIdSize = adamIdSizeBuffer.unwrap().readU8();
             if (adamIdSize === 0) break;
 
             const adamId = await socket.input.readAll(adamIdSize);
-            const uriSize = (await socket.input.readAll(1)).unwrap().readU8();
+            const uriSizeBuffer = await socket.input.readAll(1);
+            if (uriSizeBuffer.byteLength === 0) break;
+            
+            const uriSize = uriSizeBuffer.unwrap().readU8();
             const uri = await socket.input.readAll(uriSize);
 
+            console.log("Getting kdContext for adamId:", String.fromCharCode(...new Uint8Array(adamId)));
             const kdContext = getKdContext(adamId, uri);
-            if (!kdContext) {
-                console.error("Failed to get kdContext");
+            if (!kdContext || kdContext.isNull()) {
+                console.error("Failed to get valid kdContext");
                 break;
             }
 
-
+            console.log("kdContext obtained:", kdContext);
+            
             while (true) {
                 const sizeBuffer = await socket.input.readAll(4);
                 if (sizeBuffer.byteLength === 0) break;
+                
                 const size = sizeBuffer.unwrap().readU32();
                 if (size === 0) break;
 
+                console.log("Decrypting sample of size:", size);
                 const sample = await socket.input.readAll(size);
                 const sampleUnwrapped = sample.unwrap();
-                decryptSample(kdContext.readPointer(), 5, sampleUnwrapped, sampleUnwrapped, sample.byteLength);
+                
+                // 修复：直接使用 kdContext，避免那一堆神仙报错
+                const result = decryptSample(kdContext, 5, sampleUnwrapped, sampleUnwrapped, sample.byteLength);
+                console.log("Decrypt result:", result);
+                
                 await socket.output.writeAll(sample);
             }
         }
@@ -212,52 +226,64 @@ global.getM3U8 = function(adamID) {
     return MediaAssetInfo.getDownloadUrl()
 };
 
+async function handleM3U8Connection(s) {
+    console.log("New M3U8 connection!");
+    try {    
+        const adamSizeBuffer = await s.input.readAll(1);
+        if (adamSizeBuffer.byteLength === 0) {
+            await s.close();
+            return;
+        }
+        
+        const adamSize = adamSizeBuffer.unwrap().readU8();
+        if (adamSize === 0) {
+            await s.close();
+            return;
+        }
+
+        const adam = await s.input.readAll(adamSize);
+        const byteArray = new Uint8Array(adam);
+        let adamID = "";
+        for (let i = 0; i < byteArray.length; i++) {
+            adamID += String.fromCharCode(byteArray[i]);
+        }
+        console.log("adamID:", adamID);
+        
+        // 使用 await 等待 Promise 完成
+        try {
+            const m3u8Url = await performJavaOperations(adamID);
+            console.log("M3U8 URL: ", m3u8Url);
+            const m3u8Array = stringToByteArray(m3u8Url + "\n");
+            await s.output.writeAll(m3u8Array);
+        } catch (error) {
+            console.error("Error performing Java operations:", error);
+            // 稍微来一点点处理
+            await s.output.writeAll(stringToByteArray("\n"));
+        }
+    } catch (err) {
+        console.error("Error handling M3U8 connection:", err);
+    } finally {
+        await s.close();
+    }
+}
+
 function performJavaOperations(adamID) {
     return new Promise((resolve, reject) => {
         Java.performNow(function () {
-            const url = getM3U8(adamID);
-            if (url === -1) {
-                const url = getM3U8fromDownload(adamID);
-                resolve(url);
-            } else {
-                resolve(url);
+            try {
+                const url = getM3U8(adamID);
+                if (url === -1) {
+                    const url2 = getM3U8fromDownload(adamID);
+                    resolve(url2);
+                } else {
+                    resolve(url);
+                }
+            } catch (error) {
+                reject(error);
             }
         });
     });
 }
-
-
-async function handleM3U8Connection(s) {
-    console.log("New M3U8 connection!");
-    try {    
-        const adamSize = (await s.input.readAll(1)).unwrap().readU8();
-        if (adamSize !== 0) {
-            const adam = await s.input.readAll(adamSize);
-            const byteArray = new Uint8Array(adam);
-            let adamID = "";
-            for (let i = 0; i < byteArray.length; i++) {
-                adamID += String.fromCharCode(byteArray[i]);
-            }
-            console.log("adamID:", adamID);
-            let m3u8Url;
-            performJavaOperations(adamID)
-                .then(async (url) => {
-                    m3u8Url = url;
-                    console.log("M3U8 URL: ", m3u8Url);
-                    const m3u8Array = stringToByteArray(m3u8Url + "\n");
-                    // console.log("M3U8 ARRAY:", m3u8Array);
-                    await s.output.writeAll(m3u8Array);
-                })
-                .catch((error) => {
-                    console.error("Error performing Java operations:", error);
-                });
-        }
-    } catch (err) {
-        console.error("Error handling M3U8 connection:", err);
-    }
-    await s.close();
-}
-
 function initializeFridaFunctions(androidappmusic) {
     // Utility functions
     global.malloc = new NativeFunction(
@@ -290,7 +316,7 @@ function initializeFridaFunctions(androidappmusic) {
 }
 
 function startListeners() {
-    Socket.listen({ family: "ipv4", port: 20020 })
+    Socket.listen({ family: "ipv4", port: 23020 })
         .then(async (listener) => {
             while (true) {
                 await handleM3U8Connection(await listener.accept());
@@ -298,7 +324,7 @@ function startListeners() {
         })
         .catch(console.error);
 
-    Socket.listen({ family: "ipv4", port: 10020 })
+    Socket.listen({ family: "ipv4", port: 13020 })
         .then(async (listener) => {
             while (true) {
                 await handleDecryptionConnection(await listener.accept());
