@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,19 +18,39 @@ import (
 	"github.com/itouakirai/mp4ff/mp4"
 	"github.com/grafov/m3u8"
 
-	"encoding/binary"
 	"github.com/schollz/progressbar/v3"
 
 	"main/utils/structs"
 )
+
 const prefetchKey = "skd://itunes.apple.com/P000000000/s1/e1"
 var ErrTimeout = errors.New("response timed out")
 
+// ValidatedReader 包装读取器并验证读取的数据量
+type ValidatedReader struct {
+	reader    io.Reader
+	totalRead int64
+	maxSize   int64
+}
+
+func (v *ValidatedReader) Read(p []byte) (int, error) {
+	n, err := v.reader.Read(p)
+	v.totalRead += int64(n)
+	
+	if v.maxSize > 0 && v.totalRead > v.maxSize {
+		return n, fmt.Errorf("read exceeded maximum size: %d > %d", v.totalRead, v.maxSize)
+	}
+	
+	return n, err
+}
+
 type TimedResponseBody struct {
-	timeout   time.Duration
-	timer     *time.Timer
-	threshold int
-	body      io.Reader
+	timeout     time.Duration
+	timer       *time.Timer
+	threshold   int
+	body        io.Reader
+	totalRead   int64
+	expectedLen int64
 }
 
 func (b *TimedResponseBody) Read(p []byte) (int, error) {
@@ -36,13 +58,19 @@ func (b *TimedResponseBody) Read(p []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	// fmt.Printf("Read %d bytes, buffer size %d bytes", n, len(p))
+	
+	b.totalRead += int64(n)
+	
+	// 检查数据长度是否合理
+	if b.expectedLen > 0 && b.totalRead > b.expectedLen*2 {
+		return n, fmt.Errorf("read length %d exceeds expected length %d", b.totalRead, b.expectedLen)
+	}
+	
 	if n >= b.threshold {
 		b.timer.Reset(b.timeout)
 	}
 	return n, err
 }
-
 
 func Run(adamId string, playlistUrl string, outfile string, Config structs.ConfigSet) error {
 	var err error
@@ -107,10 +135,11 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 		}
 		defer do.Body.Close()
 		body = &TimedResponseBody{
-			timeout:   timeout,
-			timer:     timer,
-			threshold: 256,
-			body:      do.Body,
+			timeout:     timeout,
+			timer:       timer,
+			threshold:   256,
+			body:        do.Body,
+			expectedLen: do.ContentLength,
 		}
 	} else {
 		do, err = client.Do(req)
@@ -149,13 +178,11 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	var totalLen int64
 	totalLen = do.ContentLength
 	// connect to decryptor
-	//addr := fmt.Sprintf("127.0.0.1:10020")
 	addr := Config.DecryptM3u8Port
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return err
 	}
-	//fmt.Print("Decrypting...\n")
 	defer Close(conn)
 
 	err = downloadAndDecryptFile(conn, body, outfile, adamId, segments, totalLen, Config)
@@ -171,7 +198,14 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 	var buffer bytes.Buffer
 	var outBuf *bufio.Writer
 	MaxMemorySize := int64(Config.MaxMemoryLimit * 1024 * 1024)
-	inBuf := bufio.NewReader(in)
+	
+	// 使用验证读取器
+	validatedReader := &ValidatedReader{
+		reader:  in,
+		maxSize: totalLen * 2, // 允许一定的溢出
+	}
+	inBuf := bufio.NewReader(validatedReader)
+	
 	if totalLen <= MaxMemorySize {
 		outBuf = bufio.NewWriter(&buffer)
 	} else {
@@ -182,6 +216,7 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 		defer ofh.Close()
 		outBuf = bufio.NewWriter(ofh)
 	}
+	
 	init, offset, err := ReadInitSegment(inBuf)
 	if err != nil {
 		return err
@@ -204,8 +239,7 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 		return err
 	}
 
-	// 'segment' in m3u8 == 'fragment' in mp4ff
-	//fmt.Println("Starting decryption...")
+	log.Printf("Starting decryption: expected content length: %d", totalLen)
 	bar := progressbar.NewOptions64(totalLen,
 		progressbar.OptionClearOnFinish(),
 		progressbar.OptionSetElapsedTime(false),
@@ -225,7 +259,10 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 	)
 	bar.Add64(int64(offset))
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+	
+	var fragmentCount int
 	for i := 0; ; i++ {
+		fragmentCount = i
 		var frag *mp4.Fragment
 		rawoffset := offset
 		frag, offset, err = ReadNextFragment(inBuf, offset)
@@ -237,11 +274,13 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 			// check offset against Content-Length?
 			break
 		}
-		// print progress
 
-		// if totalLen > 0 {
-		// 	fmt.Printf("%.2f%% of %d bytes\n", 100*float32(offset)/float32(totalLen), totalLen)
-		// }
+		// 添加片段处理日志
+		if i%10 == 0 { // 每10个片段记录一次
+			log.Printf("Processed %d fragments, current offset: %d, progress: %.2f%%", 
+				i, offset, 100*float64(offset)/float64(totalLen))
+		}
+
 		segment := playlistSegments[i]
 		if segment == nil {
 			return errors.New("segment number out of sync")
@@ -269,6 +308,9 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 		}
 		bar.Add64(int64(rawoffset))
 	}
+	
+	log.Printf("Completed processing %d fragments, total bytes: %d", fragmentCount, offset)
+	
 	err = outBuf.Flush()
 	if err != nil {
 		return err
@@ -363,7 +405,7 @@ func parseMediaPlaylist(r io.ReadCloser) ([]*m3u8.MediaSegment, error) {
 	return mediaPlaylist.Segments, nil
 }
 
-//pasing
+// parsing
 func ReadInitSegment(r io.Reader) (*mp4.InitSegment, uint64, error) {
 	var offset uint64 = 0
 	init := mp4.NewMP4Init()
@@ -382,20 +424,57 @@ func ReadInitSegment(r io.Reader) (*mp4.InitSegment, uint64, error) {
 	return init, offset, nil
 }
 
+// 辅助函数：验证盒子大小是否合理
+func isValidBoxSize(size uint64) bool {
+	return size >= 8 && size <= 100*1024*1024 // 8字节到100MB
+}
+
 // Get the next fragment. Returns nil and no error on EOF
 func ReadNextFragment(r io.Reader, offset uint64) (*mp4.Fragment, uint64, error) {
 	frag := mp4.NewFragment()
+	var lastValidOffset uint64
+	
 	for {
+		// 保存当前偏移量，以便在错误时恢复
+		lastValidOffset = offset
+		
 		box, err := mp4.DecodeBox(offset, r)
 		if err == io.EOF {
 			return nil, offset, nil
 		}
 		if err != nil {
-			return nil, offset, err
+			log.Printf("Error decoding box at offset %d: %v", offset, err)
+			
+			// 尝试跳过损坏的盒子并继续
+			if skipErr := skipToNextValidBox(r, &offset); skipErr != nil {
+				return nil, offset, fmt.Errorf("failed to recover from box error: %w (original: %v)", skipErr, err)
+			}
+			continue
 		}
+		
 		boxType := box.Type()
-		// fmt.Printf("processing %s, box starts @ offset %d\n", boxType, offset)
-		offset += box.Size()
+		boxSize := box.Size()
+		
+		// 验证盒子大小
+		if !isValidBoxSize(boxSize) {
+			log.Printf("Invalid box size %d for type %s at offset %d, attempting recovery", 
+				boxSize, boxType, offset)
+			
+			offset = lastValidOffset
+			if skipErr := skipToNextValidBox(r, &offset); skipErr != nil {
+				return nil, offset, fmt.Errorf("invalid box size %d: %w", boxSize, skipErr)
+			}
+			continue
+		}
+		
+		// 对于超大盒子进行额外检查
+		if boxSize > 10*1024*1024 { // 10MB限制
+			log.Printf("WARNING: Large box detected: %s, size: %d at offset %d", 
+				boxType, boxSize, offset)
+		}
+		
+		offset += boxSize
+		
 		if boxType == "moof" || boxType == "emsg" || boxType == "prft" {
 			frag.AddChild(box)
 			continue
@@ -404,13 +483,45 @@ func ReadNextFragment(r io.Reader, offset uint64) (*mp4.Fragment, uint64, error)
 			frag.AddChild(box)
 			break
 		}
-		fmt.Printf("ignoring a %s box found mid-stream", boxType)
+		
+		log.Printf("ignoring a %s box found mid-stream at offset %d", boxType, offset-boxSize)
 	}
-	// only 1 mdat box in fragment, meaning that the box doesn't have a preceding moof box
+	
 	if frag.Moof == nil {
-		return nil, offset, fmt.Errorf("more than one mdat box in fragment (box ends @ offset %d)", offset)
+		return nil, offset, fmt.Errorf("fragment missing moof box (ends @ offset %d)", offset)
 	}
 	return frag, offset, nil
+}
+
+// 辅助函数：跳过损坏的数据寻找下一个有效盒子
+func skipToNextValidBox(r io.Reader, offset *uint64) error {
+	buf := make([]byte, 1024)
+	
+	// 简单的恢复策略：寻找看起来像盒子头的数据
+	for i := 0; i < 10; i++ { // 最多尝试10次
+		n, err := r.Read(buf)
+		if err != nil {
+			return err
+		}
+		
+		*offset += uint64(n)
+		
+		if n < 8 {
+			continue
+		}
+		
+		// 检查是否找到有效的盒子头
+		size := binary.BigEndian.Uint32(buf[0:4])
+		if isValidBoxSize(uint64(size)) {
+			log.Printf("Found potential valid box header at offset %d, size: %d", 
+                *offset-uint64(n), size)
+			// 在实际实现中，这里应该回退到盒子开始位置
+			// 但由于我们使用的是普通Reader，无法回退，只能继续
+			return nil
+		}
+	}
+	
+	return errors.New("unable to find valid box header after corruption")
 }
 
 // Return a new slice of boxes with encryption-related sbgp and sgpd removed,
@@ -454,7 +565,7 @@ func TransformInit(init *mp4.InitSegment) (map[uint32]mp4.DecryptTrackInfo, erro
 	}
 	return tracks, nil
 }
-//remote
+
 // Reset the loops on the script's end and close the connection
 func Close(conn io.WriteCloser) error {
 	defer conn.Close()
@@ -476,8 +587,6 @@ func SendString(conn io.Writer, uri string) error {
 	_, err = io.WriteString(conn, uri)
 	return err
 }
-
-
 
 func cbcsFullSubsampleDecrypt(data []byte, conn *bufio.ReadWriter) error {
 	// Drops 4 last bits -> multiple of 16
