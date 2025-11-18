@@ -316,7 +316,7 @@ function initializeFridaFunctions(androidappmusic) {
 }
 
 function startListeners() {
-    Socket.listen({ family: "ipv4", port: 23020 })
+    Socket.listen({ family: "ipv4", port: 20020})
         .then(async (listener) => {
             while (true) {
                 await handleM3U8Connection(await listener.accept());
@@ -324,7 +324,7 @@ function startListeners() {
         })
         .catch(console.error);
 
-    Socket.listen({ family: "ipv4", port: 13020 })
+    Socket.listen({ family: "ipv4", port: 10020})
         .then(async (listener) => {
             while (true) {
                 await handleDecryptionConnection(await listener.accept());
