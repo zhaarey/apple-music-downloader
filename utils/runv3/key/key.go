@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"main/utils/runv3/cdm"
+	wv "main/utils/runv3/cdm"
 )
 
 type Key struct {
@@ -27,17 +27,17 @@ func (w *Key) GetKey(ctx context.Context, licenseServerURL string, PSSH string, 
 	initData, err := base64.StdEncoding.DecodeString(PSSH)
 	var keybt []byte
 	if err != nil {
-		slog.Error("pssh decode error: %v", err)
+		slog.Error("pssh decode error", slog.Any("err", err))
 		return "", keybt, err
 	}
 	cdm, err := wv.NewDefaultCDM(initData)
 	if err != nil {
-		slog.Error("cdm init error: %v", err)
+		slog.Error("cdm init error", slog.Any("err", err))
 		return "", keybt, err
 	}
 	licenseRequest, err := cdm.GetLicenseRequest()
 	if err != nil {
-		slog.Error("license request error: %v", err)
+		slog.Error("license request error", slog.Any("err", err))
 		return "", keybt, err
 	}
 
@@ -47,13 +47,13 @@ func (w *Key) GetKey(ctx context.Context, licenseServerURL string, PSSH string, 
 		response, err = w.BeforeRequest(w.ReqCli, ctx, licenseServerURL, licenseRequest)
 	} else {
 		response, err = w.ReqCli.R().
-						SetContext(ctx).
-						SetBody(licenseRequest).
-						Post(licenseServerURL)
+			SetContext(ctx).
+			SetBody(licenseRequest).
+			Post(licenseServerURL)
 	}
 
 	if err != nil {
-		slog.Error("license request error: %s", err)
+		slog.Error("license request error", slog.Any("err", err))
 		return "", keybt, err
 	}
 
