@@ -26,7 +26,7 @@
 原脚本由 Sorrow 编写。本人已修改，包含一些修复和改进。
 
 ## 使用方法
-1. 确保解密程序 [wrapper](https://github.com/zhaarey/wrapper) 正在运行
+1. 确保解密程序 [wrapper](https://github.com/WorldObservationLog/wrapper) 正在运行
 2. 开始下载部分专辑：`go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511`。
 3. 开始下载单曲：`go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512` 或 `go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520`。
 4. 开始下载所选曲目：`go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511` 输入以空格分隔的数字。
