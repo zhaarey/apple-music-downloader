@@ -27,6 +27,46 @@ For acquisition`aac-lc` `MV` `lyrics` You must fill in the information with a su
 
 Original script by Sorrow. Modified by me to include some fixes and improvements.
 
+## Running with Docker
+
+1. Make sure the decryption program [wrapper](https://github.com/WorldObservationLog/wrapper) is running
+2. Modify config.yaml to add this lines to set download path:
+   ```yaml
+   alac-save-folder: "/downloads/ALAC"
+   atmos-save-folder: "/downloads/ATMOS"
+   aac-save-folder: "/downloads/AAC"
+   ```
+2. Build the Docker image:
+   ```bash
+   docker build -t apple-music-dl .
+   ```
+3. Run downloader:
+   ```bash
+   # show help
+   docker run --network host -v ../downloads:/downloads apple-music-dl --help
+
+   # start downloading some albums
+   docker run --network host -v ../downloads:/downloads apple-music-dl https://music.apple.com/ru/album/children-of-forever/1443732441 
+
+   # start downloading single song
+   docker run --network host -v ../downloads:/downloads apple-music-dl --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
+
+   # start downloading select
+   docker run -it --network host -v ../downloads:/downloads apple-music-dl --select https://music.apple.com/ru/album/children-of-forever/1443732441
+
+   # start downloading some playlists
+   docker run --network host -v ../downloads:/downloads apple-music-dl https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
+
+   # for dolby atmos
+   docker run --network host -v ../downloads:/downloads apple-music-dl --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   
+   # for aac
+   docker run --network host -v ../downloads:/downloads apple-music-dl --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+
+   # for see quality
+   docker run --network host -v ./downloads:/downloads apple-music-dl --debug https://music.apple.com/ru/album/miles-smiles/209407331
+   ```
+
 ## How to use
 1. Make sure the decryption program [wrapper](https://github.com/WorldObservationLog/wrapper) is running
 2. Start downloading some albums: `go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511`.
