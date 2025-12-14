@@ -59,6 +59,8 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
    ```
 
 You can change `config.yaml` by mounting a volume:
+
+> **Note:** Before running the following command, make sure that a `config.yaml` file exists in your current directory. You can create your own, or copy the default one from the repository (if available). If `./config.yaml` does not exist, Docker will create an empty directory instead of a file, which will cause the container to fail.
 ```bash
 docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config.yaml ghcr.io/zhaarey/apple-music-downloader [args]
 ```
