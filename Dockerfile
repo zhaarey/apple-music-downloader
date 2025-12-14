@@ -8,7 +8,11 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=bind,target=. \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/apple-music-dl main.go
 
-FROM sambaiz/mp4box
+FROM gpac/ubuntu
 COPY --from=builder /bin/apple-music-dl /usr/local/bin/apple-music-dl
+WORKDIR /app
 COPY config.yaml ./
+RUN echo 'alac-save-folder: "/downloads/ALAC"' >> config.yaml \
+    && echo 'atmos-save-folder: "/downloads/Atmos"' >> config.yaml \
+    && echo 'aac-save-folder: "/downloads/AAC"' >> config.yaml
 ENTRYPOINT ["/usr/local/bin/apple-music-dl"]
