@@ -30,42 +30,40 @@ Original script by Sorrow. Modified by me to include some fixes and improvements
 ## Running with Docker
 
 1. Make sure the decryption program [wrapper](https://github.com/WorldObservationLog/wrapper) is running
-2. Modify config.yaml to add this lines to set download path:
-   ```yaml
-   alac-save-folder: "/downloads/ALAC"
-   atmos-save-folder: "/downloads/ATMOS"
-   aac-save-folder: "/downloads/AAC"
-   ```
-2. Build the Docker image:
-   ```bash
-   docker build -t apple-music-dl .
-   ```
-3. Run downloader:
+
+2. Start the downloader with Docker:
    ```bash
    # show help
-   docker run --network host -v ../downloads:/downloads apple-music-dl --help
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --help
 
    # start downloading some albums
-   docker run --network host -v ../downloads:/downloads apple-music-dl https://music.apple.com/ru/album/children-of-forever/1443732441 
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/ru/album/children-of-forever/1443732441 
 
    # start downloading single song
-   docker run --network host -v ../downloads:/downloads apple-music-dl --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
 
    # start downloading select
-   docker run -it --network host -v ../downloads:/downloads apple-music-dl --select https://music.apple.com/ru/album/children-of-forever/1443732441
+   docker run -it --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --select https://music.apple.com/ru/album/children-of-forever/1443732441
 
    # start downloading some playlists
-   docker run --network host -v ../downloads:/downloads apple-music-dl https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
 
    # for dolby atmos
-   docker run --network host -v ../downloads:/downloads apple-music-dl --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
    
    # for aac
-   docker run --network host -v ../downloads:/downloads apple-music-dl --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
 
    # for see quality
-   docker run --network host -v ./downloads:/downloads apple-music-dl --debug https://music.apple.com/ru/album/miles-smiles/209407331
+   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --debug https://music.apple.com/ru/album/miles-smiles/209407331
    ```
+
+You can change `config.yaml` by mounting a volume:
+
+> **Note:** Before running the following command, make sure that a `config.yaml` file exists in your current directory. You can create your own, or copy the default one from the repository (if available). If `./config.yaml` does not exist, Docker will create an empty directory instead of a file, which will cause the container to fail.
+```bash
+docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config.yaml ghcr.io/zhaarey/apple-music-downloader [args]
+```
 
 ## How to use
 1. Make sure the decryption program [wrapper](https://github.com/WorldObservationLog/wrapper) is running
