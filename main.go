@@ -916,6 +916,18 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		fmt.Println("Track already exists locally.")
 		counter.Success++
 		okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+
+		tArtistId := ""
+		if len(track.Resp.Relationships.Artists.Data) > 0 {
+			tArtistId = track.Resp.Relationships.Artists.Data[0].ID
+		}
+		AddedTracks = append(AddedTracks, AddedTrack{
+			Path:     trackPath,
+			Artist:   track.Resp.Attributes.ArtistName,
+			ArtistID: tArtistId,
+			Album:    track.Resp.Attributes.AlbumName,
+			Song:     track.Resp.Attributes.Name,
+		})
 		return
 	}
 	if considerConverted {
@@ -924,6 +936,18 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			fmt.Println("Converted track already exists locally.")
 			counter.Success++
 			okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+
+			tArtistId := ""
+			if len(track.Resp.Relationships.Artists.Data) > 0 {
+				tArtistId = track.Resp.Relationships.Artists.Data[0].ID
+			}
+			AddedTracks = append(AddedTracks, AddedTrack{
+				Path:     convertedPath,
+				Artist:   track.Resp.Attributes.ArtistName,
+				ArtistID: tArtistId,
+				Album:    track.Resp.Attributes.AlbumName,
+				Song:     track.Resp.Attributes.Name,
+			})
 			return
 		}
 	}
@@ -1133,6 +1157,13 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			okDict[station.ID] = append(okDict[station.ID], 1)
 
 			fmt.Println("Radio already exists locally.")
+			AddedTracks = append(AddedTracks, AddedTrack{
+				Path:     trackPath,
+				Artist:   "Apple Music Station",
+				ArtistID: "",
+				Album:    station.Name,
+				Song:     station.Name,
+			})
 			return nil
 		}
 		assetsUrl, serverUrl, err := ampapi.GetStationAssetsUrlAndServerUrl(station.ID, mediaUserToken, token)
@@ -2006,11 +2037,7 @@ func main() {
 		if err != nil {
 			fmt.Println("Error generating JSON output:", err)
 		} else {
-			if AddedTracks == nil {
-				fmt.Println("[]")
-			} else {
-				fmt.Println(string(jsonOutput))
-			}
+			fmt.Println(string(jsonOutput))
 		}
 	}
 }
@@ -2041,6 +2068,22 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	exists, _ := fileExists(mvOutPath)
 	if exists {
 		fmt.Println("MV already exists locally.")
+
+		mvArtistName := MVInfo.Data[0].Attributes.ArtistName
+		mvAlbumName := MVInfo.Data[0].Attributes.AlbumName
+		mvName := MVInfo.Data[0].Attributes.Name
+		mvArtistId := ""
+		if len(MVInfo.Data[0].Relationships.Artists.Data) > 0 {
+			mvArtistId = MVInfo.Data[0].Relationships.Artists.Data[0].ID
+		}
+
+		AddedTracks = append(AddedTracks, AddedTrack{
+			Path:     mvOutPath,
+			Artist:   mvArtistName,
+			ArtistID: mvArtistId,
+			Album:    mvAlbumName,
+			Song:     mvName,
+		})
 		return nil
 	}
 
