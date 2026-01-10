@@ -54,18 +54,34 @@ var (
 	okDict         = make(map[string][]int)
 )
 
-func loadConfig() error {
-	data, err := os.ReadFile("config.yaml")
+func loadConfig(filePath string) error {
+	// If filePath is empty, use default config.yaml
+	if filePath == "" {
+		filePath = "config.yaml"
+	}
+
+	// Try to read the specified config file
+	data, err := os.ReadFile(filePath)
+
+	// If reading fails and a custom path was provided, try default config.yaml
+	if err != nil && filePath != "config.yaml" {
+		fmt.Printf("Failed to read config file %s, trying default config.yaml...\n", filePath)
+		data, err = os.ReadFile("config.yaml")
+	}
+
 	if err != nil {
 		return err
 	}
+
 	err = yaml.Unmarshal(data, &Config)
 	if err != nil {
 		return err
 	}
+
 	if len(Config.Storefront) != 2 {
 		Config.Storefront = "us"
 	}
+
 	return nil
 }
 
@@ -1341,7 +1357,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	os.MkdirAll(albumFolderPath, os.ModePerm)
 	album.SaveName = albumFolderName
 	fmt.Println(albumFolderName)
-	if Config.SaveArtistCover && len(meta.Data[0].Relationships.Artists.Data) > 0{
+	if Config.SaveArtistCover && len(meta.Data[0].Relationships.Artists.Data) > 0 {
 		if meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url != "" {
 			_, err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
 			if err != nil {
@@ -1779,11 +1795,47 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 }
 
 func main() {
-	err := loadConfig()
+	var search_type string
+	var configPath string
+	pflag.StringVar(&search_type, "search", "", "Search for 'album', 'song', or 'artist'. Provide query after flags.")
+	pflag.BoolVar(&dl_atmos, "atmos", false, "Enable atmos download mode")
+	pflag.BoolVar(&dl_aac, "aac", false, "Enable adm-aac download mode")
+	pflag.BoolVar(&dl_select, "select", false, "Enable selective download")
+	pflag.BoolVar(&dl_song, "song", false, "Enable single song download mode")
+	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
+	pflag.BoolVar(&debug_mode, "debug", false, "Enable debug mode to show audio quality information")
+	pflag.StringVar(&configPath, "config", "", "Specify the path to the configuration file")
+	alac_max = pflag.Int("alac-max", 192000, "Specify the max quality for download alac")
+	atmos_max = pflag.Int("atmos-max", 96000, "Specify the max quality for download atmos")
+	aac_type = pflag.String("aac-type", "aac", "Select AAC type, aac aac-binaural aac-downmix")
+	mv_audio_type = pflag.String("mv-audio-type", "atmos", "Select MV audio type, atmos ac3 aac")
+	mv_max = pflag.Int("mv-max", 1080, "Specify the max quality for download MV")
+
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", "[main | main.exe | go run main.go]")
+		fmt.Fprintf(os.Stderr, "Search Usage: %s --search [album|song|artist] [query]\n", "[main | main.exe | go run main.go]")
+		fmt.Println("\nOptions:")
+		pflag.PrintDefaults()
+	}
+
+	// Parse command line flags first
+	pflag.Parse()
+
+	// Load config with the specified path or default
+	err := loadConfig(configPath)
 	if err != nil {
 		fmt.Printf("load Config failed: %v", err)
 		return
 	}
+
+	// Override config with command line flags
+	Config.AlacMax = *alac_max
+	Config.AtmosMax = *atmos_max
+	Config.AacType = *aac_type
+	Config.MVAudioType = *mv_audio_type
+	Config.MVMax = *mv_max
+
+	// Get token after loading config
 	token, err := ampapi.GetToken()
 	if err != nil {
 		if Config.AuthorizationToken != "" && Config.AuthorizationToken != "your-authorization-token" {
@@ -1793,33 +1845,6 @@ func main() {
 			return
 		}
 	}
-	var search_type string
-	pflag.StringVar(&search_type, "search", "", "Search for 'album', 'song', or 'artist'. Provide query after flags.")
-	pflag.BoolVar(&dl_atmos, "atmos", false, "Enable atmos download mode")
-	pflag.BoolVar(&dl_aac, "aac", false, "Enable adm-aac download mode")
-	pflag.BoolVar(&dl_select, "select", false, "Enable selective download")
-	pflag.BoolVar(&dl_song, "song", false, "Enable single song download mode")
-	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
-	pflag.BoolVar(&debug_mode, "debug", false, "Enable debug mode to show audio quality information")
-	alac_max = pflag.Int("alac-max", Config.AlacMax, "Specify the max quality for download alac")
-	atmos_max = pflag.Int("atmos-max", Config.AtmosMax, "Specify the max quality for download atmos")
-	aac_type = pflag.String("aac-type", Config.AacType, "Select AAC type, aac aac-binaural aac-downmix")
-	mv_audio_type = pflag.String("mv-audio-type", Config.MVAudioType, "Select MV audio type, atmos ac3 aac")
-	mv_max = pflag.Int("mv-max", Config.MVMax, "Specify the max quality for download MV")
-
-	pflag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", "[main | main.exe | go run main.go]")
-		fmt.Fprintf(os.Stderr, "Search Usage: %s --search [album|song|artist] [query]\n", "[main | main.exe | go run main.go]")
-		fmt.Println("\nOptions:")
-		pflag.PrintDefaults()
-	}
-
-	pflag.Parse()
-	Config.AlacMax = *alac_max
-	Config.AtmosMax = *atmos_max
-	Config.AacType = *aac_type
-	Config.MVAudioType = *mv_audio_type
-	Config.MVMax = *mv_max
 
 	args := pflag.Args()
 
