@@ -44,6 +44,7 @@ type ConfigSet struct {
 	ConvertSkipIfSourceMatch   bool   `yaml:"convert-skip-if-source-matches"`
 	FFmpegPath                 string `yaml:"ffmpeg-path"`
 	ConvertExtraArgs           string `yaml:"convert-extra-args"`
+	ConvertWithMetadata        bool   `yaml:"convert-with-metadata"`
 	ConvertWarnLossyToLossless bool   `yaml:"convert-warn-lossy-to-lossless"`
 	ConvertSkipLossyToLossless bool   `yaml:"convert-skip-lossy-to-lossless"`
 	ConvertCheckBadALAC        bool   `yaml:"convert-check-bad-alac"`
