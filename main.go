@@ -731,29 +731,52 @@ func convertIfNeeded(track *task.Track) {
 
 	fmt.Printf("Converting -> %s ...\n", targetFmt)
 	cmd := exec.Command(Config.FFmpegPath, args...)
+	var stderr bytes.Buffer
+	if Config.ConvertCheckBadALAC {
+		cmd.Stderr = &stderr
+	} else {
+		cmd.Stderr = nil
+	}
 	cmd.Stdout = nil
-	cmd.Stderr = nil
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
 		fmt.Println("Conversion failed:", err)
 		// leave original
 		return
 	}
-	fmt.Printf("Conversion completed in %s: %s\n", time.Since(start).Truncate(time.Millisecond), filepath.Base(outPath))
-
-	if !Config.ConvertKeepOriginal {
-		if err := os.Remove(srcPath); err != nil {
-			fmt.Println("Failed to remove original after conversion:", err)
-		} else {
-			track.SavePath = outPath
-			track.SaveName = filepath.Base(outPath)
-			fmt.Println("Original removed.")
+	if Config.ConvertCheckBadALAC && stderr.Len() > 0 {
+		fmt.Print("Detected ALAC Error.", "\n")
+		if Config.ConvertDeleteBadALAC {
+			delPath := strings.TrimSuffix(srcPath, "m4a") + targetFmt
+			logPath := strings.TrimSuffix(srcPath, "m4a") + "log"
+			if err := os.Remove(delPath); err != nil {
+				fmt.Println("Failed to remove convert:", err)
+			} else {
+				fmt.Println("Convert removed due to the bad ALAC.")
+				log := stderr
+				err = os.WriteFile(logPath, log.Bytes(), 0644)
+				if err != nil {
+					fmt.Println("Convert logs:", log)
+				} else {
+					fmt.Println("Convert logs are stored in:", logPath)
+				}
+			}
 		}
 	} else {
-		// Keep both but point track to new file (optional decision)
+		fmt.Printf("Conversion completed in %s: %s\n", time.Since(start).Truncate(time.Millisecond), filepath.Base(outPath))
+
+		if !Config.ConvertKeepOriginal {
+			if err := os.Remove(srcPath); err != nil {
+				fmt.Println("Failed to remove original after conversion:", err)
+			} else {
+				fmt.Println("Original removed.")
+			}
+
+		}
 		track.SavePath = outPath
 		track.SaveName = filepath.Base(outPath)
 	}
+
 }
 
 func ripTrack(track *task.Track, token string, mediaUserToken string) {
@@ -1341,7 +1364,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	os.MkdirAll(albumFolderPath, os.ModePerm)
 	album.SaveName = albumFolderName
 	fmt.Println(albumFolderName)
-	if Config.SaveArtistCover && len(meta.Data[0].Relationships.Artists.Data) > 0{
+	if Config.SaveArtistCover && len(meta.Data[0].Relationships.Artists.Data) > 0 {
 		if meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url != "" {
 			_, err = writeCover(singerFolder, "folder", meta.Data[0].Relationships.Artists.Data[0].Attributes.Artwork.Url)
 			if err != nil {
