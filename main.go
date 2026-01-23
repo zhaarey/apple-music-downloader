@@ -650,7 +650,7 @@ func isLossySource(ext string, codec string) bool {
 
 // CONVERSION FEATURE: Build ffmpeg arguments for desired target.
 func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) ([]string, error) {
-	args := []string{"-y", "-i", inPath, "-map_metadata"}
+	args := []string{"-y", "-i", inPath, "-loglevel", "error", "-map_metadata"}
 	if Config.ConvertWithMetadata {
 		args = append(args, "0")
 	} else {
