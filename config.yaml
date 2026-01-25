@@ -14,6 +14,7 @@ cover-format: jpg       #jpg png or original
 alac-save-folder: AM-DL downloads
 atmos-save-folder: AM-DL-Atmos downloads
 aac-save-folder: AM-DL-AAC downloads
+mv-save-folder: AM-DL-MV downloads
 max-memory-limit: 256 # MB
 decrypt-m3u8-port: "127.0.0.1:10020"
 get-m3u8-port: "127.0.0.1:20020"
