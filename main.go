@@ -1897,9 +1897,9 @@ func main() {
 					"{ArtistId}", "",
 				).Replace(Config.ArtistFolderFormat)
 				if mvSaveDir != "" {
-					mvSaveDir = filepath.Join(Config.AlacSaveFolder, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
+					mvSaveDir = filepath.Join(Config.MVSaveFolder, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
 				} else {
-					mvSaveDir = Config.AlacSaveFolder
+					mvSaveDir = Config.MVSaveFolder
 				}
 				storefront, albumId = checkUrlMv(urlRaw)
 				err := mvDownloader(albumId, mvSaveDir, token, storefront, Config.MediaUserToken, nil)
