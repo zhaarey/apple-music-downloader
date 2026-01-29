@@ -940,10 +940,27 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			counter.Unavailable++
 			return
 		}
-		//边下载边解密
-		err = runv2.Run(track.ID, trackM3u8Url, trackPath, Config)
+		// Download and decrypt in one step, retrying TCP decryptor errors up to 10 times
+		maxDecryptRetries := 10
+		for attempt := 1; attempt <= maxDecryptRetries; attempt++ {
+			err = runv2.Run(track.ID, trackM3u8Url, trackPath, Config)
+			if err == nil {
+				break
+			}
+
+			// Only retry for TCP-related errors; abort on all others
+			var netErr *net.OpError
+			if !errors.As(err, &netErr) {
+				fmt.Println("Failed to run v2:", err)
+				break
+			}
+
+			fmt.Printf("TCP error talking to decryptor (attempt %d/%d): %v\n", attempt, maxDecryptRetries, err)
+			if attempt < maxDecryptRetries {
+				time.Sleep(2 * time.Second)
+			}
+		}
 		if err != nil {
-			fmt.Println("Failed to run v2:", err)
 			counter.Error++
 			return
 		}
