@@ -6,7 +6,7 @@ require (
 	github.com/aead/cmac v0.0.0-20160719120800-7af84192f0b1
 	github.com/grafov/m3u8 v0.11.1
 	github.com/schollz/progressbar/v3 v3.19.0
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/pflag v1.0.10
 	google.golang.org/protobuf v1.36.11
 	lukechampine.com/frand v1.5.1
 )
