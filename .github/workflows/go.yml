@@ -11,9 +11,9 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.23.1'
     - name: Build
@@ -28,7 +28,7 @@ jobs:
         cp README.md alac/
         cp main.exe alac/
     - name: Upload apple-music-alac-atmos-downloader
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apple-music-alac-atmos-downloader-windows
         path: alac/*
@@ -36,9 +36,9 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.23.1'
     - name: Build
@@ -53,7 +53,7 @@ jobs:
         cp README.md alac/
         cp main alac/
     - name: Upload apple-music-alac-atmos-downloader
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apple-music-alac-atmos-downloader-linux
         path: alac/*
@@ -61,9 +61,9 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.23.1'
     - name: Build
@@ -78,7 +78,7 @@ jobs:
         cp README.md alac/
         cp main alac/
     - name: Upload apple-music-alac-atmos-downloader
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apple-music-alac-atmos-downloader-macos
         path: alac/*
