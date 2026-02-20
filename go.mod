@@ -35,7 +35,7 @@ require (
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/beevik/etree v1.3.0
+	github.com/beevik/etree v1.6.0
 	github.com/fatih/color v1.18.0
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/itouakirai/mp4ff v0.0.0-20250930132656-98812935a1c7
