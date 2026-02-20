@@ -28,7 +28,7 @@ jobs:
         cp README.md alac/
         cp main.exe alac/
     - name: Upload apple-music-alac-atmos-downloader
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apple-music-alac-atmos-downloader-windows
         path: alac/*
@@ -53,7 +53,7 @@ jobs:
         cp README.md alac/
         cp main alac/
     - name: Upload apple-music-alac-atmos-downloader
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apple-music-alac-atmos-downloader-linux
         path: alac/*
@@ -78,7 +78,7 @@ jobs:
         cp README.md alac/
         cp main alac/
     - name: Upload apple-music-alac-atmos-downloader
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: apple-music-alac-atmos-downloader-macos
         path: alac/*
