@@ -7,14 +7,13 @@ require (
 	github.com/grafov/m3u8 v0.11.1
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/spf13/pflag v1.0.5
-	google.golang.org/protobuf v1.36.2
+	google.golang.org/protobuf v1.36.11
 	lukechampine.com/frand v1.5.1
 )
 
 require (
 	github.com/Eyevinn/mp4ff v0.50.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
