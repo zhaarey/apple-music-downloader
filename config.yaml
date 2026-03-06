@@ -53,7 +53,7 @@ mv-max: 2160
 storefront: "enter your account storefront"
 # Conversion settings
 convert-after-download: false     # Enable post-download conversion (requires ffmpeg)
-convert-format: "flac"            # flac | mp3 | opus | wav | copy (no re-encode)
+convert-format: "flac"            # flac | mp3 | opus | wav | aiff | copy (no re-encode)
 convert-keep-original: false       # Keep original file after successful conversion
 convert-skip-if-source-matches: true  # If already in target format, skip
 ffmpeg-path: "ffmpeg"             # Override if ffmpeg is not in PATH
@@ -61,6 +61,6 @@ convert-extra-args: ""            # Additional raw args appended (advanced)
 convert-with-metadata: true      # If true, keep the same metadata in converted files
 # Conversion warnings and behavior
 convert-warn-lossy-to-lossless: true # If true, print a warning when converting a detected lossy source to a lossless container
-convert-skip-lossy-to-lossless: true # If true, skip converting detected lossy sources to lossless target formats (flac/wav)
+convert-skip-lossy-to-lossless: true # If true, skip converting detected lossy sources to lossless target formats (flac/wav/aiff)
 convert-check-bad-alac: false # If true, check and report if ALAC is damaged
 convert-delete-bad-alac: false # If true, delete if ALAC is damaged

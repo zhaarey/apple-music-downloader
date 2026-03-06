@@ -659,8 +659,39 @@ func isLossySource(ext string, codec string) bool {
 	return false
 }
 
+// CONVERSION FEATURE: Get bit depth of an audio file using ffprobe
+func getAudioBitDepth(ffmpegPath string, filePath string) (int, error) {
+	ffprobePath := strings.Replace(ffmpegPath, "ffmpeg", "ffprobe", 1)
+	if _, err := exec.LookPath(ffprobePath); err != nil {
+		return 16, fmt.Errorf("ffprobe not found: %w", err) // Default to 16
+	}
+
+	cmd := exec.Command(ffprobePath, "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=bits_per_raw_sample", "-of", "default=noprint_wrappers=1:nokey=1", filePath)
+	out, err := cmd.Output()
+	if err != nil {
+		return 16, err
+	}
+
+	bitsStr := strings.TrimSpace(string(out))
+	if bitsStr == "" || bitsStr == "N/A" {
+		// ALAC and sometimes FLAC might not report bits_per_raw_sample directly in all versions,
+		// fallback to sample_fmt based depth if needed, but ALAC usually reports bits_per_raw_sample nicely.
+		return 16, nil
+	}
+
+	bits, err := strconv.Atoi(bitsStr)
+	if err != nil {
+		return 16, err
+	}
+
+	if bits > 0 {
+		return bits, nil
+	}
+	return 16, nil
+}
+
 // CONVERSION FEATURE: Build ffmpeg arguments for desired target.
-func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) ([]string, error) {
+func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string, srcBitDepth int) ([]string, error) {
 	args := []string{"-y", "-i", inPath, "-loglevel", "error", "-map_metadata"}
 	if Config.ConvertWithMetadata {
 		args = append(args, "0")
@@ -677,7 +708,17 @@ func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) (
 		// Medium/high quality
 		args = append(args, "-c:a", "libopus", "-b:a", "192k", "-vbr", "on")
 	case "wav":
-		args = append(args, "-c:a", "pcm_s16le")
+		codec := "pcm_s16le" // default 16-bit
+		if srcBitDepth == 24 || srcBitDepth == 32 {
+			codec = "pcm_s24le"
+		}
+		args = append(args, "-c:a", codec)
+	case "aiff":
+		codec := "pcm_s16be" // default 16-bit
+		if srcBitDepth == 24 || srcBitDepth == 32 {
+			codec = "pcm_s24be"
+		}
+		args = append(args, "-c:a", codec, "-write_id3v2", "1")
 	case "copy":
 		// Just container copy (probably pointless for same container)
 		args = append(args, "-c", "copy")
@@ -724,7 +765,7 @@ func convertIfNeeded(track *task.Track) {
 	outPath := outBase + "." + targetFmt
 
 	// Handle lossy -> lossless cases: optionally skip or warn
-	if (targetFmt == "flac" || targetFmt == "wav") && isLossySource(ext, track.Codec) {
+	if (targetFmt == "flac" || targetFmt == "wav" || targetFmt == "aiff") && isLossySource(ext, track.Codec) {
 		if Config.ConvertSkipLossyToLossless {
 			fmt.Println("Skipping conversion: source appears lossy and target is lossless; configured to skip.")
 			return
@@ -739,7 +780,17 @@ func convertIfNeeded(track *task.Track) {
 		return
 	}
 
-	args, err := buildFFmpegArgs(Config.FFmpegPath, srcPath, outPath, targetFmt, Config.ConvertExtraArgs)
+	srcBitDepth := 16
+	if targetFmt == "aiff" || targetFmt == "wav" || targetFmt == "flac" {
+		depth, err := getAudioBitDepth(Config.FFmpegPath, srcPath)
+		if err != nil {
+			fmt.Printf("Warning: failed to detect source bit depth, defaulting to 16-bit. Error: %v\n", err)
+		} else {
+			srcBitDepth = depth
+		}
+	}
+
+	args, err := buildFFmpegArgs(Config.FFmpegPath, srcPath, outPath, targetFmt, Config.ConvertExtraArgs, srcBitDepth)
 	if err != nil {
 		fmt.Println("Conversion config error:", err)
 		return
