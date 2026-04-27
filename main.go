@@ -1781,9 +1781,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 func writeMP4Tags(track *task.Track, lrc string) error {
 	t := &mp4tag.MP4Tags{
 		Title:      track.Resp.Attributes.Name,
-		TitleSort:  track.Resp.Attributes.Name,
 		Artist:     track.Resp.Attributes.ArtistName,
-		ArtistSort: track.Resp.Attributes.ArtistName,
 		Custom: map[string]string{
 			"PERFORMER":   track.Resp.Attributes.ArtistName,
 			"RELEASETIME": track.Resp.Attributes.ReleaseDate,
@@ -1792,29 +1790,36 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 			"UPC":         "",
 		},
 		Composer:     track.Resp.Attributes.ComposerName,
-		ComposerSort: track.Resp.Attributes.ComposerName,
 		CustomGenre:  track.Resp.Attributes.GenreNames[0],
 		Lyrics:       lrc,
 		TrackNumber:  int16(track.Resp.Attributes.TrackNumber),
 		DiscNumber:   int16(track.Resp.Attributes.DiscNumber),
 		Album:        track.Resp.Attributes.AlbumName,
-		AlbumSort:    track.Resp.Attributes.AlbumName,
 	}
 
-	if track.PreType == "albums" {
-		albumID, err := strconv.ParseUint(track.PreID, 10, 32)
-		if err != nil {
-			return err
-		}
-		t.ItunesAlbumID = int32(albumID)
+	if Config.TagSortOrder {
+		t.TitleSort = track.Resp.Attributes.Name
+		t.ArtistSort = track.Resp.Attributes.ArtistName
+		t.ComposerSort = track.Resp.Attributes.ComposerName
+		t.AlbumSort = track.Resp.Attributes.AlbumName
 	}
 
-	if len(track.Resp.Relationships.Artists.Data) > 0 {
-		artistID, err := strconv.ParseUint(track.Resp.Relationships.Artists.Data[0].ID, 10, 32)
-		if err != nil {
-			return err
+	if Config.TagItunesID {
+		if track.PreType == "albums" {
+			albumID, err := strconv.ParseUint(track.PreID, 10, 32)
+			if err != nil {
+				return err
+			}
+			t.ItunesAlbumID = int32(albumID)
 		}
-		t.ItunesArtistID = int32(artistID)
+
+		if len(track.Resp.Relationships.Artists.Data) > 0 {
+			artistID, err := strconv.ParseUint(track.Resp.Relationships.Artists.Data[0].ID, 10, 32)
+			if err != nil {
+				return err
+			}
+			t.ItunesArtistID = int32(artistID)
+		}
 	}
 
 	if (track.PreType == "playlists" || track.PreType == "stations") && !Config.UseSongInfoForPlaylist {
@@ -1823,28 +1828,34 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		t.TrackNumber = int16(track.TaskNum)
 		t.TrackTotal = int16(track.TaskTotal)
 		t.Album = track.PlaylistData.Attributes.Name
-		t.AlbumSort = track.PlaylistData.Attributes.Name
 		t.AlbumArtist = track.PlaylistData.Attributes.ArtistName
-		t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
+		if Config.TagSortOrder {
+			t.AlbumSort = track.PlaylistData.Attributes.Name
+			t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
+		}
 	} else if (track.PreType == "playlists" || track.PreType == "stations") && Config.UseSongInfoForPlaylist {
 		t.DiscTotal = int16(track.DiscTotal)
 		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
 		t.AlbumArtist = track.AlbumData.Attributes.ArtistName
-		t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
 		t.Custom["UPC"] = track.AlbumData.Attributes.Upc
 		t.Custom["LABEL"] = track.AlbumData.Attributes.RecordLabel
 		t.Date = track.AlbumData.Attributes.ReleaseDate
 		t.Copyright = track.AlbumData.Attributes.Copyright
 		t.Publisher = track.AlbumData.Attributes.RecordLabel
+		if Config.TagSortOrder {
+			t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
+		}
 	} else {
 		t.DiscTotal = int16(track.DiscTotal)
 		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
 		t.AlbumArtist = track.AlbumData.Attributes.ArtistName
-		t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
 		t.Custom["UPC"] = track.AlbumData.Attributes.Upc
 		t.Date = track.AlbumData.Attributes.ReleaseDate
 		t.Copyright = track.AlbumData.Attributes.Copyright
 		t.Publisher = track.AlbumData.Attributes.RecordLabel
+		if Config.TagSortOrder {
+			t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
+		}
 	}
 
 	if track.Resp.Attributes.ContentRating == "explicit" {
