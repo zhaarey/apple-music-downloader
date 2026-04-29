@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"main/utils/alacfix"
 	"main/utils/ampapi"
 	"main/utils/lyrics"
 	"main/utils/runv2"
@@ -1040,6 +1041,14 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		}
 	}
 	track.SavePath = trackPath
+
+	err = alacfix.Run(track.SavePath)
+	if err != nil {
+		fmt.Println("\u26A0 Failed to fix ALAC:", err)
+		counter.Unavailable++
+		return
+	}
+
 	err = writeMP4Tags(track, lrc)
 	if err != nil {
 		fmt.Println("\u26A0 Failed to write tags in media:", err)
