@@ -416,30 +416,35 @@ func parseAlacMagicCookie(c []byte) (alacParams, error) {
 	return p, nil
 }
 
-func findAudioTrack(data []byte) (alacParams, []packetLoc, error) {
+type trackData struct {
+	params alacParams
+	locs   []packetLoc
+}
+
+func findAudioTracks(data []byte) ([]trackData, error) {
 	var top []atom
 	walkAtoms(data, 0, len(data), bmffContainers, &top)
 
-	var audioBody, audioEnd int
-	found := false
+	var tracks []trackData
 	for _, a := range top {
 		if a.typ != "trak" {
 			continue
 		}
-		// Search inside this trak for "alac" tag.
 		blob := data[a.bodyOff:a.endOff]
-		if containsBytes(blob, []byte("alac")) {
-			audioBody = a.bodyOff
-			audioEnd = a.endOff
-			found = true
-			break
+		if !containsBytes(blob, []byte("alac")) {
+			continue
 		}
-	}
-	if !found {
-		return alacParams{}, nil, errors.New("no audio track found")
-	}
 
-	// Walk inside the audio trak.
+		td, err := parseAlacTrack(data, a.bodyOff, a.endOff)
+		if err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, td)
+	}
+	return tracks, nil
+}
+
+func parseAlacTrack(data []byte, audioBody, audioEnd int) (trackData, error) {
 	var sub []atom
 	walkAtoms(data, audioBody, audioEnd, bmffContainers, &sub)
 
@@ -459,7 +464,7 @@ func findAudioTrack(data []byte) (alacParams, []packetLoc, error) {
 		}
 	}
 	if stsz == nil || stco == nil || stsc == nil {
-		return alacParams{}, nil, errors.New("missing stsz/stco/stsc")
+		return trackData{}, errors.New("missing stsz/stco/stsc")
 	}
 
 	// Find magic cookie (36-byte block whose size==36 and tag=='alac').
@@ -472,11 +477,11 @@ func findAudioTrack(data []byte) (alacParams, []packetLoc, error) {
 		}
 	}
 	if magic == nil {
-		return alacParams{}, nil, errors.New("ALAC magic cookie not found")
+		return trackData{}, errors.New("ALAC magic cookie not found")
 	}
 	params, err := parseAlacMagicCookie(magic)
 	if err != nil {
-		return alacParams{}, nil, err
+		return trackData{}, err
 	}
 
 	// stsz: version+flags(4) | sample_size(4) | sample_count(4) | entries
@@ -558,7 +563,7 @@ func findAudioTrack(data []byte) (alacParams, []packetLoc, error) {
 			break
 		}
 	}
-	return params, locs, nil
+	return trackData{params: params, locs: locs}, nil
 }
 
 func containsBytes(haystack, needle []byte) bool {
@@ -617,54 +622,63 @@ func Run(path string) error {
 	if err != nil {
 		return err
 	}
-	params, locs, err := findAudioTrack(data)
+	tracks, err := findAudioTracks(data)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Found %d ALAC packets. max_samples_per_frame=%d sample_size=%d channels=%d\n",
-		len(locs), params.maxSamplesPerFrame, params.sampleSize, params.channels)
+	if len(tracks) == 0 {
+		return nil
+	}
 
-	patched := 0
 	type bad struct {
+		trackIdx   int
 		idx        int
 		off        int64
 		size       int
 		bodyEndBit int
 	}
+
+	patched := 0
 	var report []bad
 
-	for idx, loc := range locs {
-		pkt := data[loc.offset : loc.offset+int64(loc.size)]
-		bodyEnd := findBodyEndBit(pkt, &params)
-		if bodyEnd < 0 {
-			continue
-		}
-		if bodyEnd == loc.size*8 {
-			continue
-		}
-		// Already terminated by a TYPE_END?
-		br := newBitReader(pkt)
-		_ = br.skip(bodyEnd)
-		if br.left() >= 3 {
-			tag, _ := br.show(3)
-			if tag == 7 {
+	for ti, td := range tracks {
+		params := td.params
+		fmt.Printf("Track %d: %d ALAC packets, max_samples_per_frame=%d sample_size=%d channels=%d\n",
+			ti, len(td.locs), params.maxSamplesPerFrame, params.sampleSize, params.channels)
+
+		for idx, loc := range td.locs {
+			pkt := data[loc.offset : loc.offset+int64(loc.size)]
+			bodyEnd := findBodyEndBit(pkt, &params)
+			if bodyEnd < 0 {
 				continue
 			}
-		}
-		if patchInPlace(data, loc.offset, loc.size, bodyEnd) {
-			patched++
-			report = append(report, bad{idx, loc.offset, loc.size, bodyEnd})
+			if bodyEnd == loc.size*8 {
+				continue
+			}
+			br := newBitReader(pkt)
+			_ = br.skip(bodyEnd)
+			if br.left() >= 3 {
+				tag, _ := br.show(3)
+				if tag == 7 {
+					continue
+				}
+			}
+			if patchInPlace(data, loc.offset, loc.size, bodyEnd) {
+				patched++
+				report = append(report, bad{ti, idx, loc.offset, loc.size, bodyEnd})
+			}
 		}
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return err
-	}
-
-	fmt.Printf("Patched %d packet(s).\n", patched)
-	for _, r := range report {
-		fmt.Printf("  packet #%d  file_offset=0x%x  size=%d  body_ends_at_bit=%d  tail_overwritten=[%d..%d)\n",
-			r.idx, r.off, r.size, r.bodyEndBit, r.bodyEndBit, r.size*8)
+	if patched > 0 {
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			return err
+		}
+		fmt.Printf("Patched %d packet(s).\n", patched)
+		for _, r := range report {
+			fmt.Printf("  track #%d packet #%d  file_offset=0x%x  size=%d  body_ends_at_bit=%d  tail_overwritten=[%d..%d)\n",
+				r.trackIdx, r.idx, r.off, r.size, r.bodyEndBit, r.bodyEndBit, r.size*8)
+		}
 	}
 	return nil
 }
