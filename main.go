@@ -1255,10 +1255,16 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	if true {
 		selected = arr
 	}
+	startIdx := len(AddedTracks)
 	for i := range station.Tracks {
 		i++
 		if isInArray(selected, i) {
 			ripTrack(&station.Tracks[i-1], token, mediaUserToken)
+		}
+	}
+	if len(AddedTracks) > startIdx {
+		if err := writeM3UPlaylist(playlistFolderPath, playlistFolder, AddedTracks[startIdx:]); err != nil {
+			fmt.Printf("Failed to write M3U8 playlist: %v\n", err)
 		}
 	}
 	return nil
@@ -1523,6 +1529,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	} else {
 		selected = album.ShowSelect()
 	}
+	startIdx := len(AddedTracks)
 	for i := range album.Tracks {
 		i++
 		if isInArray(okDict[albumId], i) {
@@ -1532,6 +1539,11 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		}
 		if isInArray(selected, i) {
 			ripTrack(&album.Tracks[i-1], token, mediaUserToken)
+		}
+	}
+	if len(AddedTracks) > startIdx {
+		if err := writeM3UPlaylist(albumFolderPath, albumFolderName, AddedTracks[startIdx:]); err != nil {
+			fmt.Printf("Failed to write M3U8 playlist: %v\n", err)
 		}
 	}
 	return nil
@@ -1764,6 +1776,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	} else {
 		selected = playlist.ShowSelect()
 	}
+	startIdx := len(AddedTracks)
 	for i := range playlist.Tracks {
 		i++
 		if isInArray(okDict[playlistId], i) {
@@ -1774,6 +1787,26 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		if isInArray(selected, i) {
 			ripTrack(&playlist.Tracks[i-1], token, mediaUserToken)
 		}
+	}
+	if len(AddedTracks) > startIdx {
+		if err := writeM3UPlaylist(playlistFolderPath, playlistFolder, AddedTracks[startIdx:]); err != nil {
+			fmt.Printf("Failed to write M3U8 playlist: %v\n", err)
+		}
+	}
+	return nil
+}
+
+func writeM3UPlaylist(folderPath string, name string, tracks []AddedTrack) error {
+	m3uPath := filepath.Join(folderPath, forbiddenNames.ReplaceAllString(name, "_")+".m3u8")
+	f, err := os.Create(m3uPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fmt.Fprintln(f, "#EXTM3U")
+	for _, track := range tracks {
+		fmt.Fprintf(f, "#EXTINF:-1,%s - %s\n", track.Artist, track.Song)
+		fmt.Fprintln(f, filepath.Base(track.Path))
 	}
 	return nil
 }
