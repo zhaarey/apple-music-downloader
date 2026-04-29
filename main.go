@@ -1042,11 +1042,13 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	}
 	track.SavePath = trackPath
 
-	err = alacfix.Run(track.SavePath)
-	if err != nil {
-		fmt.Println("\u26A0 Failed to fix ALAC:", err)
-		counter.Unavailable++
-		return
+	if Config.ALACFix {
+		err = alacfix.Run(track.SavePath)
+		if err != nil {
+			fmt.Println("\u26A0 Failed to fix ALAC:", err)
+			counter.Unavailable++
+			return
+		}
 	}
 
 	err = writeMP4Tags(track, lrc)
