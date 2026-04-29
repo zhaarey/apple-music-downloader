@@ -15,11 +15,14 @@ import (
 // implemented" because after the legitimate first element it tries to parse
 // the garbage tail as a new element header.
 //
-// This program walks the ISO BMFF container to find the audio track's ALAC
-// packets, parses each packet far enough to locate the end of its element
-// body, and — if the tail does not already start with TYPE_END — overwrites
-// the 3 bits there with 111 and zero-pads to the end of the packet. Packet
-// sizes do not change, so no container rewriting is required.
+// This file walks the ISO BMFF container, locates every audio track that
+// uses the ALAC codec (by checking the format code in stsd's sample entry,
+// not by string matching), parses each packet far enough to find where the
+// element body ends, and — if the tail does not already start with TYPE_END —
+// overwrites the 3 bits there with 111 and zero-pads to the end of the
+// packet. Packet sizes do not change, so the container itself is not rewritten.
+//
+// Tracks that use any other codec (AAC, FLAC, etc.) are silently skipped.
 
 // ---------- Bit reader ------------------------------------------------------
 
@@ -28,6 +31,8 @@ type bitReader struct {
 	pos   int // bit position from MSB of buf[0]
 	nbits int
 }
+
+var errEOF = errors.New("bit reader EOF")
 
 func newBitReader(buf []byte) *bitReader {
 	return &bitReader{buf: buf, nbits: len(buf) * 8}
@@ -40,13 +45,12 @@ func (b *bitReader) read(n int) (uint32, error) {
 		return 0, nil
 	}
 	if b.pos+n > b.nbits {
-		return 0, io_EOF
+		return 0, errEOF
 	}
 	var v uint32
 	p := b.pos
 	for i := 0; i < n; i++ {
-		bit := uint32((b.buf[p>>3] >> (7 - uint(p&7))) & 1)
-		v = (v << 1) | bit
+		v = (v << 1) | uint32((b.buf[p>>3]>>(7-uint(p&7)))&1)
 		p++
 	}
 	b.pos = p
@@ -62,7 +66,7 @@ func (b *bitReader) show(n int) (uint32, error) {
 
 func (b *bitReader) skip(n int) error {
 	if b.pos+n > b.nbits {
-		return io_EOF
+		return errEOF
 	}
 	b.pos += n
 	return nil
@@ -93,8 +97,6 @@ func (b *bitReader) unary09() (uint32, error) {
 	}
 	return 9, nil
 }
-
-var io_EOF = errors.New("bit reader EOF")
 
 func avLog2(x uint32) int {
 	if x == 0 {
@@ -160,7 +162,7 @@ func riceDecompress(br *bitReader, nbSamples int, bps int, rhmEff uint32, p *ala
 			return errors.New("rice runaway")
 		}
 		if br.left() <= 0 {
-			return io_EOF
+			return errEOF
 		}
 		k := avLog2((history >> 9) + 3)
 		if k > limit {
@@ -260,15 +262,9 @@ func scanOneElement(br *bitReader, p *alacParams) (int, bool, error) {
 		if _, err := br.read(8); err != nil { // decorr_shift
 			return 0, false, err
 		}
-		decorrLeftWeight, err := br.read(8)
-		if err != nil {
+		if _, err := br.read(8); err != nil { // decorr_left_weight
 			return 0, false, err
 		}
-		// We don't bother validating decorr_shift>31 here — the FFmpeg check
-		// uses the *shift* value, but we already discarded it; for a scanner,
-		// what matters is bit position, not strict validation.
-		_ = decorrLeftWeight
-
 		rhms := make([]uint32, channels)
 		for c := 0; c < channels; c++ {
 			if _, err := br.read(4); err != nil { // pred_type
@@ -299,7 +295,7 @@ func scanOneElement(br *bitReader, p *alacParams) (int, bool, error) {
 		if extraBits != 0 {
 			need := int(outputSamples) * channels * extraBits
 			if br.left() < need {
-				return 0, false, io_EOF
+				return 0, false, errEOF
 			}
 			if err := br.skip(need); err != nil {
 				return 0, false, err
@@ -314,7 +310,7 @@ func scanOneElement(br *bitReader, p *alacParams) (int, bool, error) {
 	} else {
 		need := int(outputSamples) * channels * int(p.sampleSize)
 		if br.left() < need {
-			return 0, false, io_EOF
+			return 0, false, errEOF
 		}
 		if err := br.skip(need); err != nil {
 			return 0, false, err
@@ -350,19 +346,21 @@ func findBodyEndBit(packet []byte, p *alacParams) int {
 
 type atom struct {
 	typ     string
+	hdrOff  int
 	bodyOff int
-	endOff  int // exclusive
+	endOff  int
 }
 
-func walkAtoms(buf []byte, start, end int, recurse map[string]bool, out *[]atom) {
+// findChild returns the first direct child atom of the given type within [start, end).
+func findChild(buf []byte, start, end int, typ string) (atom, bool) {
 	p := start
 	for p < end-8 {
 		size := int(binary.BigEndian.Uint32(buf[p : p+4]))
-		typ := string(buf[p+4 : p+8])
+		atomType := string(buf[p+4 : p+8])
 		hdr := 8
 		if size == 1 {
 			if p+16 > end {
-				return
+				return atom{}, false
 			}
 			size = int(binary.BigEndian.Uint64(buf[p+8 : p+16]))
 			hdr = 16
@@ -370,26 +368,42 @@ func walkAtoms(buf []byte, start, end int, recurse map[string]bool, out *[]atom)
 			size = end - p
 		}
 		if size < hdr || p+size > end {
-			return
+			return atom{}, false
 		}
-		body := p + hdr
-		atomEnd := p + size
-		*out = append(*out, atom{typ: typ, bodyOff: body, endOff: atomEnd})
-		if recurse[typ] {
-			off := body
-			if typ == "meta" {
-				off += 4 // version+flags
-			}
-			walkAtoms(buf, off, atomEnd, recurse, out)
+		if atomType == typ {
+			return atom{typ: atomType, hdrOff: p, bodyOff: p + hdr, endOff: p + size}, true
 		}
 		p += size
 	}
+	return atom{}, false
 }
 
-var bmffContainers = map[string]bool{
-	"moov": true, "trak": true, "mdia": true, "minf": true,
-	"stbl": true, "dinf": true, "udta": true, "ilst": true,
-	"meta": true, "edts": true,
+// findAllChildren returns every direct child of the given type within [start, end).
+func findAllChildren(buf []byte, start, end int, typ string) []atom {
+	var out []atom
+	p := start
+	for p < end-8 {
+		size := int(binary.BigEndian.Uint32(buf[p : p+4]))
+		atomType := string(buf[p+4 : p+8])
+		hdr := 8
+		if size == 1 {
+			if p+16 > end {
+				return out
+			}
+			size = int(binary.BigEndian.Uint64(buf[p+8 : p+16]))
+			hdr = 16
+		} else if size == 0 {
+			size = end - p
+		}
+		if size < hdr || p+size > end {
+			return out
+		}
+		if atomType == typ {
+			out = append(out, atom{typ: atomType, hdrOff: p, bodyOff: p + hdr, endOff: p + size})
+		}
+		p += size
+	}
+	return out
 }
 
 // ---------- Track metadata extraction --------------------------------------
@@ -399,92 +413,71 @@ type packetLoc struct {
 	size   int
 }
 
+type trackData struct {
+	trackID uint32
+	params  alacParams
+	locs    []packetLoc
+}
+
+// parseAlacMagicCookie parses the ALAC specific box payload (without atom header).
+// Layout: version_flags(4) | maxFrames(4) | compat(1) | sampleSize(1)
+//
+//	| histMult(1) | initHist(1) | riceLim(1) | channels(1) | ...
 func parseAlacMagicCookie(c []byte) (alacParams, error) {
 	var p alacParams
-	if len(c) != 36 || string(c[4:8]) != "alac" {
-		return p, errors.New("not an ALAC magic cookie")
+	if len(c) < 24 {
+		return p, errors.New("ALAC config too short")
 	}
-	// size(4) | 'alac'(4) | ver(4) | maxFrames(4) | compat(1) | sampleSize(1)
-	// | histMult(1) | initHist(1) | riceLim(1) | channels(1) | maxRun(2)
-	// | maxFrameSize(4) | avgBitrate(4) | sampleRate(4)
-	p.maxSamplesPerFrame = binary.BigEndian.Uint32(c[12:16])
-	p.sampleSize = c[17]
-	p.riceHistoryMult = c[18]
-	p.riceInitialHistory = c[19]
-	p.riceLimit = c[20]
-	p.channels = c[21]
+	p.maxSamplesPerFrame = binary.BigEndian.Uint32(c[4:8])
+	p.sampleSize = c[9]
+	p.riceHistoryMult = c[10]
+	p.riceInitialHistory = c[11]
+	p.riceLimit = c[12]
+	p.channels = c[13]
 	return p, nil
 }
 
-type trackData struct {
-	params alacParams
-	locs   []packetLoc
-}
-
-func findAudioTracks(data []byte) ([]trackData, error) {
-	var top []atom
-	walkAtoms(data, 0, len(data), bmffContainers, &top)
-
-	var tracks []trackData
-	for _, a := range top {
-		if a.typ != "trak" {
-			continue
+// extractAlacConfig reads the ALAC magic cookie from inside an `alac` sample
+// entry (handles both direct and 'wave'-wrapped layouts).
+func extractAlacConfig(data []byte, sampleEntry atom) (alacParams, error) {
+	// Sample entry has a fixed 28-byte audio header before any child atoms.
+	childStart := sampleEntry.bodyOff + 28
+	if cfg, ok := findChild(data, childStart, sampleEntry.endOff, "alac"); ok {
+		if cfg.endOff-cfg.bodyOff < 28 {
+			return alacParams{}, errors.New("alac config atom too small")
 		}
-		blob := data[a.bodyOff:a.endOff]
-		if !containsBytes(blob, []byte("alac")) {
-			continue
-		}
-
-		td, err := parseAlacTrack(data, a.bodyOff, a.endOff)
-		if err != nil {
-			return nil, err
-		}
-		tracks = append(tracks, td)
+		return parseAlacMagicCookie(data[cfg.bodyOff : cfg.bodyOff+28])
 	}
-	return tracks, nil
+	if wave, ok := findChild(data, childStart, sampleEntry.endOff, "wave"); ok {
+		if cfg, ok := findChild(data, wave.bodyOff, wave.endOff, "alac"); ok {
+			if cfg.endOff-cfg.bodyOff < 28 {
+				return alacParams{}, errors.New("alac config atom too small")
+			}
+			return parseAlacMagicCookie(data[cfg.bodyOff : cfg.bodyOff+28])
+		}
+	}
+	return alacParams{}, errors.New("no ALAC config inside sample entry")
 }
 
-func parseAlacTrack(data []byte, audioBody, audioEnd int) (trackData, error) {
-	var sub []atom
-	walkAtoms(data, audioBody, audioEnd, bmffContainers, &sub)
-
-	var stsz, stco, stsc *atom
+func readPacketLocations(data []byte, stbl atom) ([]packetLoc, error) {
+	stsz, ok := findChild(data, stbl.bodyOff, stbl.endOff, "stsz")
+	if !ok {
+		return nil, errors.New("stsz missing")
+	}
+	stsc, ok := findChild(data, stbl.bodyOff, stbl.endOff, "stsc")
+	if !ok {
+		return nil, errors.New("stsc missing")
+	}
+	stco, ok := findChild(data, stbl.bodyOff, stbl.endOff, "stco")
 	is64 := false
-	for i := range sub {
-		switch sub[i].typ {
-		case "stsz":
-			stsz = &sub[i]
-		case "stco":
-			stco = &sub[i]
-		case "co64":
-			stco = &sub[i]
-			is64 = true
-		case "stsc":
-			stsc = &sub[i]
+	if !ok {
+		stco, ok = findChild(data, stbl.bodyOff, stbl.endOff, "co64")
+		if !ok {
+			return nil, errors.New("stco/co64 missing")
 		}
-	}
-	if stsz == nil || stco == nil || stsc == nil {
-		return trackData{}, errors.New("missing stsz/stco/stsc")
+		is64 = true
 	}
 
-	// Find magic cookie (36-byte block whose size==36 and tag=='alac').
-	var magic []byte
-	for i := audioBody; i+36 <= audioEnd; i++ {
-		if string(data[i+4:i+8]) == "alac" &&
-			binary.BigEndian.Uint32(data[i:i+4]) == 36 {
-			magic = data[i : i+36]
-			break
-		}
-	}
-	if magic == nil {
-		return trackData{}, errors.New("ALAC magic cookie not found")
-	}
-	params, err := parseAlacMagicCookie(magic)
-	if err != nil {
-		return trackData{}, err
-	}
-
-	// stsz: version+flags(4) | sample_size(4) | sample_count(4) | entries
 	b := stsz.bodyOff
 	defaultSize := binary.BigEndian.Uint32(data[b+4 : b+8])
 	count := int(binary.BigEndian.Uint32(data[b+8 : b+12]))
@@ -499,7 +492,6 @@ func parseAlacTrack(data []byte, audioBody, audioEnd int) (trackData, error) {
 		}
 	}
 
-	// stco / co64
 	b = stco.bodyOff
 	ent := int(binary.BigEndian.Uint32(data[b+4 : b+8]))
 	chunkOff := make([]int64, ent)
@@ -516,7 +508,6 @@ func parseAlacTrack(data []byte, audioBody, audioEnd int) (trackData, error) {
 		}
 	}
 
-	// stsc
 	b = stsc.bodyOff
 	ent = int(binary.BigEndian.Uint32(data[b+4 : b+8]))
 	type stscRun struct{ firstChunk, samplesPerChunk uint32 }
@@ -542,9 +533,11 @@ func parseAlacTrack(data []byte, audioBody, audioEnd int) (trackData, error) {
 			samplesPerChunk[c-1] = r.samplesPerChunk
 		}
 	}
-	for i := range samplesPerChunk {
-		if samplesPerChunk[i] == 0 {
-			samplesPerChunk[i] = runs[len(runs)-1].samplesPerChunk
+	if len(runs) > 0 {
+		for i := range samplesPerChunk {
+			if samplesPerChunk[i] == 0 {
+				samplesPerChunk[i] = runs[len(runs)-1].samplesPerChunk
+			}
 		}
 	}
 
@@ -563,26 +556,97 @@ func parseAlacTrack(data []byte, audioBody, audioEnd int) (trackData, error) {
 			break
 		}
 	}
-	return trackData{params: params, locs: locs}, nil
+	return locs, nil
 }
 
-func containsBytes(haystack, needle []byte) bool {
-	if len(needle) == 0 {
-		return true
+// findAlacTracks returns one entry per audio track whose first sample entry
+// in stsd has format == 'alac'. All other tracks (video, AAC audio, etc.)
+// are silently skipped.
+func findAlacTracks(data []byte) ([]trackData, error) {
+	if len(data) < 8 {
+		return nil, errors.New("file too small")
 	}
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		match := true
-		for j := 0; j < len(needle); j++ {
-			if haystack[i+j] != needle[j] {
-				match = false
-				break
+	moov, ok := findChild(data, 0, len(data), "moov")
+	if !ok {
+		return nil, errors.New("no moov atom (not an MP4/M4A?)")
+	}
+
+	var tracks []trackData
+	for _, trak := range findAllChildren(data, moov.bodyOff, moov.endOff, "trak") {
+		var trackID uint32
+		if tkhd, ok := findChild(data, trak.bodyOff, trak.endOff, "tkhd"); ok {
+			b := tkhd.bodyOff
+			version := data[b]
+			if version == 0 && tkhd.endOff-b >= 20 {
+				trackID = binary.BigEndian.Uint32(data[b+12 : b+16])
+			} else if version == 1 && tkhd.endOff-b >= 32 {
+				trackID = binary.BigEndian.Uint32(data[b+20 : b+24])
 			}
 		}
-		if match {
-			return true
+
+		mdia, ok := findChild(data, trak.bodyOff, trak.endOff, "mdia")
+		if !ok {
+			continue
 		}
+		// Require handler_type == 'soun'.
+		hdlr, ok := findChild(data, mdia.bodyOff, mdia.endOff, "hdlr")
+		if !ok {
+			continue
+		}
+		hb := hdlr.bodyOff
+		if hdlr.endOff-hb < 12 || string(data[hb+8:hb+12]) != "soun" {
+			continue
+		}
+		minf, ok := findChild(data, mdia.bodyOff, mdia.endOff, "minf")
+		if !ok {
+			continue
+		}
+		stbl, ok := findChild(data, minf.bodyOff, minf.endOff, "stbl")
+		if !ok {
+			continue
+		}
+		stsd, ok := findChild(data, stbl.bodyOff, stbl.endOff, "stsd")
+		if !ok {
+			continue
+		}
+		// stsd body: version+flags(4) | entry_count(4) | sample_entries...
+		b := stsd.bodyOff
+		if stsd.endOff-b < 8 {
+			continue
+		}
+		entryCount := binary.BigEndian.Uint32(data[b+4 : b+8])
+		if entryCount == 0 {
+			continue
+		}
+		entryStart := b + 8
+		if entryStart+8 > stsd.endOff {
+			continue
+		}
+		entrySize := int(binary.BigEndian.Uint32(data[entryStart : entryStart+4]))
+		entryType := string(data[entryStart+4 : entryStart+8])
+		if entrySize < 8 || entryStart+entrySize > stsd.endOff {
+			continue
+		}
+		if entryType != "alac" {
+			continue
+		}
+		sampleEntry := atom{
+			typ:     entryType,
+			hdrOff:  entryStart,
+			bodyOff: entryStart + 8,
+			endOff:  entryStart + entrySize,
+		}
+		params, err := extractAlacConfig(data, sampleEntry)
+		if err != nil {
+			return nil, fmt.Errorf("track %d: %w", trackID, err)
+		}
+		locs, err := readPacketLocations(data, stbl)
+		if err != nil {
+			return nil, fmt.Errorf("track %d: %w", trackID, err)
+		}
+		tracks = append(tracks, trackData{trackID: trackID, params: params, locs: locs})
 	}
-	return false
+	return tracks, nil
 }
 
 // ---------- Patcher ---------------------------------------------------------
@@ -592,14 +656,12 @@ func patchInPlace(data []byte, off int64, size int, bodyEndBit int) bool {
 	if bodyEndBit < 0 || bodyEndBit+3 > totalBits {
 		return false
 	}
-	// Set 3 tag bits to 1,1,1.
 	for i := 0; i < 3; i++ {
 		bp := bodyEndBit + i
 		bi := off + int64(bp>>3)
 		mask := byte(1 << uint(7-(bp&7)))
 		data[bi] |= mask
 	}
-	// Zero everything from bodyEndBit+3 to end of packet.
 	padStart := bodyEndBit + 3
 	bi := off + int64(padStart>>3)
 	bitInByte := padStart & 7
@@ -622,7 +684,7 @@ func Run(path string) error {
 	if err != nil {
 		return err
 	}
-	tracks, err := findAudioTracks(data)
+	tracks, err := findAlacTracks(data)
 	if err != nil {
 		return err
 	}
@@ -631,7 +693,7 @@ func Run(path string) error {
 	}
 
 	type bad struct {
-		trackIdx   int
+		trackID    uint32
 		idx        int
 		off        int64
 		size       int
@@ -641,10 +703,10 @@ func Run(path string) error {
 	patched := 0
 	var report []bad
 
-	for ti, td := range tracks {
+	for _, td := range tracks {
 		params := td.params
-		fmt.Printf("Track %d: %d ALAC packets, max_samples_per_frame=%d sample_size=%d channels=%d\n",
-			ti, len(td.locs), params.maxSamplesPerFrame, params.sampleSize, params.channels)
+		fmt.Printf("Track #%d: %d packets, max_samples_per_frame=%d sample_size=%d channels=%d\n",
+			td.trackID, len(td.locs), params.maxSamplesPerFrame, params.sampleSize, params.channels)
 
 		for idx, loc := range td.locs {
 			pkt := data[loc.offset : loc.offset+int64(loc.size)]
@@ -658,14 +720,13 @@ func Run(path string) error {
 			br := newBitReader(pkt)
 			_ = br.skip(bodyEnd)
 			if br.left() >= 3 {
-				tag, _ := br.show(3)
-				if tag == 7 {
+				if tag, _ := br.show(3); tag == 7 {
 					continue
 				}
 			}
 			if patchInPlace(data, loc.offset, loc.size, bodyEnd) {
 				patched++
-				report = append(report, bad{ti, idx, loc.offset, loc.size, bodyEnd})
+				report = append(report, bad{td.trackID, idx, loc.offset, loc.size, bodyEnd})
 			}
 		}
 	}
@@ -677,7 +738,7 @@ func Run(path string) error {
 		fmt.Printf("Patched %d packet(s).\n", patched)
 		for _, r := range report {
 			fmt.Printf("  track #%d packet #%d  file_offset=0x%x  size=%d  body_ends_at_bit=%d  tail_overwritten=[%d..%d)\n",
-				r.trackIdx, r.idx, r.off, r.size, r.bodyEndBit, r.bodyEndBit, r.size*8)
+				r.trackID, r.idx, r.off, r.size, r.bodyEndBit, r.bodyEndBit, r.size*8)
 		}
 	}
 	return nil
