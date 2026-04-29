@@ -800,11 +800,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	counter.Total++
 	fmt.Printf("Track %d of %d: %s\n", track.TaskNum, track.TaskTotal, track.Type)
 
-	//提前获取到的播放列表下track所在的专辑信息
-	if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
-		track.GetAlbumData(token)
-	}
-
 	//mv dl dev
 	if track.Type == "music-videos" {
 		if len(mediaUserToken) <= 50 {
@@ -916,25 +911,6 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + strings.ToLower(Config.ConvertFormat)
 		considerConverted = true
 	}
-	//get lrc
-	var lrc string = ""
-	if Config.EmbedLrc || Config.SaveLrcFile {
-		lrcStr, err := lyrics.Get(track.Storefront, track.ID, Config.LrcType, Config.Language, Config.LrcFormat, token, mediaUserToken)
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			if Config.SaveLrcFile {
-				err := writeLyrics(track.SaveDir, lrcFilename, lrcStr)
-				if err != nil {
-					fmt.Printf("Failed to write lyrics")
-				}
-			}
-			if Config.EmbedLrc {
-				lrc = lrcStr
-			}
-		}
-	}
-
 	// Existence check now considers converted output (if original was deleted)
 	existsOriginal, err := fileExists(trackPath)
 	if err != nil {
@@ -977,6 +953,30 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 				Song:     track.Resp.Attributes.Name,
 			})
 			return
+		}
+	}
+
+	//提前获取到的播放列表下track所在的专辑信息
+	if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
+		track.GetAlbumData(token)
+	}
+
+	//get lrc
+	var lrc string = ""
+	if Config.EmbedLrc || Config.SaveLrcFile {
+		lrcStr, err := lyrics.Get(track.Storefront, track.ID, Config.LrcType, Config.Language, Config.LrcFormat, token, mediaUserToken)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			if Config.SaveLrcFile {
+				err := writeLyrics(track.SaveDir, lrcFilename, lrcStr)
+				if err != nil {
+					fmt.Printf("Failed to write lyrics")
+				}
+			}
+			if Config.EmbedLrc {
+				lrc = lrcStr
+			}
 		}
 	}
 
