@@ -1043,7 +1043,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	track.SavePath = trackPath
 
 	if Config.ALACFix {
-		err = alacfix.Run(track.SavePath)
+		err = alacfix.Run(track.SavePath, false)
 		if err != nil {
 			fmt.Println("\u26A0 Failed to fix ALAC:", err)
 			counter.Unavailable++
@@ -1791,8 +1791,8 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 
 func writeMP4Tags(track *task.Track, lrc string) error {
 	t := &mp4tag.MP4Tags{
-		Title:      track.Resp.Attributes.Name,
-		Artist:     track.Resp.Attributes.ArtistName,
+		Title:  track.Resp.Attributes.Name,
+		Artist: track.Resp.Attributes.ArtistName,
 		Custom: map[string]string{
 			"PERFORMER":   track.Resp.Attributes.ArtistName,
 			"RELEASETIME": track.Resp.Attributes.ReleaseDate,
@@ -1800,12 +1800,12 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 			"LABEL":       "",
 			"UPC":         "",
 		},
-		Composer:     track.Resp.Attributes.ComposerName,
-		CustomGenre:  track.Resp.Attributes.GenreNames[0],
-		Lyrics:       lrc,
-		TrackNumber:  int16(track.Resp.Attributes.TrackNumber),
-		DiscNumber:   int16(track.Resp.Attributes.DiscNumber),
-		Album:        track.Resp.Attributes.AlbumName,
+		Composer:    track.Resp.Attributes.ComposerName,
+		CustomGenre: track.Resp.Attributes.GenreNames[0],
+		Lyrics:      lrc,
+		TrackNumber: int16(track.Resp.Attributes.TrackNumber),
+		DiscNumber:  int16(track.Resp.Attributes.DiscNumber),
+		Album:       track.Resp.Attributes.AlbumName,
 	}
 
 	if Config.TagSortOrder {

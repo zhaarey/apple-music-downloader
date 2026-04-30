@@ -679,7 +679,7 @@ func patchInPlace(data []byte, off int64, size int, bodyEndBit int) bool {
 
 // ---------- main ------------------------------------------------------------
 
-func Run(path string, outPath ...string) error {
+func Run(path string, force bool, outPath ...string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -735,7 +735,7 @@ func Run(path string, outPath ...string) error {
 		}
 	}
 
-	if patched > 0 {
+	if patched > 0 || force {
 		if err := os.WriteFile(dst, data, 0644); err != nil {
 			return err
 		}
