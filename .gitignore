@@ -7,3 +7,5 @@
 !main.go
 !README.md
 !utils/*
+!cmd/
+!cmd/**

@@ -679,10 +679,14 @@ func patchInPlace(data []byte, off int64, size int, bodyEndBit int) bool {
 
 // ---------- main ------------------------------------------------------------
 
-func Run(path string) error {
+func Run(path string, outPath ...string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
+	}
+	dst := path
+	if len(outPath) > 0 && outPath[0] != "" {
+		dst = outPath[0]
 	}
 	tracks, err := findAlacTracks(data)
 	if err != nil {
@@ -732,7 +736,7 @@ func Run(path string) error {
 	}
 
 	if patched > 0 {
-		if err := os.WriteFile(path, data, 0644); err != nil {
+		if err := os.WriteFile(dst, data, 0644); err != nil {
 			return err
 		}
 		fmt.Printf("Patched %d packet(s).\n", patched)
