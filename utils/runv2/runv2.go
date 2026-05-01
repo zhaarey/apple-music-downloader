@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -13,13 +14,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/itouakirai/mp4ff/mp4"
-	"github.com/grafov/m3u8"
-
-	"encoding/binary"
-	"github.com/schollz/progressbar/v3"
-
 	"main/utils/structs"
+
+	"github.com/grafov/m3u8"
+	"github.com/itouakirai/mp4ff/mp4"
+	"github.com/schollz/progressbar/v3"
 )
 const prefetchKey = "skd://itunes.apple.com/P000000000/s1/e1"
 var ErrTimeout = errors.New("response timed out")
