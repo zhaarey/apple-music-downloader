@@ -15,9 +15,9 @@ type SongLyrics struct {
 		Id         string `json:"id"`
 		Type       string `json:"type"`
 		Attributes struct {
-			Ttml       string `json:"ttml"`
-			TtmlLocalizations       string `json:"ttmlLocalizations"`
-			PlayParams struct {
+			Ttml              string `json:"ttml"`
+			TtmlLocalizations string `json:"ttmlLocalizations"`
+			PlayParams        struct {
 				Id          string `json:"id"`
 				Kind        string `json:"kind"`
 				CatalogId   string `json:"catalogId"`
@@ -303,7 +303,7 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 				}
 				beginTime, err := parseTime(lyric.SelectAttr("begin").Value, i)
 				if err != nil {
-						return "", err
+					return "", err
 				}
 
 				endTime, err = parseTime(lyric.SelectAttr("end").Value, 1)
