@@ -1,7 +1,7 @@
 *
 !.gitignore
 !.gitattributes
-!/config.yaml
+!/config.yaml.example
 !/agent.js
 !/agent-arm64.js
 !/go.mod
