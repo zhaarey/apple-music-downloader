@@ -1,6 +1,7 @@
 *
 !.gitignore
 !.gitattributes
+!.dockerignore
 !/config.yaml.example
 !/agent.js
 !/agent-arm64.js

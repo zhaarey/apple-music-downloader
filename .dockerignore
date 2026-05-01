@@ -1,0 +1,7 @@
+*
+!/config.yaml.example
+!/go.mod
+!/go.sum
+!/main.go
+!/utils/
+!/utils/**
