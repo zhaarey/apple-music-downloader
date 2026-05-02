@@ -10,11 +10,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"math"
+	"time"
+
 	"github.com/aead/cmac"
 	"google.golang.org/protobuf/proto"
 	"lukechampine.com/frand"
-	"math"
-	"time"
 )
 
 type CDM struct {
