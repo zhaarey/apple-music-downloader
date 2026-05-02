@@ -1,5 +1,6 @@
 *
 !.gitignore
+!.gitattributes
 !/config.yaml
 !/agent.js
 !/agent-arm64.js
