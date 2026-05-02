@@ -52,6 +52,7 @@ type ConfigSet struct {
 	ConvertSkipLossyToLossless bool   `yaml:"convert-skip-lossy-to-lossless"`
 	ConvertCheckBadALAC        bool   `yaml:"convert-check-bad-alac"`
 	ConvertDeleteBadALAC       bool   `yaml:"convert-delete-bad-alac"`
+	ALACFix                    bool   `yaml:"alac-fix"`
 }
 
 type Counter struct {
