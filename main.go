@@ -47,6 +47,7 @@ var (
 	artist_select  bool
 	debug_mode     bool
 	print_json     bool
+	save_m3u8_playlist     bool
 	alac_max       *int
 	atmos_max      *int
 	mv_max         *int
@@ -1808,6 +1809,9 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 }
 
 func writeM3UPlaylist(folderPath string, name string, tracks []AddedTrack) error {
+	if save_m3u8_playlist == false {
+		return nil
+	}
 	m3uPath := filepath.Join(folderPath, forbiddenNames.ReplaceAllString(name, "_")+".m3u8")
 	f, err := os.Create(m3uPath)
 	if err != nil {
@@ -1946,6 +1950,7 @@ func main() {
 	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
 	pflag.BoolVar(&debug_mode, "debug", false, "Enable debug mode to show audio quality information")
 	pflag.BoolVar(&print_json, "json", false, "Output JSON summary at the end")
+	pflag.BoolVar(&save_m3u8_playlist, "save-m3u8-playlist", false, "Save M3U8 playlist file")
 	alac_max = pflag.Int("alac-max", Config.AlacMax, "Specify the max quality for download alac")
 	atmos_max = pflag.Int("atmos-max", Config.AtmosMax, "Specify the max quality for download atmos")
 	aac_type = pflag.String("aac-type", Config.AacType, "Select AAC type, aac aac-binaural aac-downmix")
