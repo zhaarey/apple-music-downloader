@@ -1858,7 +1858,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 			if err != nil {
 				return err
 			}
-			t.ItunesAlbumID = int64(albumID)
+			t.ItunesAlbumID = int32(albumID)
 		}
 
 		if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -1866,7 +1866,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 			if err != nil {
 				return err
 			}
-			t.ItunesArtistID = int64(artistID)
+			t.ItunesArtistID = int32(artistID)
 		}
 	}
 
