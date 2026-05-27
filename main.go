@@ -39,24 +39,24 @@ import (
 )
 
 var (
-	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
-	dl_atmos       bool
-	dl_aac         bool
-	dl_select      bool
-	dl_song        bool
-	artist_select  bool
-	debug_mode     bool
-	print_json     bool
-	save_m3u8_playlist     bool
-	alac_max       *int
-	atmos_max      *int
-	mv_max         *int
-	mv_audio_type  *string
-	aac_type       *string
-	Config         structs.ConfigSet
-	counter        structs.Counter
-	okDict         = make(map[string][]int)
-	AddedTracks    []AddedTrack
+	forbiddenNames     = regexp.MustCompile(`[/\\<>:"|?*]`)
+	dl_atmos           bool
+	dl_aac             bool
+	dl_select          bool
+	dl_song            bool
+	artist_select      bool
+	debug_mode         bool
+	print_json         bool
+	save_m3u8_playlist bool
+	alac_max           *int
+	atmos_max          *int
+	mv_max             *int
+	mv_audio_type      *string
+	aac_type           *string
+	Config             structs.ConfigSet
+	counter            structs.Counter
+	okDict             = make(map[string][]int)
+	AddedTracks        []AddedTrack
 )
 
 type AddedTrack struct {
@@ -2112,10 +2112,15 @@ func main() {
 		fmt.Printf("=======  [\u2714 ] Completed: %d/%d  |  [\u26A0 ] Warnings: %d  |  [\u2716 ] Errors: %d  =======\n", counter.Success, counter.Total, counter.Unavailable+counter.NotSong, counter.Error)
 		if counter.Error == 0 {
 			break
+		} else if Config.ExitOnError {
+			fmt.Println("Error detected, exiting...")
+			os.Exit(1)
+		} else {
+			fmt.Println("Error detected, press Enter to try again...")
+			fmt.Scanln()
+			fmt.Println("Start trying again...")
 		}
-		fmt.Println("Error detected, press Enter to try again...")
-		fmt.Scanln()
-		fmt.Println("Start trying again...")
+
 		counter = structs.Counter{}
 	}
 

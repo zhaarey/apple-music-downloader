@@ -21,39 +21,52 @@ max-memory-limit: 256 # MB
 decrypt-m3u8-port: "127.0.0.1:10020"
 get-m3u8-port: "127.0.0.1:20020"
 get-m3u8-from-device: true
+
+# set to 'true' to exit on error instead of requiring manual intervention. (for using this program in scripts)
+exit-on-error: false
+
 #set 'all' to retrieve all m3u8, and set 'hires' to only detect hires m3u8.
 get-m3u8-mode: hires # all hires
 aac-type: aac-lc # aac-lc aac aac-binaural aac-downmix
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
 limit-max: 200
+
 #{AlbumId} {AlbumName} {ArtistName} {ReleaseDate} {ReleaseYear} {UPC} {Copyright} {Quality} {Codec} {Tag} {RecordLabel}
 #example: {ReleaseYear} - {ArtistName} - {AlbumName}({AlbumId})({UPC})({Copyright}){Codec}
 album-folder-format: "{AlbumName}"
+
 #{PlaylistId} {PlaylistName} {ArtistName} {Quality} {Codec} {Tag}
 playlist-folder-format: "{PlaylistName}"
+
 #{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality} {Codec} {Tag}
 #example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]{{Tag}}"
 song-file-format: "{SongNumer}. {SongName}"
+
 #{ArtistId} {ArtistName}/{UrlArtistName}
 #if artist-folder-format set "",will not make artist folder
 artist-folder-format: "{UrlArtistName}"
+
 #if set "" will not add tag
 explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
+
 #if set true,for playlst,will use songinfo for meta #albumname track disk
 use-songinfo-for-playlist: false
+
 #if set true,will download album cover for playlist
 dl-albumcover-for-playlist: false
 mv-audio-type: atmos  #atmos ac3 aac
 mv-max: 2160
+
 # storefront will be used only in searching. 
 # storefront is the 2-letter country code that are available in the urls (jp, ca, us etc.).
 # if your account is from Japan, you must use jp.
 # if the storefront is different from your account, you will see a "failed to get lyrics" error in most of the songs. By default the storefront is set to US if not set.
 storefront: "enter your account storefront"
 alac-fix: false                   # Patch malformed ALAC packets
+
 # Conversion settings
 convert-after-download: false     # Enable post-download conversion (requires ffmpeg)
 convert-format: "flac"            # flac | mp3 | opus | wav | copy (no re-encode)
@@ -62,6 +75,7 @@ convert-skip-if-source-matches: true  # If already in target format, skip
 ffmpeg-path: "ffmpeg"             # Override if ffmpeg is not in PATH
 convert-extra-args: ""            # Additional raw args appended (advanced)
 convert-with-metadata: true      # If true, keep the same metadata in converted files
+
 # Conversion warnings and behavior
 convert-warn-lossy-to-lossless: true # If true, print a warning when converting a detected lossy source to a lossless container
 convert-skip-lossy-to-lossless: true # If true, skip converting detected lossy sources to lossless target formats (flac/wav)
