@@ -1,102 +1,182 @@
-English / [简体中文](./README-CN.md)
-
-### ！！Must be installed first [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)，And confirm [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/) Correctly added to environment variables
-
-### Add features
-
-1. Supports inline covers and LRC lyrics（Demand`media-user-token`，See the instructions at the end for how to get it）
-2. Added support for getting word-by-word and out-of-sync lyrics
-3. Support downloading singers `go run main.go https://music.apple.com/us/artist/taylor-swift/159260351` `--all-album` Automatically select all albums of the artist
-4. The download decryption part is replaced with Sendy McSenderson to decrypt while downloading, and solve the lack of memory when decrypting large files
-5. MV Download, installation required[mp4decrypt](https://www.bento4.com/downloads/)
-6. Add interactive search with arrow-key navigation `go run main.go --search [song/album/artist] "search_term"`
-
-### Special thanks to `chocomint` for creating `agent-arm64.js`
-
-For acquisition`aac-lc` `MV` `lyrics` You must fill in the information with a subscription`media-user-token`
-
-- `alac (audio-alac-stereo)`
-- `ec3 (audio-atmos / audio-ec3)`
-- `aac (audio-stereo)`
-- `aac-lc (audio-stereo)`
-- `aac-binaural (audio-stereo-binaural)`
-- `aac-downmix (audio-stereo-downmix)`
-- `MV`
-
 # Apple Music ALAC / Dolby Atmos Downloader
 
-Original script by Sorrow. Modified by me to include some fixes and improvements.
+[English](./README.md) | [简体中文](./README-CN.md)
 
-## Running with Docker
+> **Original script by Sorrow.** Modified with fixes and improvements.
 
-1. Make sure the decryption program [wrapper](https://github.com/WorldObservationLog/wrapper) is running
+---
 
-2. Start the downloader with Docker:
+## ⚠️ Prerequisites
+
+**Must be installed first:**
+
+- **[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)** - Ensure it's correctly added to your environment variables
+- **[wrapper](https://github.com/WorldObservationLog/wrapper)** - Decryption program must be running before use
+
+**Optional (for MV download):**
+
+- **[mp4decrypt](https://www.bento4.com/downloads/)**
+
+---
+
+## ✨ Features
+
+1. **Inline Covers & LRC Lyrics** - Requires `media-user-token` (see instructions below)
+2. **Word-by-word & Out-of-sync Lyrics** support
+3. **Artist Album Download** - Automatically download all albums from an artist
    ```bash
-   # show help
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --help
-
-   # start downloading some albums
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/ru/album/children-of-forever/1443732441 
-
-   # start downloading single song
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
-
-   # start downloading select
-   docker run -it --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --select https://music.apple.com/ru/album/children-of-forever/1443732441
-
-   # start downloading some playlists
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-
-   # for dolby atmos
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   
-   # for aac
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-   # for see quality
-   docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --debug https://music.apple.com/ru/album/miles-smiles/209407331
+   go run main.go https://music.apple.com/us/artist/taylor-swift/159260351 --all-album
+   ```
+4. **Stream Decryption** - Uses Sendy McSenderson's code for download-and-decrypt streaming, solving memory issues with large files
+5. **MV Download** - Requires mp4decrypt installation
+6. **Interactive Search** - Arrow-key navigation for search results
+   ```bash
+   go run main.go --search [song/album/artist] "search_term"
    ```
 
-You can change `config.yaml` by mounting a volume:
+---
 
-> **Note:** Before running the following command, make sure that a `config.yaml` file exists in your current directory. You can create your own, or copy the default one from the repository (if available). If `./config.yaml` does not exist, Docker will create an empty directory instead of a file, which will cause the container to fail.
+## 🎵 Supported Audio Formats
+
+| Format | Description | Requires Subscription |
+|--------|-------------|----------------------|
+| `alac` | audio-alac-stereo | ✅ |
+| `ec3` | audio-atmos / audio-ec3 | ✅ |
+| `aac` | audio-stereo | ✅ |
+| `aac-lc` | audio-stereo | ✅ |
+| `aac-binaural` | audio-stereo-binaural | ✅ |
+| `aac-downmix` | audio-stereo-downmix | ✅ |
+| `MV` | Music Video | ✅ |
+
+> **Note:** For `aac-lc`, `MV`, and `lyrics`, you must provide a valid `media-user-token` from an active subscription.
+
+---
+
+## 🚀 Usage
+
+### Running with Docker
+
+1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running
+
+2. Start the downloader:
+
+```bash
+# Show help
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --help
+
+# Download albums
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/ru/album/children-of-forever/1443732441
+
+# Download single song
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
+
+# Interactive selection
+docker run -it --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --select https://music.apple.com/ru/album/children-of-forever/1443732441
+
+# Download playlists
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
+
+# Dolby Atmos
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+
+# AAC format
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+
+# Debug/View quality
+docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --debug https://music.apple.com/ru/album/miles-smiles/209407331
+```
+
+**Custom Configuration:**
+
+Mount your own `config.yaml`:
+
 ```bash
 docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config.yaml ghcr.io/zhaarey/apple-music-downloader [args]
 ```
 
-## How to use
-1. Make sure the decryption program [wrapper](https://github.com/WorldObservationLog/wrapper) is running
-2. Start downloading some albums: `go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511`.
-3. Start downloading single song: `go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512` or `go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520`.
-4. Start downloading select: `go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511` input numbers separated by spaces.
-5. Start downloading some playlists: `go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b` or `go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N`.
-6. For dolby atmos: `go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
-7. For aac: `go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
-8. For see quality: `go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538`.
+> **Note:** Ensure `config.yaml` exists in your current directory before running. If it doesn't exist, Docker will create an empty directory instead of a file, causing the container to fail.
 
-[Chinese tutorial - see Method 3 for details](https://telegra.ph/Apple-Music-Alac高解析度无损音乐下载教程-04-02-2)
+---
 
-## Downloading lyrics
+### Running Locally (Go)
+
+1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running
+
+2. **Download albums:**
+   ```bash
+   go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
+   ```
+
+3. **Download single song:**
+   ```bash
+   go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512
+   # or
+   go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520
+   ```
+
+4. **Interactive selection:**
+   ```bash
+   go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
+   ```
+   Enter track numbers separated by spaces.
+
+5. **Download playlists:**
+   ```bash
+   go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
+   # or
+   go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N
+   ```
+
+6. **Dolby Atmos:**
+   ```bash
+   go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   ```
+
+7. **AAC format:**
+   ```bash
+   go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   ```
+
+8. **View quality info:**
+   ```bash
+   go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   ```
+
+📖 [Chinese Tutorial (Method 3)](https://telegra.ph/Apple-Music-Alac%E9%AB%98%E8%A7%A3%E6%9E%90%E5%BA%A6%E6%97%A0%E6%8D%9F%E9%9F%B3%E4%B9%90%E4%B8%8B%E8%BD%BD%E6%95%99%E7%A8%8B-04-02-2)
+
+---
+
+## 📝 Getting media-user-token (For Lyrics)
 
 1. Open [Apple Music](https://music.apple.com) and log in
-2. Open the Developer tools, Click `Application -> Storage -> Cookies -> https://music.apple.com`
-3. Find the cookie named `media-user-token` and copy its value
-4. Paste the cookie value obtained in step 3 into the setting called "media-user-token" in config.yaml and save it
-5. Start the script as usual
+2. Open Developer Tools (F12)
+3. Navigate to `Application → Storage → Cookies → https://music.apple.com`
+4. Find the cookie named `media-user-token` and copy its value
+5. Paste the value into `config.yaml` under the `media-user-token` setting
+6. Save the file and start the script
 
-## Get translation and pronunciation lyrics (Beta)
+---
 
-1. Open [Apple Music](https://beta.music.apple.com) and log in.
-2. Open the Developer tools, click `Network` tab.
-3. Search a song which is available for translation and pronunciation lyrics (recommend K-Pop songs).
-4. Press Ctrl+R and let Developer tools sniff network data.
-5. Play a song and then click lyric button, sniff will show a data called `syllable-lyrics`.
-6. Stop sniff (small red circles button on top left), then click `Fetch/XHR` tabs.
-7. Click `syllable-lyrics` data, see requested URL.
-8. Find this line `.../syllable-lyrics?l=<copy all the language value from here>&extend=ttmlLocalizations`.
-9. Paste the language value obtained in step 8 into the config.yaml and save it.
-10. If don't need pronunciation, do this `...%5D=<remove this value>&extend...` on config.yaml and save it.
-11. Start the script as usual.
+## 🌐 Getting Translation & Pronunciation Lyrics (Beta)
 
-Noted: These features are only in beta version right now.
+> **Note:** These features are currently in beta.
+
+1. Open [Apple Music Beta](https://beta.music.apple.com) and log in
+2. Open Developer Tools (F12) and switch to the **Network** tab
+3. Search for a song that supports translation/pronunciation lyrics (K-Pop songs recommended)
+4. Press **Ctrl+R** to refresh and let DevTools capture network traffic
+5. Play the song and click the lyrics button - look for a request named `syllable-lyrics`
+6. Stop recording (click the red circle button), then select the **Fetch/XHR** tab
+7. Click on the `syllable-lyrics` request to view details
+8. Find the URL containing: `.../syllable-lyrics?l=<language_code>&extend=ttmlLocalizations`
+9. Copy the language value and paste it into `config.yaml`
+10. **Optional:** To disable pronunciation, remove the corresponding value in config.yaml: `...%5D=<remove_this_value>&extend...`
+11. Save and run the script as usual
+
+---
+
+## 👏 Special Thanks
+
+- **chocomint** - Created `agent-arm64.js`
+
+---
