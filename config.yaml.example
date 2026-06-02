@@ -39,7 +39,7 @@ album-folder-format: "{AlbumName}"
 #{PlaylistId} {PlaylistName} {ArtistName} {Quality} {Codec} {Tag}
 playlist-folder-format: "{PlaylistName}"
 
-#{SongId} {SongNumer} {SongName} {DiscNumber} {TrackNumber} {Quality} {Codec} {Tag}
+#{SongId} {SongNumer} {ArtistName} {SongName} {DiscNumber} {TrackNumber} {Quality} {Codec} {Tag}
 #example: Disk {DiscNumber} - Track {TrackNumber} {SongName} [{Quality}]{{Tag}}"
 song-file-format: "{SongNumer}. {SongName}"
 
