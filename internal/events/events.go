@@ -7,8 +7,10 @@ type EventType string
 const (
 	EventLog           EventType = "log"
 	EventProgress      EventType = "progress"
+	EventJobStart      EventType = "job_start"
 	EventTrackStart    EventType = "track_start"
 	EventTrackComplete EventType = "track_complete"
+	EventTrackFailed   EventType = "track_failed"
 	EventJobComplete   EventType = "job_complete"
 	EventError         EventType = "error"
 )
@@ -56,7 +58,7 @@ type CLIEmitter struct{}
 
 func (CLIEmitter) Emit(ev Event) {
 	switch ev.Type {
-	case EventLog, EventTrackStart, EventTrackComplete, EventError:
+	case EventLog, EventTrackStart, EventTrackComplete, EventTrackFailed, EventError:
 		if ev.Message != "" {
 			println(ev.Message)
 		}

@@ -13,6 +13,8 @@ export function GetAppDataDir():Promise<string>;
 
 export function GetConfigPath():Promise<string>;
 
+export function GetLogPath():Promise<string>;
+
 export function GetSettings():Promise<structs.ConfigSet>;
 
 export function GetWizardComplete():Promise<boolean>;
@@ -21,7 +23,11 @@ export function IsDownloading():Promise<boolean>;
 
 export function OpenFolder(arg1:string):Promise<void>;
 
+export function OpenLogFile():Promise<void>;
+
 export function PickFolder():Promise<string>;
+
+export function PreviewURL(arg1:string):Promise<engine.PreviewResult>;
 
 export function SaveSettings(arg1:structs.ConfigSet):Promise<void>;
 
@@ -30,3 +36,5 @@ export function Search(arg1:string,arg2:string,arg3:number):Promise<{[key: strin
 export function SetWizardComplete(arg1:boolean):Promise<void>;
 
 export function StartDownload(arg1:Array<string>,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<void>;
+
+export function StartDownloadJob(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>):Promise<void>;

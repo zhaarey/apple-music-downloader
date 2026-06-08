@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	appconfig "main/internal/config"
 	"main/internal/engine"
 	"main/internal/events"
+	"main/internal/logging"
 	"main/utils/structs"
 
 	"github.com/wailsapp/wails/v2"
@@ -24,6 +26,9 @@ import (
 var assets embed.FS
 
 func main() {
+	_ = logging.Init()
+	logging.InstallGlobalPanicHandler()
+
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:     "Apple Music Downloader",
@@ -46,7 +51,15 @@ func main() {
 		},
 	})
 	if err != nil {
+		logging.Error("Wails exited with error: %v", err)
 		println("Error:", err.Error())
+	}
+}
+
+func (a *App) emitEngineEvent(ev events.Event) {
+	logging.Info("[%s] %s", ev.Type, ev.Message)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "engine:event", ev)
 	}
 }
 
@@ -63,9 +76,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.eng = engine.New(events.FuncEmitter(func(ev events.Event) {
-		runtime.EventsEmit(a.ctx, "engine:event", ev)
-	}))
+	a.eng = engine.New(events.FuncEmitter(a.emitEngineEvent))
 	if _, _, err := appconfig.InitIfMissing(); err != nil {
 		_ = a.eng.LoadConfig(appconfig.DefaultConfigPath())
 		return
@@ -101,34 +112,71 @@ func (a *App) DetectURLType(url string) string {
 	return a.eng.DetectURLType(url)
 }
 
-func (a *App) StartDownload(urls []string, quality string, singleSong, selectTracks, allArtistAlbums bool) error {
+func (a *App) PreviewURL(url string) engine.PreviewResult {
+	return a.eng.PreviewURL(url)
+}
+
+func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string) error {
+	opts := engine.RunOptions{
+		URLs:              []string{url},
+		Quality:           quality,
+		SelectedTrackNums: selectedTrackNums,
+		ChildURLs:         childURLs,
+	}
+	if err := a.eng.ValidateDownloadRequest(opts); err != nil {
+		return err
+	}
+
 	a.mu.Lock()
 	if a.running {
 		a.mu.Unlock()
-		return nil
+		return fmt.Errorf("a download is already running")
 	}
 	a.running = true
 	a.mu.Unlock()
 
+	logging.Info("StartDownloadJob quality=%s url=%s tracks=%v childURLs=%d", quality, url, selectedTrackNums, len(childURLs))
+
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				msg := logging.LogPanic("StartDownloadJob", r)
+				a.emitEngineEvent(events.Event{
+					Type:    events.EventError,
+					Message: "The app hit an unexpected error during download. Details were saved to: " + logging.Path(),
+				})
+				a.emitEngineEvent(events.Event{Type: events.EventLog, Message: msg})
+				a.emitEngineEvent(events.Event{
+					Type:    events.EventJobComplete,
+					Message: "Download stopped due to an unexpected error",
+					Phase:   "failed",
+				})
+			}
 			a.mu.Lock()
 			a.running = false
 			a.mu.Unlock()
 		}()
-		opts := engine.RunOptions{
-			URLs:            urls,
-			Quality:         quality,
-			SingleSong:      singleSong,
-			SelectTracks:    selectTracks,
-			AllArtistAlbums: allArtistAlbums,
-		}
-		err := a.eng.StartDownload(opts)
-		if err != nil {
-			runtime.EventsEmit(a.ctx, "engine:event", events.Event{Type: events.EventError, Message: err.Error()})
+
+		if err := a.eng.StartDownload(opts); err != nil {
+			logging.Error("StartDownloadJob failed: %v", err)
+			a.emitEngineEvent(events.Event{Type: events.EventError, Message: err.Error()})
+			a.emitEngineEvent(events.Event{
+				Type:    events.EventJobComplete,
+				Message: err.Error(),
+				Phase:   "failed",
+			})
 		}
 	}()
 	return nil
+}
+
+// StartDownload is kept for backwards compatibility with older frontend stubs.
+func (a *App) StartDownload(urls []string, quality string, singleSong, selectTracks, allArtistAlbums bool) error {
+	url := ""
+	if len(urls) > 0 {
+		url = urls[0]
+	}
+	return a.StartDownloadJob(url, quality, nil, nil)
 }
 
 func (a *App) CancelDownload() {
@@ -180,4 +228,13 @@ func (a *App) GetConfigPath() string {
 
 func (a *App) GetAppDataDir() string {
 	return appconfig.AppDataDir()
+}
+
+func (a *App) GetLogPath() string {
+	return logging.Path()
+}
+
+func (a *App) OpenLogFile() error {
+	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(logging.Path()))
+	return nil
 }

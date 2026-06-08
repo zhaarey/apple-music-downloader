@@ -45,9 +45,9 @@ const TOOLS = [
 ]
 
 const FEATURES = [
-  { feature: 'AAC downloads', worksWithoutTools: true, notes: 'Works out of the box from GUI.' },
-  { feature: 'ALAC downloads', worksWithoutTools: false, notes: 'Needs wrapper running on configured ports.' },
-  { feature: 'Dolby Atmos downloads', worksWithoutTools: false, notes: 'Needs wrapper running on configured ports.' },
+  { feature: 'AAC downloads (256 kbps)', worksWithoutTools: true, notes: 'Needs Apple Music subscription + media-user-token in Settings. MP4Box on PATH or in app tools folder for tagging. No wrapper required.' },
+  { feature: 'ALAC downloads', worksWithoutTools: false, notes: 'Needs wrapper running on configured ports (WSL2 on Windows).' },
+  { feature: 'Dolby Atmos downloads', worksWithoutTools: false, notes: 'Needs wrapper running on configured ports (WSL2 on Windows).' },
   { feature: 'Lyrics (LRC)', worksWithoutTools: true, notes: 'Needs valid media-user-token.' },
   { feature: 'Music video downloads', worksWithoutTools: false, notes: 'Needs mp4decrypt + media-user-token.' },
   { feature: 'Post-download conversion', worksWithoutTools: false, notes: 'Needs ffmpeg.' },
@@ -103,6 +103,16 @@ export default function RequirementsTab({ deps, onRefreshDeps }) {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
+        <h3 className="font-medium">AAC troubleshooting</h3>
+        <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-white/70">
+          <li><span className="text-white/90">License failed</span> — refresh media-user-token from music.apple.com (DevTools → Application → Cookies).</li>
+          <li><span className="text-white/90">Download incomplete</span> — check network, retry; Apple CDN may have timed out.</li>
+          <li><span className="text-white/90">Decrypt / tagging failed</span> — ensure MP4Box is on PATH; open the log file from the Queue tab.</li>
+          <li><span className="text-white/90">Lossless (ALAC)</span> — not AAC; requires the wrapper service (see above). Use Quality: AAC in the Download tab for no-wrapper downloads.</li>
+        </ul>
       </section>
 
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">

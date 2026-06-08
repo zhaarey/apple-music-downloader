@@ -150,8 +150,8 @@ func DefaultConfig() structs.ConfigSet {
 		LimitMax:             200,
 		AlbumFolderFormat:    "{AlbumName}",
 		PlaylistFolderFormat: "{PlaylistName}",
-		SongFileFormat:       "{SongNumer}. {SongName}",
-		ArtistFolderFormat:   "{UrlArtistName}",
+		SongFileFormat:       "{TrackNumber}. {SongName}",
+		ArtistFolderFormat:   "{ArtistName}",
 		ExplicitChoice:       "[E]",
 		CleanChoice:          "[C]",
 		AppleMasterChoice:    "[M]",
@@ -179,6 +179,11 @@ func InitIfMissing() (structs.ConfigSet, string, error) {
 	return cfg, path, err
 }
 
+// Normalize applies default values for empty or invalid config fields.
+func Normalize(cfg *structs.ConfigSet) {
+	normalize(cfg)
+}
+
 func normalize(cfg *structs.ConfigSet) {
 	if len(cfg.Storefront) != 2 {
 		cfg.Storefront = "us"
@@ -188,6 +193,52 @@ func normalize(cfg *structs.ConfigSet) {
 	}
 	if cfg.AacSaveFolder == "" {
 		cfg.AacSaveFolder = "AM-DL-AAC downloads"
+	}
+	if cfg.AacType == "" {
+		cfg.AacType = "aac-lc"
+	}
+	if cfg.AlacMax == 0 {
+		cfg.AlacMax = 192000
+	}
+	if cfg.AtmosMax == 0 {
+		cfg.AtmosMax = 2768
+	}
+	if cfg.LrcFormat == "" {
+		cfg.LrcFormat = "lrc"
+	}
+	// Older configs often had limit-max: 0 which stripped all song names from filenames.
+	if cfg.LimitMax <= 0 {
+		cfg.LimitMax = 200
+	}
+	if cfg.MaxMemoryLimit <= 0 {
+		cfg.MaxMemoryLimit = 256
+	}
+	if cfg.DecryptM3u8Port == "" {
+		cfg.DecryptM3u8Port = "127.0.0.1:10020"
+	}
+	if cfg.GetM3u8Port == "" {
+		cfg.GetM3u8Port = "127.0.0.1:20020"
+	}
+	if cfg.GetM3u8Mode == "" {
+		cfg.GetM3u8Mode = "hires"
+	}
+	if cfg.CoverSize == "" {
+		cfg.CoverSize = "5000x5000"
+	}
+	if cfg.CoverFormat == "" {
+		cfg.CoverFormat = "jpg"
+	}
+	if cfg.SongFileFormat == "" {
+		cfg.SongFileFormat = "{TrackNumber}. {SongName}"
+	}
+	if cfg.AlbumFolderFormat == "" {
+		cfg.AlbumFolderFormat = "{AlbumName}"
+	}
+	if cfg.ArtistFolderFormat == "" {
+		cfg.ArtistFolderFormat = "{ArtistName}"
+	}
+	if cfg.PlaylistFolderFormat == "" {
+		cfg.PlaylistFolderFormat = "{PlaylistName}"
 	}
 	cfg.FFmpegPath = FFmpegPath(cfg.FFmpegPath)
 }

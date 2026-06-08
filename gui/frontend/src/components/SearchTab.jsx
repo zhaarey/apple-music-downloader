@@ -3,7 +3,7 @@ import { Search as searchApi } from '../wailsjs/go/main/App'
 
 const TYPES = ['album', 'song', 'artist']
 
-export default function SearchTab({ onSelect, onDownload }) {
+export default function SearchTab({ onPreview }) {
   const [type, setType] = useState('album')
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState([])
@@ -29,6 +29,10 @@ export default function SearchTab({ onSelect, onDownload }) {
 
   return (
     <div className="flex h-full flex-col gap-4">
+      <div>
+        <h2 className="text-xl font-semibold">Search Apple Music</h2>
+        <p className="mt-1 text-sm text-white/50">Results open in Download to fetch tracks and start a job</p>
+      </div>
       <div className="flex flex-wrap gap-2">
         {TYPES.map((t) => (
           <button
@@ -54,7 +58,7 @@ export default function SearchTab({ onSelect, onDownload }) {
           Search
         </button>
       </div>
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="flex-1 overflow-y-auto">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {hits.map((h) => (
@@ -70,20 +74,12 @@ export default function SearchTab({ onSelect, onDownload }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{h.name}</p>
                 <p className="truncate text-xs text-white/50">{h.detail}</p>
-                <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => onSelect(h.url)}
-                    className="text-xs text-accent hover:underline"
-                  >
-                    Use URL
-                  </button>
-                  <button
-                    onClick={() => onDownload({ urls: [h.url], quality: 'aac', singleSong: h.type === 'Song', selectTracks: false, allArtistAlbums: h.type === 'Artist' })}
-                    className="text-xs text-white/60 hover:text-white"
-                  >
-                    Download AAC
-                  </button>
-                </div>
+                <button
+                  onClick={() => onPreview(h.url)}
+                  className="mt-2 text-xs font-medium text-accent hover:underline"
+                >
+                  Preview & download →
+                </button>
               </div>
             </div>
           ))}

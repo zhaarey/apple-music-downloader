@@ -61,7 +61,7 @@ export default function Wizard({ settings, deps, onComplete, onRefreshDeps }) {
                 </option>
               ))}
             </select>
-            <label className="block text-sm text-white/60">media-user-token (for lyrics, MV, AAC-LC)</label>
+            <label className="block text-sm text-white/60">media-user-token (required for AAC downloads)</label>
             <textarea
               value={cfg['media-user-token'] || ''}
               onChange={(e) => update('media-user-token', e.target.value)}

@@ -18,6 +18,86 @@ export namespace engine {
 	        this.required = source["required"];
 	    }
 	}
+	export class PreviewTrack {
+	    num: number;
+	    id: string;
+	    name: string;
+	    artist: string;
+	    type: string;
+	    duration: string;
+	    duration_ms: number;
+	    explicit: boolean;
+	    is_mv: boolean;
+	    url?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PreviewTrack(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.num = source["num"];
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.artist = source["artist"];
+	        this.type = source["type"];
+	        this.duration = source["duration"];
+	        this.duration_ms = source["duration_ms"];
+	        this.explicit = source["explicit"];
+	        this.is_mv = source["is_mv"];
+	        this.url = source["url"];
+	    }
+	}
+	export class PreviewResult {
+	    url: string;
+	    type: string;
+	    title: string;
+	    subtitle: string;
+	    art_url: string;
+	    track_count: number;
+	    total_duration: string;
+	    tracks: PreviewTrack[];
+	    can_select_tracks: boolean;
+	    output_folder: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PreviewResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.subtitle = source["subtitle"];
+	        this.art_url = source["art_url"];
+	        this.track_count = source["track_count"];
+	        this.total_duration = source["total_duration"];
+	        this.tracks = this.convertValues(source["tracks"], PreviewTrack);
+	        this.can_select_tracks = source["can_select_tracks"];
+	        this.output_folder = source["output_folder"];
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 

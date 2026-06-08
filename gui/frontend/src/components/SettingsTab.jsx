@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { OpenLogFile } from '../wailsjs/go/main/App'
 
 export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRefreshDeps, onShowWizard }) {
   const [cfg, setCfg] = useState(settings || {})
@@ -36,7 +37,7 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
           maxLength={2}
           className="w-24 rounded-lg border border-white/10 bg-surface px-3 py-2 uppercase"
         />
-        <label className="block text-xs text-white/50">media-user-token</label>
+        <label className="block text-xs text-white/50">media-user-token (required for AAC)</label>
         <textarea
           value={cfg['media-user-token'] || ''}
           onChange={(e) => update('media-user-token', e.target.value)}
@@ -73,12 +74,58 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
         ))}
       </section>
 
-      <section className="mt-4 space-y-2 rounded-xl border border-white/10 bg-surface-raised p-4">
-        <h3 className="font-medium">Metadata</h3>
+      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <h3 className="font-medium">Library organization</h3>
+        <p className="text-xs text-white/50">
+          Saves as Artist → Album → track files. Embedded tags help Apple Music / iTunes match your library.
+        </p>
+        <div>
+          <label className="text-xs text-white/50">Artist folder</label>
+          <input
+            value={cfg['artist-folder-format'] || '{ArtistName}'}
+            onChange={(e) => update('artist-folder-format', e.target.value)}
+            placeholder="{ArtistName}"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm font-mono"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-white/50">Album folder</label>
+          <input
+            value={cfg['album-folder-format'] || '{AlbumName}'}
+            onChange={(e) => update('album-folder-format', e.target.value)}
+            placeholder="{AlbumName}"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm font-mono"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-white/50">Track filename</label>
+          <input
+            value={cfg['song-file-format'] || '{TrackNumber}. {SongName}'}
+            onChange={(e) => update('song-file-format', e.target.value)}
+            placeholder="{TrackNumber}. {SongName}"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm font-mono"
+          />
+        </div>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={!!cfg['embed-lrc']} onChange={(e) => update('embed-lrc', e.target.checked)} />
-          Embed lyrics (LRC)
+          <input
+            type="checkbox"
+            checked={cfg['tag-sort-order'] !== false}
+            onChange={(e) => update('tag-sort-order', e.target.checked)}
+          />
+          Embed sort tags (Title/Artist/Album sort fields)
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={cfg['tag-itunes-id'] !== false}
+            onChange={(e) => update('tag-itunes-id', e.target.checked)}
+          />
+          Embed iTunes catalog IDs (better Apple Music matching)
+        </label>
+      </section>
+
+      <section className="mt-4 space-y-2 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <h3 className="font-medium">Cover & lyrics</h3>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={!!cfg['embed-cover']} onChange={(e) => update('embed-cover', e.target.checked)} />
           Embed album cover
@@ -153,6 +200,16 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
         <p className="mt-3 text-xs text-white/40">
           ALAC / Atmos require wrapper on ports above. See README-WINDOWS.md for manual setup via WSL.
         </p>
+      </section>
+
+      <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <h3 className="font-medium">Diagnostics</h3>
+        <p className="mt-1 text-xs text-white/50">
+          If the app crashes or a download fails, open the log file for full details.
+        </p>
+        <button onClick={OpenLogFile} className="mt-3 rounded-lg bg-surface px-4 py-2 text-sm hover:bg-surface-hover">
+          Open log file
+        </button>
       </section>
 
       <div className="mt-6 flex gap-3 pb-8">

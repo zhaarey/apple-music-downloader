@@ -5,12 +5,14 @@ import (
 	"encoding/base64"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"google.golang.org/protobuf/proto"
 
 	cdm "main/utils/runv3/cdm"
 	key "main/utils/runv3/key"
+	"main/internal/logging"
 	"os"
 
 	"bytes"
@@ -29,11 +31,27 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+const (
+	minSongBytes   = 50 * 1024
+	maxDownloadTry = 3
+	maxConcurrency = 10
+)
+
+var cdnHeaders = map[string]string{
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	"Referer":    "https://music.apple.com/",
+	"Origin":     "https://music.apple.com",
+}
+
 type PlaybackLicense struct {
 	ErrorCode  int    `json:"errorCode"`
 	License    string `json:"license"`
 	RenewAfter int    `json:"renew-after"`
 	Status     int    `json:"status"`
+}
+
+func httpClient() *http.Client {
+	return &http.Client{Timeout: 120 * time.Second}
 }
 
 func getPSSH(contentId string, kidBase64 string) (string, error) {
@@ -54,7 +72,6 @@ func getPSSH(contentId string, kidBase64 string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal WidevineCencHeader: %v", err)
 	}
-	//最前面添加32字节
 	widevineCenc = append([]byte("0123456789abcdef0123456789abcdef"), widevineCenc...)
 	pssh := base64.StdEncoding.EncodeToString(widevineCenc)
 	return pssh, nil
@@ -62,7 +79,7 @@ func getPSSH(contentId string, kidBase64 string) (string, error) {
 
 func BeforeRequest(cl *resty.Client, ctx context.Context, url string, body []byte) (*resty.Response, error) {
 	jsondata := map[string]interface{}{
-		"challenge":      base64.StdEncoding.EncodeToString(body), // 'body' is passed in directly
+		"challenge":      base64.StdEncoding.EncodeToString(body),
 		"key-system":     "com.widevine.alpha",
 		"uri":            ctx.Value("uriPrefix").(string) + "," + ctx.Value("pssh").(string),
 		"adamId":         ctx.Value("adamId").(string),
@@ -109,51 +126,40 @@ func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool
 	}
 	jsonData, err := json.Marshal(postData)
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
-		return "", "", "", err
+		return "", "", "", wrapStage(StagePlayback, err)
 	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(jsonData)))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return "", "", "", err
+		return "", "", "", wrapStage(StagePlayback, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://music.apple.com")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("User-Agent", cdnHeaders["User-Agent"])
 	req.Header.Set("Referer", "https://music.apple.com/")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authtoken))
 	req.Header.Set("x-apple-music-user-token", mutoken)
-	// 创建 HTTP 客户端
-	//client := &http.Client{}
-	resp, err := http.DefaultClient.Do(req)
-	// 发送请求
-	//resp, err := client.Do(req)
+	resp, err := httpClient().Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return "", "", "", err
+		return "", "", "", wrapStage(StagePlayback, err)
 	}
 	defer resp.Body.Close()
-	//fmt.Println("Response Status:", resp.Status)
 	obj := new(Songlist)
 	err = json.NewDecoder(resp.Body).Decode(&obj)
 	if err != nil {
-		fmt.Println("json err:", err)
-		return "", "", "", err
+		return "", "", "", wrapStage(StagePlayback, err)
 	}
 	if len(obj.List) > 0 {
 		if mvmode {
 			return obj.List[0].HlsPlaylistUrl, "", "", nil
 		}
-		// 遍历 Assets
 		for i := range obj.List[0].Assets {
 			if obj.List[0].Assets[i].Flavor == "28:ctrp256" {
-				kidBase64, fileurl, uriPrefix, err := extractKidBase64(obj.List[0].Assets[i].URL, false)
+				kidBase64, parts, uriPrefix, err := parsePlaybackPlaylist(obj.List[0].Assets[i].URL)
 				if err != nil {
 					return "", "", "", err
 				}
-				return fileurl, kidBase64, uriPrefix, nil
+				return encodePartsForMV(parts), kidBase64, uriPrefix, nil
 			}
-			continue
 		}
 	}
 	return "", "", "", errors.New("Unavailable")
@@ -171,114 +177,367 @@ type Songlist struct {
 	Status int `json:"status"`
 }
 
-func extractKidBase64(b string, mvmode bool) (string, string, string, error) {
-	resp, err := http.Get(b)
+// fmp4Part is one contiguous byte range (or whole file) to concatenate for decryption.
+type fmp4Part struct {
+	URL    string
+	Offset int64
+	Limit  int64
+}
+
+func resolveMediaURL(base, uri string) string {
+	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
+		return uri
+	}
+	return base + uri
+}
+
+func parsePlaybackPlaylist(playlistURL string) (string, []fmp4Part, string, error) {
+	body, err := fetchPart(playlistURL)
 	if err != nil {
-		return "", "", "", err
+		return "", nil, "", wrapStage(StageDownload, fmt.Errorf("playlist fetch: %w", err))
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", "", errors.New(resp.Status)
-	}
-	body, err := io.ReadAll(resp.Body)
+	from, listType, err := m3u8.DecodeFrom(strings.NewReader(string(body)), true)
 	if err != nil {
-		return "", "", "", err
+		return "", nil, "", wrapStage(StageDownload, err)
 	}
-	masterString := string(body)
-	from, listType, err := m3u8.DecodeFrom(strings.NewReader(masterString), true)
-	if err != nil {
-		return "", "", "", err
+	if listType != m3u8.MEDIA {
+		return "", nil, "", wrapStage(StageDownload, errors.New("m3u8 is not a media playlist"))
 	}
-	var kidbase64 string
-	var uriPrefix string
-	var urlBuilder strings.Builder
-	if listType == m3u8.MEDIA {
-		mediaPlaylist := from.(*m3u8.MediaPlaylist)
-		if mediaPlaylist.Key != nil {
-			split := strings.Split(mediaPlaylist.Key.URI, ",")
-			uriPrefix = split[0]
-			kidbase64 = split[1]
-			lastSlashIndex := strings.LastIndex(b, "/")
-			// 截取最后一个斜杠之前的部分
-			urlBuilder.WriteString(b[:lastSlashIndex])
-			urlBuilder.WriteString("/")
-			urlBuilder.WriteString(mediaPlaylist.Map.URI)
-			//fileurl = b[:lastSlashIndex] + "/" + mediaPlaylist.Map.URI
-			//fmt.Println("Extracted URI:", mediaPlaylist.Map.URI)
-			if mvmode {
-				for _, segment := range mediaPlaylist.Segments {
-					if segment != nil {
-						//fmt.Println("Extracted URI:", segment.URI)
-						urlBuilder.WriteString(";")
-						urlBuilder.WriteString(b[:lastSlashIndex])
-						urlBuilder.WriteString("/")
-						urlBuilder.WriteString(segment.URI)
-						//fileurl = fileurl + ";" + b[:lastSlashIndex] + "/" + segment.URI
-					}
-				}
-			}
-		} else {
-			fmt.Println("No key information found")
+	mediaPlaylist := from.(*m3u8.MediaPlaylist)
+	if mediaPlaylist.Key == nil {
+		return "", nil, "", wrapStage(StageDownload, errors.New("no encryption key in playlist"))
+	}
+	split := strings.Split(mediaPlaylist.Key.URI, ",")
+	if len(split) < 2 {
+		return "", nil, "", wrapStage(StageDownload, errors.New("invalid KEY URI in playlist"))
+	}
+	uriPrefix := split[0]
+	kidbase64 := split[1]
+	lastSlashIndex := strings.LastIndex(playlistURL, "/")
+	if lastSlashIndex < 0 {
+		return "", nil, "", wrapStage(StageDownload, errors.New("invalid playlist URL"))
+	}
+	base := playlistURL[:lastSlashIndex+1]
+
+	var parts []fmp4Part
+	usesByteRange := false
+
+	if mediaPlaylist.Map != nil && mediaPlaylist.Map.URI != "" {
+		part := fmp4Part{
+			URL:    resolveMediaURL(base, mediaPlaylist.Map.URI),
+			Offset: mediaPlaylist.Map.Offset,
+			Limit:  mediaPlaylist.Map.Limit,
 		}
-	} else {
-		fmt.Println("Not a media playlist")
+		parts = append(parts, part)
+		if part.Limit > 0 {
+			usesByteRange = true
+		}
 	}
-	return kidbase64, urlBuilder.String(), uriPrefix, nil
+
+	segmentCount := 0
+	for _, segment := range mediaPlaylist.Segments {
+		if segment == nil || segment.URI == "" {
+			continue
+		}
+		segmentCount++
+		part := fmp4Part{
+			URL:    resolveMediaURL(base, segment.URI),
+			Offset: segment.Offset,
+			Limit:  segment.Limit,
+		}
+		if part.Limit > 0 {
+			usesByteRange = true
+		}
+		parts = append(parts, part)
+	}
+
+	if len(parts) == 0 {
+		return "", nil, "", wrapStage(StageDownload, errors.New("no init or media segments in playlist"))
+	}
+
+	logging.Info("runv3 playlist parsed: %d parts, byte-range=%v", len(parts), usesByteRange)
+	return kidbase64, parts, uriPrefix, nil
 }
-func extsong(b string) bytes.Buffer {
-	resp, err := http.Get(b)
-	if err != nil {
-		fmt.Printf("下载文件失败: %v\n", err)
+
+func encodePartsForMV(parts []fmp4Part) string {
+	var b strings.Builder
+	for i, p := range parts {
+		if i > 0 {
+			b.WriteString(";")
+		}
+		b.WriteString(p.URL)
+		if p.Limit > 0 {
+			b.WriteString(fmt.Sprintf("#%d:%d", p.Offset, p.Limit))
+		}
 	}
-	defer resp.Body.Close()
-	var buffer bytes.Buffer
-	bar := progressbar.NewOptions64(
-		resp.ContentLength,
+	return b.String()
+}
+
+func decodeMVPart(raw string) fmp4Part {
+	part := fmp4Part{URL: raw}
+	if idx := strings.LastIndex(raw, "#"); idx > 0 && strings.Contains(raw[idx:], ":") {
+		part.URL = raw[:idx]
+		var off, lim int64
+		if _, err := fmt.Sscanf(raw[idx+1:], "%d:%d", &off, &lim); err == nil && lim > 0 {
+			part.Offset = off
+			part.Limit = lim
+		}
+	}
+	return part
+}
+
+func fetchPartRange(rawURL string, offset, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		return fetchPart(rawURL)
+	}
+	var lastErr error
+	client := httpClient()
+	for attempt := 1; attempt <= maxDownloadTry; attempt++ {
+		req, err := http.NewRequest("GET", rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range cdnHeaders {
+			req.Header.Set(k, v)
+		}
+		end := offset + limit - 1
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, end))
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		data, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("HTTP %d for range %s", resp.StatusCode, rawURL)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if int64(len(data)) != limit {
+			lastErr = fmt.Errorf("short range read: got %d bytes, expected %d", len(data), limit)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		return data, nil
+	}
+	return nil, lastErr
+}
+
+func (p fmp4Part) fetch(client *http.Client) ([]byte, error) {
+	if p.Limit > 0 {
+		if client == nil {
+			return fetchPartRange(p.URL, p.Offset, p.Limit)
+		}
+		return fetchPartRangeWithClient(client, p.URL, p.Offset, p.Limit)
+	}
+	if client == nil {
+		return fetchPart(p.URL)
+	}
+	return fetchPartWithClient(client, p.URL)
+}
+
+func fetchPartRangeWithClient(client *http.Client, rawURL string, offset, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		return fetchPartWithClient(client, rawURL)
+	}
+	var lastErr error
+	for attempt := 1; attempt <= maxDownloadTry; attempt++ {
+		req, err := http.NewRequest("GET", rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range cdnHeaders {
+			req.Header.Set(k, v)
+		}
+		end := offset + limit - 1
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, end))
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		data, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if int64(len(data)) != limit {
+			lastErr = fmt.Errorf("short range read: got %d bytes, expected %d", len(data), limit)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		return data, nil
+	}
+	return nil, lastErr
+}
+
+func fetchPart(rawURL string) ([]byte, error) {
+	var lastErr error
+	client := httpClient()
+	for attempt := 1; attempt <= maxDownloadTry; attempt++ {
+		req, err := http.NewRequest("GET", rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range cdnHeaders {
+			req.Header.Set(k, v)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		data, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("HTTP %d for %s", resp.StatusCode, rawURL)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if resp.ContentLength > 0 && int64(len(data)) != resp.ContentLength {
+			lastErr = fmt.Errorf("short read: got %d bytes, expected %d", len(data), resp.ContentLength)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		return data, nil
+	}
+	return nil, lastErr
+}
+
+func validateFmp4Buffer(buf []byte) error {
+	if len(buf) < 8 {
+		return fmt.Errorf("download too small (%d bytes)", len(buf))
+	}
+	if string(buf[4:8]) != "ftyp" {
+		return fmt.Errorf("download invalid: missing ftyp box (got %q)", string(buf[4:8]))
+	}
+	if len(buf) < minSongBytes {
+		return fmt.Errorf("download too small (%d bytes, minimum %d)", len(buf), minSongBytes)
+	}
+	return nil
+}
+
+func downloadFmp4Parts(parts []fmp4Part) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	if len(parts) == 0 {
+		return buf, errors.New("no parts to download")
+	}
+	if len(parts) == 1 {
+		data, err := parts[0].fetch(nil)
+		if err != nil {
+			return buf, err
+		}
+		buf.Write(data)
+		logging.Info("runv3 downloaded single part: %d bytes", len(data))
+		return buf, validateFmp4Buffer(buf.Bytes())
+	}
+
+	var downloadWg, writerWg sync.WaitGroup
+	segmentsChan := make(chan Segment, len(parts))
+	errChan := make(chan error, len(parts))
+	limiter := make(chan struct{}, maxConcurrency)
+	client := httpClient()
+
+	bar := progressbar.NewOptions64(-1,
 		progressbar.OptionClearOnFinish(),
-		progressbar.OptionSetElapsedTime(false),
-		progressbar.OptionSetPredictTime(false),
-		progressbar.OptionShowElapsedTimeOnFinish(),
-		progressbar.OptionShowCount(),
-		progressbar.OptionEnableColorCodes(true),
-		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetDescription("Downloading..."),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "",
-			SaucerHead:    "",
-			SaucerPadding: "",
-			BarStart:      "",
-			BarEnd:        "",
-		}),
+		progressbar.OptionShowBytes(true),
 	)
-	io.Copy(io.MultiWriter(&buffer, bar), resp.Body)
-	return buffer
+	barWriter := io.MultiWriter(&buf, bar)
+
+	writerWg.Add(1)
+	go fileWriter(&writerWg, segmentsChan, barWriter, len(parts))
+
+	for i, part := range parts {
+		limiter <- struct{}{}
+		downloadWg.Add(1)
+		go downloadPart(part, i, &downloadWg, segmentsChan, client, limiter, errChan)
+	}
+	downloadWg.Wait()
+	close(segmentsChan)
+	writerWg.Wait()
+
+drainErrors:
+	for {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				return buf, err
+			}
+		default:
+			break drainErrors
+		}
+	}
+	if buf.Len() < len(parts)*32 {
+		return buf, fmt.Errorf("segment download incomplete: got %d bytes for %d parts", buf.Len(), len(parts))
+	}
+
+	total := buf.Len()
+	logging.Info("runv3 downloaded %d parts, total %d bytes", len(parts), total)
+	if err := validateFmp4Buffer(buf.Bytes()); err != nil {
+		return buf, err
+	}
+	fmt.Print("Downloaded\n")
+	return buf, nil
 }
+
+func decodeParts(encoded string) []fmp4Part {
+	raw := strings.Split(encoded, ";")
+	parts := make([]fmp4Part, 0, len(raw))
+	for _, item := range raw {
+		if item == "" {
+			continue
+		}
+		parts = append(parts, decodeMVPart(item))
+	}
+	return parts
+}
+
 func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmode bool, serverUrl string) (string, error) {
-	var keystr string //for mv key
-	var fileurl string
+	var keystr string
+	var parts []fmp4Part
 	var kidBase64 string
 	var uriPrefix string
 	var err error
 	if mvmode {
-		kidBase64, fileurl, uriPrefix, err = extractKidBase64(trackpath, true)
+		kidBase64, parts, uriPrefix, err = parsePlaybackPlaylist(trackpath)
 		if err != nil {
 			return "", err
 		}
 	} else {
-		fileurl, kidBase64, uriPrefix, err = GetWebplayback(adamId, authtoken, mutoken, false)
+		encoded, kid, prefix, err := GetWebplayback(adamId, authtoken, mutoken, false)
 		if err != nil {
 			return "", err
 		}
+		kidBase64 = kid
+		uriPrefix = prefix
+		parts = decodeParts(encoded)
 	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, "pssh", kidBase64)
 	ctx = context.WithValue(ctx, "adamId", adamId)
 	ctx = context.WithValue(ctx, "uriPrefix", uriPrefix)
 	pssh, err := getPSSH("", kidBase64)
-	//fmt.Println(pssh)
 	if err != nil {
-		fmt.Println(err)
-		return "", err
+		return "", wrapStage(StageLicense, err)
 	}
 	headers := map[string]string{
 		"authorization":            "Bearer " + authtoken,
@@ -293,135 +552,134 @@ func Run(adamId string, trackpath string, authtoken string, mutoken string, mvmo
 	}
 	key.CdmInit()
 	var keybt []byte
+	licenseURL := "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense"
 	if serverUrl != "" {
-		keystr, keybt, err = key.GetKey(ctx, serverUrl, pssh, nil)
-		if err != nil {
-			fmt.Println(err)
-			return "", err
-		}
-	} else {
-		keystr, keybt, err = key.GetKey(ctx, "https://play.itunes.apple.com/WebObjects/MZPlay.woa/wa/acquireWebPlaybackLicense", pssh, nil)
-		if err != nil {
-			fmt.Println(err)
-			return "", err
-		}
+		licenseURL = serverUrl
+	}
+	keystr, keybt, err = key.GetKey(ctx, licenseURL, pssh, nil)
+	if err != nil {
+		return "", wrapStage(StageLicense, err)
 	}
 	if mvmode {
-		keyAndUrls := "1:" + keystr + ";" + fileurl
+		keyAndUrls := "1:" + keystr + ";" + encodePartsForMV(parts)
 		return keyAndUrls, nil
 	}
-	body := extsong(fileurl)
-	fmt.Print("Downloaded\n")
-	//bodyReader := bytes.NewReader(body)
-	var buffer bytes.Buffer
 
+	body, err := downloadFmp4Parts(parts)
+	if err != nil {
+		return "", wrapStage(StageDownload, err)
+	}
+
+	var buffer bytes.Buffer
 	err = DecryptMP4(&body, keybt, &buffer)
 	if err != nil {
 		fmt.Print("Decryption failed\n")
-		return "", err
-	} else {
-		fmt.Print("Decrypted\n")
+		return "", wrapStage(StageDecrypt, err)
 	}
-	// create output file
+	fmt.Print("Decrypted\n")
+
 	ofh, err := os.Create(trackpath)
 	if err != nil {
-		fmt.Printf("创建文件失败: %v\n", err)
 		return "", err
 	}
 	defer ofh.Close()
 
 	_, err = ofh.Write(buffer.Bytes())
 	if err != nil {
-		fmt.Printf("写入文件失败: %v\n", err)
 		return "", err
 	}
 	return "", nil
 }
 
-// Segment 结构体用于在 Channel 中传递分段数据
 type Segment struct {
 	Index int
 	Data  []byte
 }
 
-func downloadSegment(url string, index int, wg *sync.WaitGroup, segmentsChan chan<- Segment, client *http.Client, limiter chan struct{}) {
-	// 函数退出时，从 limiter 中接收一个值，释放一个并发槽位
+func downloadPart(part fmp4Part, index int, wg *sync.WaitGroup, segmentsChan chan<- Segment, client *http.Client, limiter chan struct{}, errChan chan<- error) {
 	defer func() {
 		<-limiter
 		wg.Done()
 	}()
 
-	req, err := http.NewRequest("GET", url, nil)
+	data, err := part.fetch(client)
 	if err != nil {
-		fmt.Printf("错误(分段 %d): 创建请求失败: %v\n", index, err)
+		select {
+		case errChan <- fmt.Errorf("part %d: %w", index, err):
+		default:
+		}
 		return
 	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("错误(分段 %d): 下载失败: %v\n", index, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("错误(分段 %d): 服务器返回状态码 %d\n", index, resp.StatusCode)
-		return
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("错误(分段 %d): 读取数据失败: %v\n", index, err)
-		return
-	}
-
-	// 将下载好的分段（包含序号和数据）发送到 Channel
 	segmentsChan <- Segment{Index: index, Data: data}
 }
 
-// fileWriter 从 Channel 接收分段并按顺序写入文件
+func fetchPartWithClient(client *http.Client, rawURL string) ([]byte, error) {
+	var lastErr error
+	for attempt := 1; attempt <= maxDownloadTry; attempt++ {
+		req, err := http.NewRequest("GET", rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range cdnHeaders {
+			req.Header.Set(k, v)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		data, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if resp.ContentLength > 0 && int64(len(data)) != resp.ContentLength {
+			lastErr = fmt.Errorf("short read: got %d bytes, expected %d", len(data), resp.ContentLength)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			continue
+		}
+		return data, nil
+	}
+	return nil, lastErr
+}
+
 func fileWriter(wg *sync.WaitGroup, segmentsChan <-chan Segment, outputFile io.Writer, totalSegments int) {
 	defer wg.Done()
 
-	// 缓冲区，用于存放乱序到达的分段
-	// key 是分段序号，value 是分段数据
 	segmentBuffer := make(map[int][]byte)
-	nextIndex := 0 // 期望写入的下一个分段的序号
+	nextIndex := 0
 
 	for segment := range segmentsChan {
-		// 检查收到的分段是否是当前期望的
 		if segment.Index == nextIndex {
-			//fmt.Printf("写入分段 %d\n", segment.Index)
 			_, err := outputFile.Write(segment.Data)
 			if err != nil {
 				fmt.Printf("错误(分段 %d): 写入文件失败: %v\n", segment.Index, err)
 			}
 			nextIndex++
-
-			// 检查缓冲区中是否有下一个连续的分段
 			for {
 				data, ok := segmentBuffer[nextIndex]
 				if !ok {
-					break // 缓冲区里没有下一个，跳出循环，等待下一个分段到达
+					break
 				}
-
-				//fmt.Printf("从缓冲区写入分段 %d\n", nextIndex)
 				_, err := outputFile.Write(data)
 				if err != nil {
 					fmt.Printf("错误(分段 %d): 从缓冲区写入文件失败: %v\n", nextIndex, err)
 				}
-				// 从缓冲区删除已写入的分段，释放内存
 				delete(segmentBuffer, nextIndex)
 				nextIndex++
 			}
 		} else {
-			// 如果不是期望的分段，先存入缓冲区
-			//fmt.Printf("缓冲分段 %d (等待 %d)\n", segment.Index, nextIndex)
 			segmentBuffer[segment.Index] = segment.Data
 		}
 	}
 
-	// 确保所有分段都已写入
 	if nextIndex != totalSegments {
 		fmt.Printf("警告: 写入完成，但似乎有分段丢失。期望 %d 个, 实际写入 %d 个。\n", totalSegments, nextIndex)
 	}
@@ -429,77 +687,46 @@ func fileWriter(wg *sync.WaitGroup, segmentsChan <-chan Segment, outputFile io.W
 
 func ExtMvData(keyAndUrls string, savePath string) error {
 	segments := strings.Split(keyAndUrls, ";")
-	key := segments[0]
-	//fmt.Println(key)
-	urls := segments[1:]
+	keyHex := segments[0]
+	var parts []fmp4Part
+	for _, raw := range segments[1:] {
+		if raw == "" {
+			continue
+		}
+		parts = append(parts, decodeMVPart(raw))
+	}
 	tempFile, err := os.CreateTemp("", "enc_mv_data-*.mp4")
 	if err != nil {
-		fmt.Printf("创建文件失败：%v\n", err)
 		return err
 	}
 	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
 
-	var downloadWg, writerWg sync.WaitGroup
-	segmentsChan := make(chan Segment, len(urls))
-	// --- 新增代码: 定义最大并发数 ---
-	const maxConcurrency = 10
-	// --- 新增代码: 创建带缓冲的 Channel 作为信号量 ---
-	limiter := make(chan struct{}, maxConcurrency)
-	client := &http.Client{}
-
-	// 初始化进度条
-	bar := progressbar.DefaultBytes(-1, "Downloading...")
-	barWriter := io.MultiWriter(tempFile, bar)
-
-	// 启动写入 Goroutine
-	writerWg.Add(1)
-	go fileWriter(&writerWg, segmentsChan, barWriter, len(urls))
-
-	// 启动下载 Goroutines
-	for i, url := range urls {
-		// 在启动 Goroutine 前，向 limiter 发送一个值来“获取”一个槽位
-		// 如果 limiter 已满 (达到10个)，这里会阻塞，直到有其他任务完成并释放槽位
-		//fmt.Printf("请求启动任务 %d...\n", i)
-		limiter <- struct{}{}
-		//fmt.Printf("...任务 %d 已启动\n", i)
-
-		downloadWg.Add(1)
-		// 将 limiter 传递给下载函数
-		go downloadSegment(url, i, &downloadWg, segmentsChan, client, limiter)
+	body, err := downloadFmp4Parts(parts)
+	if err != nil {
+		return err
 	}
-
-	// 等待所有下载任务完成
-	downloadWg.Wait()
-	// 下载完成后，关闭 Channel。写入 Goroutine 会在处理完 Channel 中所有数据后退出。
-	close(segmentsChan)
-
-	// 等待写入 Goroutine 完成所有写入和缓冲处理
-	writerWg.Wait()
-
-	// 显式关闭文件（defer会再次调用，但重复关闭是安全的）
+	if _, err := tempFile.Write(body.Bytes()); err != nil {
+		return err
+	}
 	if err := tempFile.Close(); err != nil {
-		fmt.Printf("关闭临时文件失败: %v\n", err)
 		return err
 	}
 	fmt.Println("\nDownloaded.")
 
-	cmd1 := exec.Command("mp4decrypt", "--key", key, tempFile.Name(), filepath.Base(savePath))
-	cmd1.Dir = filepath.Dir(savePath) //设置mp4decrypt的工作目录以解决中文路径错误
+	cmd1 := exec.Command("mp4decrypt", "--key", keyHex, tempFile.Name(), filepath.Base(savePath))
+	cmd1.Dir = filepath.Dir(savePath)
 	outlog, err := cmd1.CombinedOutput()
 	if err != nil {
 		fmt.Printf("Decrypt failed: %v\n", err)
 		fmt.Printf("Output:\n%s\n", outlog)
 		return err
-	} else {
-		fmt.Println("Decrypted.")
 	}
+	fmt.Println("Decrypted.")
 	return nil
 }
 
-// DecryptMP4 decrypts a fragmented MP4 file with keys from widevice license. Supports CENC and CBCS schemes.
 func DecryptMP4(r io.Reader, key []byte, w io.Writer) error {
-	// Initialization
 	inMp4, err := mp4.DecodeFile(r)
 	if err != nil {
 		return fmt.Errorf("failed to decode file: %w", err)
@@ -507,7 +734,6 @@ func DecryptMP4(r io.Reader, key []byte, w io.Writer) error {
 	if !inMp4.IsFragmented() {
 		return errors.New("file is not fragmented")
 	}
-	// Handle init segment
 	if inMp4.Init == nil {
 		return errors.New("no init part of file")
 	}
@@ -518,13 +744,9 @@ func DecryptMP4(r io.Reader, key []byte, w io.Writer) error {
 	if err = inMp4.Init.Encode(w); err != nil {
 		return fmt.Errorf("failed to write init: %w", err)
 	}
-	// Decode segments
 	for _, seg := range inMp4.Segments {
 		if err = mp4.DecryptSegment(seg, decryptInfo, key); err != nil {
 			if err.Error() == "no senc box in traf" {
-				// No SENC box, skip decryption for this segment as samples can have
-				// unencrypted segments followed by encrypted segments. See:
-				// https://github.com/iyear/gowidevine/pull/26#issuecomment-2385960551
 				err = nil
 			} else {
 				return fmt.Errorf("failed to decrypt segment: %w", err)

@@ -32,8 +32,8 @@ type RunOptions struct {
 	SingleSong      bool
 	SelectTracks    bool
 	SelectedTrackNums []int
-	AllArtistAlbums bool
-	SelectTrackNums []int
+	ChildURLs         []string
+	AllArtistAlbums   bool
 	Debug           bool
 	PrintJSON       bool
 }
@@ -80,6 +80,10 @@ func (e *Engine) log(msg string) {
 	e.emit(events.Event{Type: events.EventLog, Message: msg})
 }
 
+func (e *Engine) logError(msg string) {
+	e.emit(events.Event{Type: events.EventError, Message: msg})
+}
+
 func (e *Engine) LoadConfig(path string) error {
 	cfg, err := appconfig.Load(path)
 	if err != nil {
@@ -92,14 +96,18 @@ func (e *Engine) LoadConfig(path string) error {
 	}
 	Config = cfg
 	Config.FFmpegPath = appconfig.FFmpegPath(Config.FFmpegPath)
+	appconfig.Normalize(&Config)
 	return nil
 }
 
 func (e *Engine) GetConfig() structs.ConfigSet {
-	return Config
+	cfg := Config
+	appconfig.Normalize(&cfg)
+	return cfg
 }
 
 func (e *Engine) SaveConfig(path string, cfg structs.ConfigSet) error {
+	appconfig.Normalize(&cfg)
 	if err := appconfig.Save(path, cfg); err != nil {
 		return err
 	}
@@ -237,7 +245,14 @@ func (e *Engine) DetectURLType(raw string) string {
 	return "Unknown"
 }
 
-func (e *Engine) StartDownload(opts RunOptions) error {
+func (e *Engine) StartDownload(opts RunOptions) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("download crashed unexpectedly: %v (details written to log file)", r)
+			e.logError(err.Error())
+		}
+	}()
+
 	e.mu.Lock()
 	if e.cancel != nil {
 		e.cancel()
@@ -254,16 +269,17 @@ func (e *Engine) StartDownload(opts RunOptions) error {
 	if err := e.applyOptions(opts); err != nil {
 		return err
 	}
-	token, err := e.getToken()
-	if err != nil {
+	if err := e.validateDownload(opts); err != nil {
 		return err
 	}
-	urls := opts.URLs
-	if len(urls) == 0 {
-		return fmt.Errorf("no URLs provided")
+	token, err := e.getToken()
+	if err != nil {
+		return formatTokenError(err)
 	}
-
-	if len(urls) == 1 && strings.Contains(urls[0], "/artist/") && opts.AllArtistAlbums {
+	urls := opts.URLs
+	if len(opts.ChildURLs) > 0 {
+		urls = opts.ChildURLs
+	} else if len(urls) == 1 && strings.Contains(urls[0], "/artist/") && opts.AllArtistAlbums {
 		artist_select = true
 		urlArtistName, urlArtistID, err := getUrlArtistName(urls[0], token)
 		if err != nil {
@@ -286,30 +302,39 @@ func (e *Engine) StartDownload(opts RunOptions) error {
 	return nil
 }
 
+func (e *Engine) ValidateDownloadRequest(opts RunOptions) error {
+	return e.validateDownload(opts)
+}
+
 func (e *Engine) applyOptions(opts RunOptions) error {
+	appconfig.Normalize(&Config)
 	dl_atmos = false
 	dl_aac = false
 	dl_song = opts.SingleSong
-	dl_select = opts.SelectTracks
-	if opts.SelectTracks && len(opts.SelectedTrackNums) == 0 {
-		e.log("Track selection is CLI-only (--select). Downloading all tracks.")
-		dl_select = false
+	guiSelectedTracks = nil
+	if len(opts.SelectedTrackNums) > 0 {
+		dl_select = true
+		guiSelectedTracks = append([]int(nil), opts.SelectedTrackNums...)
+	} else {
+		dl_select = opts.SelectTracks
 	}
 	debug_mode = opts.Debug
 	print_json = opts.PrintJSON
 	artist_select = opts.AllArtistAlbums
 
-	aacVal := Config.AacType
-	if aacVal == "" {
-		aacVal = "aac-lc"
-	}
+	aacVal := effectiveAacType()
 	aac_type = &aacVal
+	Config.AacType = aacVal
 
 	switch opts.Quality {
 	case "atmos":
 		dl_atmos = true
 	case "aac":
 		dl_aac = true
+		// GUI "AAC" always uses the in-process AAC-LC (Widevine) path — no wrapper needed.
+		Config.AacType = "aac-lc"
+		aacVal = "aac-lc"
+		aac_type = &aacVal
 	default:
 		// ALAC default
 	}
@@ -323,21 +348,48 @@ func (e *Engine) getToken() (string, error) {
 			token = strings.Replace(Config.AuthorizationToken, "Bearer ", "", -1)
 			return token, nil
 		}
-		return "", fmt.Errorf("failed to get token: %w", err)
+		return "", formatTokenError(err)
 	}
 	return token, nil
 }
 
+func jobCompletePhase() string {
+	if counter.Success == 0 && (counter.Error > 0 || counter.Unavailable > 0 || counter.Total > 0) {
+		return "failed"
+	}
+	if counter.Error > 0 || counter.Unavailable > 0 {
+		return "partial"
+	}
+	return "success"
+}
+
 func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
+	currentEmitter = e.emitter
+	defer func() { currentEmitter = nil }()
+
 	counter = structs.Counter{}
 	AddedTracks = nil
 	okDict = make(map[string][]int)
+
+	e.emit(events.Event{
+		Type:    events.EventJobStart,
+		Message: fmt.Sprintf("Starting download (%s quality)", opts.Quality),
+		Phase:   opts.Quality,
+	})
 
 	albumTotal := len(urls)
 	for albumNum, urlRaw := range urls {
 		select {
 		case <-e.ctx.Done():
 			e.log("Download cancelled.")
+			e.emit(events.Event{
+				Type:    events.EventJobComplete,
+				Message: fmt.Sprintf("Cancelled — %d completed before stop", counter.Success),
+				Phase:   "cancelled",
+				Success: counter.Success,
+				Error:   counter.Error + counter.Unavailable,
+				Total_:  counter.Total,
+			})
 			return
 		default:
 		}
@@ -382,11 +434,15 @@ func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 		}
 	}
 
-	msg := fmt.Sprintf("Completed: %d/%d | Warnings: %d | Errors: %d",
-		counter.Success, counter.Total, counter.Unavailable+counter.NotSong, counter.Error)
+	msg := fmt.Sprintf("Finished: %d succeeded, %d failed, %d unavailable (of %d attempted)",
+		counter.Success, counter.Error, counter.Unavailable, counter.Total)
 	e.emit(events.Event{
-		Type: events.EventJobComplete, Message: msg,
-		Success: counter.Success, Error: counter.Error, Total_: counter.Total,
+		Type:    events.EventJobComplete,
+		Message: msg,
+		Phase:   jobCompletePhase(),
+		Success: counter.Success,
+		Error:   counter.Error + counter.Unavailable,
+		Total_:  counter.Total,
 	})
 
 	if opts.PrintJSON {

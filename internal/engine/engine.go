@@ -21,6 +21,7 @@ import (
 	"time"
 
 	appconfig "main/internal/config"
+	"main/internal/events"
 	"main/utils/alacfix"
 	"main/utils/ampapi"
 	"main/utils/lyrics"
@@ -45,6 +46,8 @@ var (
 	dl_select          bool
 	dl_song            bool
 	artist_select      bool
+	guiSelectedTracks  []int
+	currentEmitter     events.Emitter
 	debug_mode         bool
 	print_json         bool
 	save_m3u8_playlist bool
@@ -85,10 +88,22 @@ func mp4decryptPath() string {
 }
 
 func LimitString(s string) string {
-	if len([]rune(s)) > Config.LimitMax {
-		return string([]rune(s)[:Config.LimitMax])
+	limit := Config.LimitMax
+	if limit <= 0 {
+		limit = 200
+	}
+	runes := []rune(s)
+	if len(runes) > limit {
+		return string(runes[:limit])
 	}
 	return s
+}
+
+func trackFileNumber(track *task.Track) int {
+	if track.Resp.Attributes.TrackNumber > 0 {
+		return track.Resp.Attributes.TrackNumber
+	}
+	return track.TaskNum
 }
 
 func isInArray(arr []int, target int) bool {
@@ -799,43 +814,58 @@ func convertIfNeeded(track *task.Track) {
 
 }
 
+func emitDownload(ev events.Event) {
+	if currentEmitter != nil {
+		currentEmitter.Emit(ev)
+	}
+}
+
 func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	var err error
 	counter.Total++
+	trackLabel := fmt.Sprintf("%s — %s", track.Resp.Attributes.Name, track.Resp.Attributes.ArtistName)
 	fmt.Printf("Track %d of %d: %s\n", track.TaskNum, track.TaskTotal, track.Type)
+	emitDownload(events.Event{
+		Type:    events.EventTrackStart,
+		Message: fmt.Sprintf("Track %d of %d: %s", track.TaskNum, track.TaskTotal, trackLabel),
+		Track:   trackLabel,
+		Current: int64(track.TaskNum),
+		Total:   int64(track.TaskTotal),
+	})
 
 	//mv dl dev
 	if track.Type == "music-videos" {
 		if len(mediaUserToken) <= 50 {
-			fmt.Println("meida-user-token is not set, skip MV dl")
-			counter.Success++
+			counter.Error++
+			emitTrackDone(track, trackLabel, "failed", "Music video requires media-user-token in Settings")
 			return
 		}
 		if _, err := exec.LookPath(mp4decryptPath()); err != nil {
 			if _, statErr := os.Stat(mp4decryptPath()); statErr != nil {
-				fmt.Println("mp4decrypt is not found, skip MV dl")
-				counter.Success++
+				counter.Error++
+				emitTrackDone(track, trackLabel, "failed", "mp4decrypt not found — check Requirements tab")
 				return
 			}
 		}
 		err := mvDownloader(track.ID, track.SaveDir, token, track.Storefront, mediaUserToken, track)
 		if err != nil {
-			fmt.Println("\u26A0 Failed to dl MV:", err)
 			counter.Error++
+			emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("Music video download failed: %v", err))
 			return
 		}
 		counter.Success++
+		emitTrackDone(track, trackLabel, "success", "")
 		return
 	}
 
 	needDlAacLc := false
-	if dl_aac && Config.AacType == "aac-lc" {
+	if useAacLCDownload() {
 		needDlAacLc = true
 	}
 	if track.WebM3u8 == "" && !needDlAacLc {
 		if dl_atmos {
-			fmt.Println("Unavailable")
 			counter.Unavailable++
+			emitTrackDone(track, trackLabel, "unavailable", "Dolby Atmos stream not available for this track")
 			return
 		}
 		fmt.Println("Unavailable, trying to dl aac-lc")
@@ -865,8 +895,8 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		} else {
 			_, Quality, err = extractMedia(track.M3u8, true)
 			if err != nil {
-				fmt.Println("Failed to extract quality from manifest.\n", err)
 				counter.Error++
+				emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("Could not read stream info: %v", err))
 				return
 			}
 		}
@@ -891,17 +921,22 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
 
+	fileNum := trackFileNumber(track)
 	songName := strings.NewReplacer(
 		"{SongId}", track.ID,
-		"{SongNumer}", fmt.Sprintf("%02d", track.TaskNum),
+		"{SongNumer}", fmt.Sprintf("%02d", fileNum),
 		"{ArtistName}", LimitString(track.Resp.Attributes.ArtistName),
 		"{SongName}", LimitString(track.Resp.Attributes.Name),
 		"{DiscNumber}", fmt.Sprintf("%0d", track.Resp.Attributes.DiscNumber),
-		"{TrackNumber}", fmt.Sprintf("%0d", track.Resp.Attributes.TrackNumber),
+		"{TrackNumber}", fmt.Sprintf("%02d", fileNum),
 		"{Quality}", Quality,
 		"{Tag}", Tag_string,
 		"{Codec}", track.Codec,
 	).Replace(Config.SongFileFormat)
+	songName = strings.TrimSpace(songName)
+	if songName == "" || strings.TrimSpace(strings.ReplaceAll(songName, "_", "")) == "" {
+		songName = fmt.Sprintf("%02d. %s", fileNum, LimitString(track.Resp.Attributes.Name))
+	}
 	fmt.Println(songName)
 	filename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
 	track.SaveName = filename
@@ -924,9 +959,9 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		fmt.Println("Failed to check if track exists.")
 	}
 	if existsOriginal {
-		fmt.Println("Track already exists locally.")
 		counter.Success++
 		okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+		emitTrackDone(track, trackLabel, "skipped", fmt.Sprintf("Already on disk: %s", track.Resp.Attributes.Name))
 
 		tArtistId := ""
 		if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -944,9 +979,9 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	if considerConverted {
 		existsConverted, err2 := fileExists(convertedPath)
 		if err2 == nil && existsConverted {
-			fmt.Println("Converted track already exists locally.")
 			counter.Success++
 			okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+			emitTrackDone(track, trackLabel, "skipped", fmt.Sprintf("Already on disk (converted): %s", track.Resp.Attributes.Name))
 
 			tArtistId := ""
 			if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -973,7 +1008,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	if Config.EmbedLrc || Config.SaveLrcFile {
 		lrcStr, err := lyrics.Get(track.Storefront, track.ID, Config.LrcType, Config.Language, Config.LrcFormat, token, mediaUserToken)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("Lyrics skipped for %q: %v\n", track.Resp.Attributes.Name, err)
 		} else {
 			if Config.SaveLrcFile {
 				err := writeLyrics(track.SaveDir, lrcFilename, lrcStr)
@@ -989,60 +1024,82 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 
 	if needDlAacLc {
 		if len(mediaUserToken) <= 50 {
-			fmt.Println("Invalid media-user-token")
 			counter.Error++
+			emitTrackDone(track, trackLabel, "failed", "AAC download requires media-user-token in Settings")
 			return
 		}
 		_, err := runv3.Run(track.ID, trackPath, token, mediaUserToken, false, "")
 		if err != nil {
-			fmt.Println("Failed to dl aac-lc:", err)
 			if err.Error() == "Unavailable" {
 				counter.Unavailable++
+				emitTrackDone(track, trackLabel, "unavailable", fmt.Sprintf("Not available on Apple Music: %s", track.Resp.Attributes.Name))
 				return
 			}
 			counter.Error++
+			emitTrackDone(track, trackLabel, "failed", formatAACError(err))
 			return
 		}
 	} else {
 		trackM3u8Url, _, err := extractMedia(track.M3u8, false)
 		if err != nil {
-			fmt.Println("\u26A0 Failed to extract info from manifest:", err)
-			counter.Unavailable++
-			return
-		}
-		//边下载边解密
-		err = runv2.Run(track.ID, trackM3u8Url, trackPath, Config)
-		if err != nil {
-			fmt.Println("Failed to run v2:", err)
-			counter.Error++
-			return
+			if dl_aac && len(mediaUserToken) > 50 {
+				fmt.Println("No matching AAC stream in manifest; falling back to AAC-LC download")
+				_, err = runv3.Run(track.ID, trackPath, token, mediaUserToken, false, "")
+				if err != nil {
+					if err.Error() == "Unavailable" {
+						counter.Unavailable++
+						emitTrackDone(track, trackLabel, "unavailable", fmt.Sprintf("Not available on Apple Music: %s", track.Resp.Attributes.Name))
+						return
+					}
+					counter.Error++
+					emitTrackDone(track, trackLabel, "failed", formatAACError(err))
+					return
+				}
+			} else {
+				counter.Unavailable++
+				msg := fmt.Sprintf("Stream unavailable: %v", err)
+				if !dl_aac && !dl_atmos {
+					msg = "Lossless stream not found in manifest. Use AAC quality, or set up the ALAC wrapper (see Requirements tab)."
+				} else if dl_aac {
+					msg = "AAC stream not found. Add a valid media-user-token in Settings and use AAC quality."
+				}
+				emitTrackDone(track, trackLabel, "unavailable", msg)
+				return
+			}
+		} else {
+			err = runv2.Run(track.ID, trackM3u8Url, trackPath, Config)
+			if err != nil {
+				counter.Error++
+				emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("Decrypt/download failed (is wrapper running?): %v", err))
+				return
+			}
 		}
 	}
-	//这里利用MP4box将fmp4转化为mp4，并添加ilst box与cover，方便后面的mp4tag添加更多自定义标签
+	// MP4Box flattens fragmented MP4 and embeds cover before mp4tag adds metadata.
 	tags := []string{
 		"tool=",
 		"artist=AppleMusic",
 	}
 	if Config.EmbedCover {
-		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {
-			track.CoverPath, err = writeCover(track.SaveDir, track.ID, track.Resp.Attributes.Artwork.URL)
-			if err != nil {
-				fmt.Println("Failed to write cover.")
-			}
+		coverPath, coverErr := resolveCoverPath(track)
+		if coverErr != nil {
+			fmt.Printf("Cover skipped for %q: %v\n", track.Resp.Attributes.Name, coverErr)
+		} else {
+			track.CoverPath = coverPath
+			tags = append(tags, fmt.Sprintf("cover=%s", coverPath))
 		}
-		tags = append(tags, fmt.Sprintf("cover=%s", track.CoverPath))
 	}
 	tagsString := strings.Join(tags, ":")
-	cmd := exec.Command(mp4boxPath(), "-itags", tagsString, trackPath)
+	cmd := exec.Command(mp4boxPath(), "-flat", "-itags", tagsString, trackPath)
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Embed failed: %v\n", err)
 		counter.Error++
+		emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("MP4Box failed (%s): %v", mp4boxPath(), err))
 		return
 	}
-	if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist {
+	if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist && track.CoverPath != "" {
 		if err := os.Remove(track.CoverPath); err != nil {
-			fmt.Printf("Error deleting file: %s\n", track.CoverPath)
 			counter.Error++
+			emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("Cleanup failed: %v", err))
 			return
 		}
 	}
@@ -1059,8 +1116,8 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 
 	err = writeMP4Tags(track, lrc)
 	if err != nil {
-		fmt.Println("\u26A0 Failed to write tags in media:", err)
 		counter.Unavailable++
+		emitTrackDone(track, trackLabel, "unavailable", fmt.Sprintf("Tagging failed: %v", err))
 		return
 	}
 
@@ -1081,6 +1138,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 
 	counter.Success++
 	okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+	emitTrackDone(track, trackLabel, "success", "")
 }
 
 func ripStation(albumId string, token string, storefront string, mediaUserToken string) error {
@@ -1242,7 +1300,7 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 		tagsString := strings.Join(tags, ":")
 		cmd := exec.Command(mp4boxPath(), "-itags", tagsString, trackPath)
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("Embed failed: %v\n", err)
+			fmt.Printf("MP4Box embed failed (%s): %v\n", mp4boxPath(), err)
 		}
 		AddedTracks = append(AddedTracks, AddedTrack{
 			Path:     trackPath,
@@ -1380,7 +1438,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
-		} else if dl_aac && Config.AacType == "aac-lc" {
+		} else if useAacLCDownload() {
 			Quality = "256Kbps"
 		} else {
 			manifest1, err := ampapi.GetSongResp(storefront, meta.Data[0].Relationships.Tracks.Data[0].ID, album.Language, token)
@@ -1433,7 +1491,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	var albumFolderName string
 	albumFolderName = strings.NewReplacer(
 		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
-		"{ReleaseYear}", meta.Data[0].Attributes.ReleaseDate[:4],
+		"{ReleaseYear}", releaseYear(meta.Data[0].Attributes.ReleaseDate),
 		"{ArtistName}", LimitString(meta.Data[0].Attributes.ArtistName),
 		"{AlbumName}", LimitString(meta.Data[0].Attributes.Name),
 		"{UPC}", meta.Data[0].Attributes.Upc,
@@ -1523,10 +1581,6 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		album.Tracks[i].Codec = Codec
 	}
 	trackTotal := len(meta.Data[0].Relationships.Tracks.Data)
-	arr := make([]int, trackTotal)
-	for i := 0; i < trackTotal; i++ {
-		arr[i] = i + 1
-	}
 
 	if dl_song {
 		if urlArg_i == "" {
@@ -1541,11 +1595,7 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		return nil
 	}
 	var selected []int
-	if !dl_select {
-		selected = arr
-	} else {
-		selected = album.ShowSelect()
-	}
+	selected = resolveTrackSelection(trackTotal, album.ShowSelect)
 	startIdx := len(AddedTracks)
 	for i := range album.Tracks {
 		i++
@@ -1652,7 +1702,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
-		} else if dl_aac && Config.AacType == "aac-lc" {
+		} else if useAacLCDownload() {
 			Quality = "256Kbps"
 		} else {
 			manifest1, err := ampapi.GetSongResp(storefront, meta.Data[0].Relationships.Tracks.Data[0].ID, playlist.Language, token)
@@ -1782,17 +1832,9 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		}
 	}
 	trackTotal := len(meta.Data[0].Relationships.Tracks.Data)
-	arr := make([]int, trackTotal)
-	for i := 0; i < trackTotal; i++ {
-		arr[i] = i + 1
-	}
 	var selected []int
 
-	if !dl_select {
-		selected = arr
-	} else {
-		selected = playlist.ShowSelect()
-	}
+	selected = resolveTrackSelection(trackTotal, playlist.ShowSelect)
 	startIdx := len(AddedTracks)
 	for i := range playlist.Tracks {
 		i++
@@ -1843,7 +1885,7 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 			"UPC":         "",
 		},
 		Composer:    track.Resp.Attributes.ComposerName,
-		CustomGenre: track.Resp.Attributes.GenreNames[0],
+		CustomGenre: firstGenre(track.Resp.Attributes.GenreNames),
 		Lyrics:      lrc,
 		TrackNumber: int16(track.Resp.Attributes.TrackNumber),
 		DiscNumber:  int16(track.Resp.Attributes.DiscNumber),
@@ -1917,6 +1959,22 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		t.ItunesAdvisory = mp4tag.ItunesAdvisoryClean
 	} else {
 		t.ItunesAdvisory = mp4tag.ItunesAdvisoryNone
+	}
+
+	if Config.EmbedCover {
+		coverPath := track.CoverPath
+		if coverPath == "" {
+			if p, err := resolveCoverPath(track); err == nil {
+				coverPath = p
+			}
+		}
+		if coverData, err := loadCoverBytes(coverPath); err == nil && len(coverData) > 0 {
+			format := mp4tag.ImageTypeJPEG
+			if strings.HasSuffix(strings.ToLower(coverPath), ".png") {
+				format = mp4tag.ImageTypePNG
+			}
+			t.Pictures = []*mp4tag.MP4Picture{{Format: format, Data: coverData}}
+		}
 	}
 
 	mp4, err := mp4tag.Open(track.SavePath)
@@ -2201,7 +2259,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		"tool=",
 		fmt.Sprintf("artist=%s", MVInfo.Data[0].Attributes.ArtistName),
 		fmt.Sprintf("title=%s", MVInfo.Data[0].Attributes.Name),
-		fmt.Sprintf("genre=%s", MVInfo.Data[0].Attributes.GenreNames[0]),
+		fmt.Sprintf("genre=%s", firstGenre(MVInfo.Data[0].Attributes.GenreNames)),
 		fmt.Sprintf("created=%s", MVInfo.Data[0].Attributes.ReleaseDate),
 		fmt.Sprintf("ISRC=%s", MVInfo.Data[0].Attributes.Isrc),
 	}
@@ -2583,7 +2641,7 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 				}
 				aacregex := regexp.MustCompile(`audio-stereo-\d+`)
 				replaced := aacregex.ReplaceAllString(variant.Audio, "aac")
-				if replaced == Config.AacType {
+				if replaced == effectiveAacType() {
 					if !debug_mode && !more_mode {
 						fmt.Printf("%s\n", variant.Audio)
 					}

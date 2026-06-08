@@ -96,6 +96,7 @@ go run ./cmd/amd --aac "https://music.apple.com/..."
 
 ## Troubleshooting
 
+- **App crashed during download** — open the log file at `%APPDATA%\AppleMusicDownloader\logs\app.log` (Queue tab → **Open log file**)
 - **Failed to get token** — check internet; optionally set `authorization-token` in Settings → Advanced
 - **mp4decrypt not found** — reinstall; verify `tools\mp4decrypt.exe` exists next to the app
 - **Lyrics failed** — verify `media-user-token` and matching **storefront** (e.g. `jp` for Japan accounts)

@@ -22,6 +22,10 @@ export function GetConfigPath() {
   return window['go']['main']['App']['GetConfigPath']();
 }
 
+export function GetLogPath() {
+  return window['go']['main']['App']['GetLogPath']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
@@ -38,8 +42,16 @@ export function OpenFolder(arg1) {
   return window['go']['main']['App']['OpenFolder'](arg1);
 }
 
+export function OpenLogFile() {
+  return window['go']['main']['App']['OpenLogFile']();
+}
+
 export function PickFolder() {
   return window['go']['main']['App']['PickFolder']();
+}
+
+export function PreviewURL(arg1) {
+  return window['go']['main']['App']['PreviewURL'](arg1);
 }
 
 export function SaveSettings(arg1) {
@@ -56,4 +68,8 @@ export function SetWizardComplete(arg1) {
 
 export function StartDownload(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['StartDownload'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function StartDownloadJob(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4);
 }

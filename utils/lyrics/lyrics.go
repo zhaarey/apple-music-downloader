@@ -29,7 +29,7 @@ type SongLyrics struct {
 
 func Get(storefront, songId, lrcType, language, lrcFormat, token, mediaUserToken string) (string, error) {
 	if len(mediaUserToken) < 50 {
-		return "", errors.New("MediaUserToken not set")
+		return "", errors.New("media-user-token not set or too short for lyrics")
 	}
 
 	ttml, err := getSongLyrics(songId, storefront, token, mediaUserToken, lrcType, language)
@@ -43,7 +43,7 @@ func Get(storefront, songId, lrcType, language, lrcFormat, token, mediaUserToken
 
 	lrc, err := TtmlToLrc(ttml)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("convert lyrics to LRC: %w", err)
 	}
 
 	return lrc, nil
@@ -65,16 +65,23 @@ func getSongLyrics(songId string, storefront string, token string, userToken str
 		return "", err
 	}
 	defer do.Body.Close()
-	obj := new(SongLyrics)
-	_ = json.NewDecoder(do.Body).Decode(&obj)
-	if obj.Data != nil {
-		if len(obj.Data[0].Attributes.Ttml) > 0 {
-			return obj.Data[0].Attributes.Ttml, nil
-		}
-		return obj.Data[0].Attributes.TtmlLocalizations, nil
-	} else {
-		return "", errors.New("failed to get lyrics")
+	if do.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("lyrics API returned %s", do.Status)
 	}
+	obj := new(SongLyrics)
+	if err := json.NewDecoder(do.Body).Decode(&obj); err != nil {
+		return "", fmt.Errorf("decode lyrics response: %w", err)
+	}
+	if len(obj.Data) == 0 {
+		return "", errors.New("no lyrics available for this song (API returned empty data)")
+	}
+	if len(obj.Data[0].Attributes.Ttml) > 0 {
+		return obj.Data[0].Attributes.Ttml, nil
+	}
+	if len(strings.TrimSpace(obj.Data[0].Attributes.TtmlLocalizations)) > 0 {
+		return obj.Data[0].Attributes.TtmlLocalizations, nil
+	}
+	return "", errors.New("no synced lyrics available for this song (check media-user-token and storefront match your account)")
 }
 
 // Use for detect if lyrics have CJK, will be replaced by transliteration if exist.
@@ -122,14 +129,22 @@ func containsCJK(s string) bool {
 }
 
 func TtmlToLrc(ttml string) (string, error) {
+	if strings.TrimSpace(ttml) == "" {
+		return "", errors.New("empty lyrics payload")
+	}
 	parsedTTML := etree.NewDocument()
 	err := parsedTTML.ReadFromString(ttml)
 	if err != nil {
 		return "", err
 	}
 
+	tt := parsedTTML.FindElement("tt")
+	if tt == nil {
+		return "", errors.New("invalid lyrics format: missing tt element")
+	}
+
 	var lrcLines []string
-	timingAttr := parsedTTML.FindElement("tt").SelectAttr("itunes:timing")
+	timingAttr := tt.SelectAttr("itunes:timing")
 	if timingAttr != nil {
 		if timingAttr.Value == "Word" {
 			lrc, err := conventSyllableTTMLToLRC(ttml)
@@ -147,7 +162,11 @@ func TtmlToLrc(ttml string) (string, error) {
 		}
 	}
 
-	for _, item := range parsedTTML.FindElement("tt").FindElement("body").ChildElements() {
+	body := tt.FindElement("body")
+	if body == nil {
+		return "", errors.New("invalid lyrics format: missing body element")
+	}
+	for _, item := range body.ChildElements() {
 		for _, lyric := range item.ChildElements() {
 			var h, m, s, ms int
 			beginAttr := lyric.SelectAttr("begin")
@@ -175,9 +194,10 @@ func TtmlToLrc(ttml string) (string, error) {
 			ms = ms / 10
 			var text, transText, translitText string
 			//GET trans and translit
-			if len(parsedTTML.FindElement("tt").FindElements("head")) > 0 {
-				if len(parsedTTML.FindElement("tt").FindElement("head").FindElements("metadata")) > 0 {
-					Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
+			if len(tt.FindElements("head")) > 0 {
+				head := tt.FindElement("head")
+				if head != nil && len(head.FindElements("metadata")) > 0 {
+					Metadata := head.FindElement("metadata")
 					if len(Metadata.FindElements("iTunesMetadata")) > 0 {
 						iTunesMetadata := Metadata.FindElement("iTunesMetadata")
 						if len(iTunesMetadata.FindElements("transliterations")) > 0 {
@@ -252,10 +272,21 @@ func TtmlToLrc(ttml string) (string, error) {
 }
 
 func conventSyllableTTMLToLRC(ttml string) (string, error) {
+	if strings.TrimSpace(ttml) == "" {
+		return "", errors.New("empty lyrics payload")
+	}
 	parsedTTML := etree.NewDocument()
 	err := parsedTTML.ReadFromString(ttml)
 	if err != nil {
 		return "", err
+	}
+	tt := parsedTTML.FindElement("tt")
+	if tt == nil {
+		return "", errors.New("invalid lyrics format: missing tt element")
+	}
+	body := tt.FindElement("body")
+	if body == nil {
+		return "", errors.New("invalid lyrics format: missing body element")
 	}
 	var lrcLines []string
 	parseTime := func(timeValue string, newLine int) (string, error) {
@@ -283,7 +314,7 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 			return fmt.Sprintf("<%02d:%02d.%02d>", m, s, ms), nil
 		}
 	}
-	divs := parsedTTML.FindElement("tt").FindElement("body").FindElements("div")
+	divs := body.FindElements("div")
 	for _, div := range divs {
 		for _, item := range div.ChildElements() {     //LINES
 			var lrcSyllables []string
@@ -328,9 +359,8 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 				if i == 0 {
 					transBeginTime, _ := parseTime(lyric.SelectAttr("begin").Value, -1)
 					sharedTimestamp := ""
-					if len(parsedTTML.FindElement("tt").FindElements("head")) > 0 {
-						if len(parsedTTML.FindElement("tt").FindElement("head").FindElements("metadata")) > 0 {
-							Metadata := parsedTTML.FindElement("tt").FindElement("head").FindElement("metadata")
+					if head := tt.FindElement("head"); head != nil && len(head.FindElements("metadata")) > 0 {
+						Metadata := head.FindElement("metadata")
 							if len(Metadata.FindElements("iTunesMetadata")) > 0 {
 								iTunesMetadata := Metadata.FindElement("iTunesMetadata")
 								if len(iTunesMetadata.FindElements("transliterations")) > 0 {
@@ -390,7 +420,6 @@ func conventSyllableTTMLToLRC(ttml string) (string, error) {
 									}
 								}
 							}
-						}
 					}
 				}
 				i += 1

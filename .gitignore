@@ -16,6 +16,8 @@
 !/cmd/**
 !/internal/
 !/internal/**
+!/internal/logging/
+!/internal/logging/**
 !/gui/
 !/gui/**
 !/scripts/

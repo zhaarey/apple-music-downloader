@@ -3,13 +3,9 @@ import {
   GetSettings,
   SaveSettings,
   CheckDependencies,
-  Search,
-  DetectURLType,
-  StartDownload,
   CancelDownload,
-  IsDownloading,
-  PickFolder,
   OpenFolder,
+  PickFolder,
   GetWizardComplete,
   SetWizardComplete,
   EventsOn,
@@ -24,7 +20,7 @@ import RequirementsTab from './components/RequirementsTab'
 const TABS = [
   { id: 'download', label: 'Download' },
   { id: 'search', label: 'Search' },
-  { id: 'queue', label: 'Queue' },
+  { id: 'activity', label: 'Activity' },
   { id: 'requirements', label: 'Requirements' },
   { id: 'settings', label: 'Settings' },
 ]
@@ -35,8 +31,10 @@ export default function App() {
   const [settings, setSettings] = useState(null)
   const [deps, setDeps] = useState([])
   const [logs, setLogs] = useState([])
+  const [engineEvents, setEngineEvents] = useState([])
   const [downloading, setDownloading] = useState(false)
   const [prefillUrl, setPrefillUrl] = useState('')
+  const [jobSession, setJobSession] = useState(null)
 
   useEffect(() => {
     GetWizardComplete().then((done) => setShowWizard(!done))
@@ -44,6 +42,7 @@ export default function App() {
     CheckDependencies().then(setDeps)
 
     const off = EventsOn('engine:event', (ev) => {
+      setEngineEvents((prev) => [...prev.slice(-150), ev])
       if (ev?.message) {
         setLogs((prev) => [...prev.slice(-200), { time: new Date().toLocaleTimeString(), msg: ev.message, type: ev.type }])
       }
@@ -64,15 +63,19 @@ export default function App() {
     refreshDeps()
   }
 
-  const handleDownload = async (opts) => {
-    setDownloading(true)
-    setTab('queue')
-    await StartDownload(opts.urls, opts.quality, opts.singleSong, opts.selectTracks, opts.allArtistAlbums)
-  }
-
-  const handleSearchSelect = (url) => {
+  const handleSearchPreview = (url) => {
     setPrefillUrl(url)
     setTab('download')
+  }
+
+  const handleDownloadStart = () => {
+    setDownloading(true)
+    setJobSession(null)
+  }
+
+  const handleDownloadEnd = (result) => {
+    setDownloading(false)
+    if (result) setJobSession(result)
   }
 
   if (showWizard) {
@@ -86,7 +89,7 @@ export default function App() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-lg font-bold">♫</div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Apple Music Downloader</h1>
-            <p className="text-xs text-white/50">High-quality downloads for your library</p>
+            <p className="text-xs text-white/50">Fetch, preview, and download your music</p>
           </div>
         </div>
         <nav className="flex gap-1 rounded-xl bg-surface-raised p-1">
@@ -111,13 +114,24 @@ export default function App() {
             deps={deps}
             prefillUrl={prefillUrl}
             onPrefillConsumed={() => setPrefillUrl('')}
-            onDownload={handleDownload}
             downloading={downloading}
+            onDownloadStart={handleDownloadStart}
+            onDownloadEnd={handleDownloadEnd}
+            engineEvents={engineEvents}
+            jobSession={jobSession}
+            onClearJobSession={() => setJobSession(null)}
           />
         )}
-        {tab === 'search' && <SearchTab onSelect={handleSearchSelect} onDownload={handleDownload} />}
-        {tab === 'queue' && (
-          <QueueTab logs={logs} downloading={downloading} onCancel={CancelDownload} onOpenFolder={() => OpenFolder('')} />
+        {tab === 'search' && <SearchTab onPreview={handleSearchPreview} />}
+        {tab === 'activity' && (
+          <QueueTab
+            logs={logs}
+            engineEvents={engineEvents}
+            downloading={downloading}
+            onCancel={CancelDownload}
+            onOpenFolder={() => OpenFolder('')}
+            jobSession={jobSession}
+          />
         )}
         {tab === 'requirements' && <RequirementsTab deps={deps} onRefreshDeps={refreshDeps} />}
         {tab === 'settings' && (
