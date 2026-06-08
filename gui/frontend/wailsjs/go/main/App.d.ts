@@ -24,6 +24,8 @@ export function GetWizardComplete():Promise<boolean>;
 
 export function IsDownloading():Promise<boolean>;
 
+export function LogFrontendError(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function OpenFolder(arg1:string):Promise<void>;
 
 export function OpenLogFile():Promise<void>;

@@ -20,6 +20,8 @@ import {
 import WaveformEditor from './WaveformEditor'
 import TrackPreview from './TrackPreview'
 import { computeTrackSegment, formatMsPrecise, parseTimeInput } from './spliceTime'
+import { formatActionError, normalizeProject } from './projectUtils'
+import { reportFrontendError } from '../../lib/errorReporting'
 
 const TRACKLIST_TIMESTAMP_RE = /^(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?)\s+(.+)$/
 
@@ -105,6 +107,7 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   const [selectedTrackIdx, setSelectedTrackIdx] = useState(-1)
   const [masterAudioURL, setMasterAudioURL] = useState('')
   const [albumDefaultsApplied, setAlbumDefaultsApplied] = useState(false)
+  const [importingTracklist, setImportingTracklist] = useState(false)
   const albumDefaultsTimerRef = useRef(null)
 
   useEffect(() => {
@@ -116,9 +119,22 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   useEffect(() => {
     if (!project.master_path) {
       setMasterAudioURL('')
-      return
+      return undefined
     }
-    setMasterAudioURL(SpliceMasterAudioURL(project.master_path))
+    let cancelled = false
+    ;(async () => {
+      try {
+        const url = await Promise.resolve(SpliceMasterAudioURL(project.master_path))
+        if (!cancelled) {
+          setMasterAudioURL(typeof url === 'string' ? url : '')
+        }
+      } catch {
+        if (!cancelled) setMasterAudioURL('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [project.master_path])
 
   useEffect(() => {
@@ -149,12 +165,8 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   }, [])
 
   const boundaries = useMemo(() => {
-    if (!project.tracks?.length) return [0]
-    const starts = [0]
-    for (let i = 1; i < project.tracks.length; i++) {
-      starts.push(project.tracks[i].start_ms ?? 0)
-    }
-    return starts
+    if (!Array.isArray(project.tracks) || project.tracks.length === 0) return [0]
+    return project.tracks.map((t, i) => (i === 0 ? (t.start_ms ?? 0) : (t.start_ms ?? 0)))
   }, [project.tracks])
 
   const selectedTrack = useMemo(() => {
@@ -167,6 +179,10 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
     [project.tracks, project.master_duration_ms, selectedTrackIdx],
   )
 
+  const safeSetProject = (next, fallback = project) => {
+    setProject(normalizeProject(next, fallback))
+  }
+
   const loadMaster = async (path, baseProject = project) => {
     if (!path) return
     setError('')
@@ -175,19 +191,21 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
       const peakData = await SpliceGetPeaks(path, 3000)
       setProbe(info)
       setPeaks(peakData)
-      const updated = {
+      const updated = normalizeProject({
         ...baseProject,
         master_path: path,
         master_duration_ms: info.duration_ms,
-      }
+      }, baseProject)
       if (updated.tracks.length > 0) {
         const drifted = await SpliceDistributeDrift(updated)
-        setProject(drifted)
+        safeSetProject(drifted, updated)
       } else {
-        setProject(updated)
+        safeSetProject(updated, baseProject)
       }
     } catch (e) {
-      setError(String(e))
+      const msg = formatActionError(e, 'Load master file')
+      reportFrontendError('SpliceTab.loadMaster', e)
+      setError(msg)
     }
   }
 
@@ -233,8 +251,13 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   }
 
   const handleBoundaryChange = async (boundaryIndex, positionMs) => {
-    const updated = await SpliceSetBoundary(project, boundaryIndex, positionMs)
-    setProject(updated)
+    try {
+      const updated = await SpliceSetBoundary(project, boundaryIndex, positionMs)
+      safeSetProject(updated, project)
+    } catch (e) {
+      reportFrontendError('SpliceTab.handleBoundaryChange', e)
+      setError(formatActionError(e, 'Move boundary'))
+    }
   }
 
   const handleStartCommit = async (row, raw) => {
@@ -244,8 +267,13 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
       return
     }
     setError('')
-    const updated = await SpliceSetTrackStart(project, row, ms)
-    setProject(updated)
+    try {
+      const updated = await SpliceSetTrackStart(project, row, ms)
+      safeSetProject(updated, project)
+    } catch (e) {
+      reportFrontendError('SpliceTab.handleStartCommit', e)
+      setError(formatActionError(e, 'Update start time'))
+    }
   }
 
   const handleDurationCommit = async (row, raw) => {
@@ -255,13 +283,33 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
       return
     }
     setError('')
-    const updated = await SpliceSetTrackDuration(project, row, ms)
-    setProject(updated)
+    try {
+      const updated = await SpliceSetTrackDuration(project, row, ms)
+      safeSetProject(updated, project)
+    } catch (e) {
+      reportFrontendError('SpliceTab.handleDurationCommit', e)
+      setError(formatActionError(e, 'Update duration'))
+    }
   }
 
   const handleDistribute = async () => {
-    const updated = await SpliceDistributeDrift(project)
-    setProject(updated)
+    if (!project.tracks.length) {
+      setError('Add tracks before fitting durations to the master file.')
+      return
+    }
+    if (!project.master_duration_ms) {
+      setError('Open a master file first so durations can be fit to its length.')
+      return
+    }
+    setError('')
+    try {
+      const updated = await SpliceDistributeDrift(project)
+      safeSetProject(updated, project)
+      setStatus('Fitted track durations to master length.')
+    } catch (e) {
+      reportFrontendError('SpliceTab.handleDistribute', e)
+      setError(formatActionError(e, 'Fit durations to master'))
+    }
   }
 
   const handleExport = async () => {
@@ -273,7 +321,8 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
       if (!running) setExporting(false)
     } catch (e) {
       setExporting(false)
-      setError(String(e))
+      reportFrontendError('SpliceTab.handleExport', e)
+      setError(formatActionError(e, 'Export tracks'))
     }
   }
 
@@ -283,24 +332,40 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   }
 
   const handleParseTracklist = async () => {
-    const parsed = parseTracklistPaste(tracklistInput)
-    if (parsed.length === 0) {
-      setError('No timestamped tracks found. Paste lines like "0:12 Artist - Title".')
-      return
-    }
-    const next = {
-      ...project,
-      tracks: parsed,
-      album: {
-        ...project.album,
-        total_tracks: parsed.length,
-      },
-    }
-    const adjusted = await SpliceDistributeDrift(next)
-    setProject(adjusted)
-    setSelectedTrackIdx(0)
+    setImportingTracklist(true)
     setError('')
-    setStatus(`Imported ${parsed.length} tracks from pasted tracklist.`)
+    try {
+      const parsed = parseTracklistPaste(tracklistInput)
+      if (parsed.length === 0) {
+        setError('No timestamped tracks found. Paste lines like "0:12 Artist - Title".')
+        return
+      }
+
+      let next = normalizeProject({
+        ...project,
+        tracks: parsed,
+        album: {
+          ...project.album,
+          total_tracks: parsed.length,
+        },
+      }, project)
+
+      if (project.master_duration_ms > 0) {
+        next = normalizeProject(await SpliceDistributeDrift(next), next)
+      } else if (project.master_path) {
+        setStatus(`Imported ${parsed.length} tracks. Open or reload the master file to fit durations.`)
+      }
+
+      safeSetProject(next, project)
+      setSelectedTrackIdx(0)
+      setSelectedBoundary(Math.min(1, Math.max(0, next.tracks.length - 1)))
+      setStatus(`Imported ${parsed.length} tracks from pasted tracklist.`)
+    } catch (e) {
+      reportFrontendError('SpliceTab.handleParseTracklist', e, tracklistInput.slice(0, 500))
+      setError(formatActionError(e, 'Build tracks from paste'))
+    } finally {
+      setImportingTracklist(false)
+    }
   }
 
   const applyAlbumDefaultsToTracks = () => {
@@ -372,8 +437,13 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
           placeholder={`0:00 Intro\n0:12 Artist - Track Name\n1:49 Artist - Track Name\nw/ Acapella`}
         />
         <div className="mt-2 flex gap-2">
-          <button type="button" onClick={handleParseTracklist} className="rounded-lg bg-accent px-3 py-2 text-sm font-medium">
-            Build tracks from paste
+          <button
+            type="button"
+            disabled={importingTracklist}
+            onClick={handleParseTracklist}
+            className="rounded-lg bg-accent px-3 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {importingTracklist ? 'Building tracks…' : 'Build tracks from paste'}
           </button>
           <button type="button" onClick={() => setTracklistInput('')} className="rounded-lg border border-white/15 px-3 py-2 text-sm">
             Clear
@@ -476,7 +546,7 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
         </div>
 
         <div className="rounded-xl border border-white/10 bg-surface-raised p-4 lg:col-span-2">
-          <h3 className="font-medium">Tracks ({project.tracks.length})</h3>
+          <h3 className="font-medium">Tracks ({(project.tracks || []).length})</h3>
           <div className="mt-2 max-h-64 overflow-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-white/45">
@@ -488,7 +558,7 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
                 </tr>
               </thead>
               <tbody>
-                {project.tracks.map((t, i) => (
+                {(project.tracks || []).map((t, i) => (
                   <tr key={i} className={`cursor-pointer border-t border-white/5 ${selectedTrackIdx === i ? 'bg-accent/10' : ''}`} onClick={() => setSelectedTrackIdx(i)}>
                     <td className="py-1 pr-2 text-white/50">{i + 1}</td>
                     <td className="py-1 pr-2">
@@ -499,7 +569,7 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
                       />
                     </td>
                     <td className="py-1 pr-2">
-                      {i === 0 ? (
+                      {i === 0 && !(t.start_ms > 0) ? (
                         <span className="text-xs text-white/60">{formatMsPrecise(0)}</span>
                       ) : (
                         <input
@@ -685,7 +755,12 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
       </section>
 
       {status && <p className="text-sm text-green-200/90">{status}</p>}
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {error && (
+        <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <p>{error}</p>
+          <p className="mt-1 text-xs text-red-200/70">See Activity → log file or %APPDATA%\AuraAudioDownloader\logs\app.log for details.</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,16 +1,23 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	appconfig "main/internal/config"
+	"main/internal/logging"
 	"main/internal/splice"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-func (a *App) SpliceProbeMaster(path string) (splice.MasterProbe, error) {
+func (a *App) SpliceProbeMaster(path string) (probe splice.MasterProbe, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%s", logging.LogPanic("SpliceProbeMaster", r))
+		}
+	}()
 	cfg := a.eng.GetConfig()
 	return splice.ProbeMaster(cfg.FFmpegPath, path)
 }
@@ -36,19 +43,48 @@ func (a *App) SpliceComputeTimings(project splice.Project) [][3]int {
 	return a.spliceService().ComputeTimings(project)
 }
 
-func (a *App) SpliceSetBoundary(project splice.Project, boundaryIndex, positionMs int) splice.Project {
+func (a *App) SpliceSetBoundary(project splice.Project, boundaryIndex, positionMs int) (out splice.Project) {
+	out = project
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("SpliceSetBoundary", r)
+			out = project
+		}
+	}()
 	return a.spliceService().SetBoundary(project, boundaryIndex, positionMs)
 }
 
-func (a *App) SpliceSetTrackStart(project splice.Project, row, startMs int) splice.Project {
+func (a *App) SpliceSetTrackStart(project splice.Project, row, startMs int) (out splice.Project) {
+	out = project
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("SpliceSetTrackStart", r)
+			out = project
+		}
+	}()
 	return a.spliceService().SetTrackStartProject(project, row, startMs)
 }
 
-func (a *App) SpliceSetTrackDuration(project splice.Project, row, durationMs int) splice.Project {
+func (a *App) SpliceSetTrackDuration(project splice.Project, row, durationMs int) (out splice.Project) {
+	out = project
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("SpliceSetTrackDuration", r)
+			out = project
+		}
+	}()
 	return a.spliceService().SetTrackDurationProject(project, row, durationMs)
 }
 
-func (a *App) SpliceDistributeDrift(project splice.Project) splice.Project {
+func (a *App) SpliceDistributeDrift(project splice.Project) (out splice.Project) {
+	out = project
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("SpliceDistributeDrift", r)
+			out = project
+		}
+	}()
+	logging.Info("SpliceDistributeDrift tracks=%d master_ms=%d", len(project.Tracks), project.MasterDurationMs)
 	return a.spliceService().DistributeDriftProject(project)
 }
 

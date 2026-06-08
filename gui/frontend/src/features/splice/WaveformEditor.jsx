@@ -30,7 +30,7 @@ export default function WaveformEditor({ peaks, durationMs, boundaries, selected
 
     if (durationMs > 0 && boundaries?.length) {
       boundaries.forEach((ms, idx) => {
-        if (idx === 0) return
+        if (idx === 0 && ms <= 0) return
         const x = (ms / durationMs) * w
         const active = selectedBoundary === idx
         const lineWidth = active ? 4 : 3

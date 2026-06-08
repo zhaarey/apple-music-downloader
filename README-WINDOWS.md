@@ -45,8 +45,8 @@ Outputs:
 ## Split mix workflow
 
 1. Download a YouTube DJ set (YouTube mode on Download tab), or open an existing `.m4a` on **Split mix**
-2. Load a track template (e.g. `secret_sky_2020`) or add tracks manually
-3. Drag cut lines on the waveform (or use **Fit durations to master**)
+2. Paste a timestamped tracklist, or add tracks manually and drag cut lines on the waveform
+3. Use **Fit durations to master** if timings drift
 4. **Export tracks** — AAC 256 kbps files with album tags, ready for Apple Music sync
 
 ## Troubleshooting

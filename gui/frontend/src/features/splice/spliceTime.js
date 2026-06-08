@@ -61,7 +61,7 @@ export function parseTimeInput(value) {
 function resolveStarts(tracks, masterDurationMs) {
   const n = tracks.length
   const starts = new Array(n).fill(0)
-  starts[0] = 0
+  starts[0] = tracks[0]?.start_ms != null ? Math.max(0, tracks[0].start_ms) : 0
   for (let i = 1; i < n; i++) {
     if (tracks[i].start_ms != null) {
       starts[i] = Math.max(0, tracks[i].start_ms)

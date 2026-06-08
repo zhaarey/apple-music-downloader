@@ -254,3 +254,14 @@ func (a *App) OpenLogFile() error {
 	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(logging.Path()))
 	return nil
 }
+
+// LogFrontendError records a UI error to the app log file.
+func (a *App) LogFrontendError(source, message, detail string) {
+	if source == "" {
+		source = "frontend"
+	}
+	logging.Error("[frontend:%s] %s", source, message)
+	if detail != "" {
+		logging.Error("[frontend:%s detail] %s", source, detail)
+	}
+}

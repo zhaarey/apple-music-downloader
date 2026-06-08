@@ -17,6 +17,7 @@ import QueueTab from './components/QueueTab'
 import SettingsTab from './components/SettingsTab'
 import RequirementsTab from './components/RequirementsTab'
 import SpliceTab from './features/splice/SpliceTab'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const TABS = [
   { id: 'download', label: 'Download' },
@@ -145,7 +146,14 @@ export default function App() {
           />
         )}
         {tab === 'splice' && (
-          <SpliceTab handoff={spliceHandoff} onHandoffConsumed={() => setSpliceHandoff(null)} />
+          <ErrorBoundary
+            name="SpliceTab"
+            title="Split mix tab crashed"
+            hint="Try building tracks again. If it keeps failing, check the log file for the exact error."
+            onRetry={() => setTab('splice')}
+          >
+            <SpliceTab handoff={spliceHandoff} onHandoffConsumed={() => setSpliceHandoff(null)} />
+          </ErrorBoundary>
         )}
         {tab === 'search' && <SearchTab onPreview={handleSearchPreview} />}
         {tab === 'activity' && (

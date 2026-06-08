@@ -20,6 +20,8 @@ export const GetConfigPath = () => window.go?.main?.App?.GetConfigPath?.() ?? Pr
 export const GetAppDataDir = () => window.go?.main?.App?.GetAppDataDir?.() ?? Promise.resolve('')
 export const GetLogPath = () => window.go?.main?.App?.GetLogPath?.() ?? Promise.resolve('')
 export const OpenLogFile = () => window.go?.main?.App?.OpenLogFile?.() ?? Promise.resolve()
+export const LogFrontendError = (source, message, detail) =>
+  window.go?.main?.App?.LogFrontendError?.(source, message, detail) ?? Promise.resolve()
 
 export const SpliceProbeMaster = (path) => window.go?.main?.App?.SpliceProbeMaster?.(path) ?? Promise.resolve({})
 export const SpliceLoadProject = (path) => window.go?.main?.App?.SpliceLoadProject?.(path) ?? Promise.resolve({})
@@ -39,7 +41,8 @@ export const SpliceIsExporting = () => window.go?.main?.App?.SpliceIsExporting?.
 export const SplicePickMasterFile = () => window.go?.main?.App?.SplicePickMasterFile?.() ?? Promise.resolve('')
 export const SplicePickArtwork = () => window.go?.main?.App?.SplicePickArtwork?.() ?? Promise.resolve('')
 export const SplicePickOutputDir = () => window.go?.main?.App?.SplicePickOutputDir?.() ?? Promise.resolve('')
-export const SpliceMasterAudioURL = (path) => window.go?.main?.App?.SpliceMasterAudioURL?.(path) ?? ''
+export const SpliceMasterAudioURL = (path) =>
+  window.go?.main?.App?.SpliceMasterAudioURL?.(path) ?? Promise.resolve('')
 
 export const EventsOn = (eventName, callback) => {
   if (window.runtime?.EventsOn) {

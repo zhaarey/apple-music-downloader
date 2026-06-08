@@ -38,6 +38,10 @@ export function IsDownloading() {
   return window['go']['main']['App']['IsDownloading']();
 }
 
+export function LogFrontendError(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LogFrontendError'](arg1, arg2, arg3);
+}
+
 export function OpenFolder(arg1) {
   return window['go']['main']['App']['OpenFolder'](arg1);
 }
