@@ -66,7 +66,7 @@ func (a *App) startup(ctx context.Context) {
 	a.eng = engine.New(events.FuncEmitter(func(ev events.Event) {
 		runtime.EventsEmit(a.ctx, "engine:event", ev)
 	}))
-	if _, err := appconfig.InitIfMissing(); err != nil {
+	if _, _, err := appconfig.InitIfMissing(); err != nil {
 		_ = a.eng.LoadConfig(appconfig.DefaultConfigPath())
 		return
 	}
@@ -152,7 +152,8 @@ func (a *App) OpenFolder(path string) error {
 		cfg := a.eng.GetConfig()
 		path = cfg.AacSaveFolder
 	}
-	return runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(path))
+	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(path))
+	return nil
 }
 
 func (a *App) GetWizardComplete() bool {

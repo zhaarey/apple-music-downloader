@@ -83,7 +83,7 @@ func (e *Engine) log(msg string) {
 func (e *Engine) LoadConfig(path string) error {
 	cfg, err := appconfig.Load(path)
 	if err != nil {
-		if _, initErr := appconfig.InitIfMissing(); initErr == nil {
+		if _, _, initErr := appconfig.InitIfMissing(); initErr == nil {
 			cfg, err = appconfig.Load(appconfig.ConfigPath())
 		}
 		if err != nil {

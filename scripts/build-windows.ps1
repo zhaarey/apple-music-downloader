@@ -66,8 +66,13 @@ if ($LASTEXITCODE -ne 0) { throw "CLI build failed" }
 
 Write-Host "Building GUI (Wails)..."
 $wails = Find-Wails
-Push-Location $Root
-& $wails build -projectDirectory gui -platform windows/amd64 -clean
+$wailsArgs = @("build", "-platform", "windows/amd64", "-clean")
+if (-not $SkipFrontend) {
+    # Frontend was built above; avoid rebuilding in Wails.
+    $wailsArgs += "-s"
+}
+Push-Location (Join-Path $Root "gui")
+& $wails @wailsArgs
 if (Test-Path (Join-Path $Root "gui\build\bin\AppleMusicDownloader.exe")) {
     Copy-Item (Join-Path $Root "gui\build\bin\AppleMusicDownloader.exe") (Join-Path $Dist "AppleMusicDownloader.exe") -Force
 } elseif (Test-Path (Join-Path $Root "build\bin\AppleMusicDownloader.exe")) {
@@ -81,7 +86,7 @@ $requiredTools = @("MP4Box.exe")
 $optionalTools = @("ffmpeg.exe", "mp4decrypt.exe")
 foreach ($t in $requiredTools) {
     if (-not (Test-Path (Join-Path $Tools $t))) {
-        Write-Warning "Missing dist\tools\$t — download from GPAC and copy before creating installer."
+        Write-Warning "Missing dist\tools\$t - download from GPAC and copy before creating installer."
     }
 }
 foreach ($t in $optionalTools) {
@@ -101,7 +106,7 @@ if (-not $SkipInstaller) {
         & $iscc (Join-Path $Root "installer\setup.iss")
         Write-Host "Installer: $(Join-Path $Dist 'AppleMusicDownloader-Setup.exe')"
     } else {
-        Write-Warning "Inno Setup not found — skipping installer. Install from https://jrsoftware.org/isinfo.php"
+        Write-Warning "Inno Setup not found - skipping installer. Install from https://jrsoftware.org/isinfo.php"
     }
 }
 
