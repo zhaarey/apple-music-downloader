@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 
@@ -10,16 +12,86 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const AppName = "AppleMusicDownloader"
+const AppName = "AuraAudioDownloader"
 
-func AppDataDir() string {
+// LegacyAppName is the previous product folder under %APPDATA%.
+const LegacyAppName = "AppleMusicDownloader"
+
+func appDataRoot() string {
 	if runtime.GOOS == "windows" {
 		if appData := os.Getenv("APPDATA"); appData != "" {
-			return filepath.Join(appData, AppName)
+			return appData
 		}
 	}
 	home, _ := os.UserHomeDir()
+	return home
+}
+
+func AppDataDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(appDataRoot(), AppName)
+	}
+	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "."+AppName)
+}
+
+func LegacyAppDataDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(appDataRoot(), LegacyAppName)
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, "."+LegacyAppName)
+}
+
+func SpliceProjectsDir() string {
+	return filepath.Join(AppDataDir(), "splice-projects")
+}
+
+// MigrateLegacyAppData copies config/logs from the old Apple Music Downloader folder once.
+func MigrateLegacyAppData() error {
+	newDir := AppDataDir()
+	oldDir := LegacyAppDataDir()
+	if oldDir == newDir {
+		return nil
+	}
+	if _, err := os.Stat(oldDir); err != nil {
+		return nil
+	}
+	if err := os.MkdirAll(newDir, 0755); err != nil {
+		return err
+	}
+	copyIfMissing := func(name string) {
+		src := filepath.Join(oldDir, name)
+		dst := filepath.Join(newDir, name)
+		if _, err := os.Stat(dst); err == nil {
+			return
+		}
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return
+		}
+		_ = os.WriteFile(dst, data, 0644)
+	}
+	copyIfMissing("config.yaml")
+	copyIfMissing("wizard.json")
+	oldLogs := filepath.Join(oldDir, "logs")
+	newLogs := filepath.Join(newDir, "logs")
+	if _, err := os.Stat(newLogs); err != nil {
+		if entries, err := os.ReadDir(oldLogs); err == nil && len(entries) > 0 {
+			_ = os.MkdirAll(newLogs, 0755)
+			for _, ent := range entries {
+				if ent.IsDir() {
+					continue
+				}
+				data, err := os.ReadFile(filepath.Join(oldLogs, ent.Name()))
+				if err != nil {
+					continue
+				}
+				_ = os.WriteFile(filepath.Join(newLogs, ent.Name()), data, 0644)
+			}
+		}
+	}
+	return nil
 }
 
 func ConfigPath() string {
@@ -97,6 +169,93 @@ func FFmpegPath(configured string) string {
 		return configured
 	}
 	return "ffmpeg"
+}
+
+func resolveBinaryPath(name string) (string, bool) {
+	if name == "" {
+		return "", false
+	}
+	if fileExists(name) {
+		abs, err := filepath.Abs(name)
+		if err != nil {
+			return name, true
+		}
+		return abs, true
+	}
+	if resolved, err := exec.LookPath(name); err == nil {
+		return resolved, true
+	}
+	return "", false
+}
+
+func ffprobeInDir(dir string) (string, bool) {
+	for _, name := range []string{"ffprobe.exe", "ffprobe"} {
+		p := filepath.Join(dir, name)
+		if fileExists(p) {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+func FFprobePath(configured string) string {
+	ffmpeg := FFmpegPath(configured)
+	if resolved, ok := resolveBinaryPath(ffmpeg); ok {
+		if probe, ok := ffprobeInDir(filepath.Dir(resolved)); ok {
+			return probe
+		}
+	}
+	for _, name := range []string{"ffprobe.exe", "ffprobe"} {
+		if p := filepath.Join(ToolsDir(), name); fileExists(p) {
+			return p
+		}
+	}
+	if resolved, err := exec.LookPath("ffprobe"); err == nil {
+		return resolved
+	}
+	return "ffprobe"
+}
+
+// FFmpegLocation returns the directory for yt-dlp --ffmpeg-location (must contain ffmpeg + ffprobe).
+func FFmpegLocation(configured string) string {
+	tools := ToolsDir()
+	if _, ok := ffprobeInDir(tools); ok {
+		if fileExists(filepath.Join(tools, "ffmpeg.exe")) || fileExists(filepath.Join(tools, "ffmpeg")) {
+			abs, err := filepath.Abs(tools)
+			if err == nil {
+				return abs
+			}
+			return tools
+		}
+	}
+	ffmpeg, ok := resolveBinaryPath(FFmpegPath(configured))
+	if !ok {
+		return FFmpegPath(configured)
+	}
+	dir := filepath.Dir(ffmpeg)
+	if _, ok := ffprobeInDir(dir); ok {
+		return dir
+	}
+	return dir
+}
+
+// ValidateFFmpegForYouTube ensures ffmpeg and ffprobe are available in the same folder.
+func ValidateFFmpegForYouTube(configured string) error {
+	ffmpeg, ffmpegOK := resolveBinaryPath(FFmpegPath(configured))
+	if !ffmpegOK {
+		return fmt.Errorf("ffmpeg not found — install the ffmpeg essentials build and add to PATH, or place ffmpeg.exe and ffprobe.exe in dist/tools/")
+	}
+	ffmpegDir := filepath.Dir(ffmpeg)
+	if _, ok := ffprobeInDir(ffmpegDir); ok {
+		return nil
+	}
+	if probe, ok := resolveBinaryPath(FFprobePath(configured)); ok {
+		if filepath.Dir(probe) != ffmpegDir {
+			return fmt.Errorf("ffmpeg and ffprobe must be in the same folder for YouTube downloads (copy ffprobe.exe next to ffmpeg.exe, or use dist/tools/)")
+		}
+		return nil
+	}
+	return fmt.Errorf("ffprobe not found — YouTube audio extraction requires ffprobe (included in the ffmpeg essentials build). Install ffmpeg or add ffprobe.exe to dist/tools/ next to ffmpeg.exe")
 }
 
 func fileExists(path string) bool {
@@ -183,6 +342,7 @@ func DefaultConfig() structs.ConfigSet {
 }
 
 func InitIfMissing() (structs.ConfigSet, string, error) {
+	_ = MigrateLegacyAppData()
 	path := ConfigPath()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if err := EnsureAppDataDir(); err != nil {

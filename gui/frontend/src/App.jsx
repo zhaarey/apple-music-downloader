@@ -16,9 +16,11 @@ import SearchTab from './components/SearchTab'
 import QueueTab from './components/QueueTab'
 import SettingsTab from './components/SettingsTab'
 import RequirementsTab from './components/RequirementsTab'
+import SpliceTab from './features/splice/SpliceTab'
 
 const TABS = [
   { id: 'download', label: 'Download' },
+  { id: 'splice', label: 'Split mix' },
   { id: 'search', label: 'Search' },
   { id: 'activity', label: 'Activity' },
   { id: 'requirements', label: 'Requirements' },
@@ -35,6 +37,7 @@ export default function App() {
   const [downloading, setDownloading] = useState(false)
   const [prefillUrl, setPrefillUrl] = useState('')
   const [jobSession, setJobSession] = useState(null)
+  const [spliceHandoff, setSpliceHandoff] = useState(null)
 
   useEffect(() => {
     GetWizardComplete().then((done) => setShowWizard(!done))
@@ -68,14 +71,25 @@ export default function App() {
     setTab('download')
   }
 
-  const handleDownloadStart = () => {
-    setDownloading(true)
+  const resetDownloadPipeline = () => {
+    setEngineEvents([])
+    setLogs([])
     setJobSession(null)
+  }
+
+  const handleDownloadStart = () => {
+    resetDownloadPipeline()
+    setDownloading(true)
   }
 
   const handleDownloadEnd = (result) => {
     setDownloading(false)
     if (result) setJobSession(result)
+  }
+
+  const openSpliceWithHandoff = (handoff) => {
+    setSpliceHandoff(handoff)
+    setTab('splice')
   }
 
   if (showWizard) {
@@ -88,8 +102,8 @@ export default function App() {
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-lg font-bold">♫</div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Apple Music Downloader</h1>
-            <p className="text-xs text-white/50">Fetch, preview, and download your music</p>
+            <h1 className="text-lg font-semibold tracking-tight">Aura Audio Downloader</h1>
+            <p className="text-xs text-white/50">Apple Music · YouTube · Split DJ sets into tracks</p>
           </div>
         </div>
         <nav className="flex gap-1 rounded-xl bg-surface-raised p-1">
@@ -120,6 +134,8 @@ export default function App() {
             engineEvents={engineEvents}
             jobSession={jobSession}
             onClearJobSession={() => setJobSession(null)}
+            onResetPipeline={resetDownloadPipeline}
+            onSplitIntoTracks={openSpliceWithHandoff}
             onSettingsChange={async (patch) => {
               const cfg = { ...settings, ...patch }
               await SaveSettings(cfg)
@@ -127,6 +143,9 @@ export default function App() {
               refreshDeps()
             }}
           />
+        )}
+        {tab === 'splice' && (
+          <SpliceTab handoff={spliceHandoff} onHandoffConsumed={() => setSpliceHandoff(null)} />
         )}
         {tab === 'search' && <SearchTab onPreview={handleSearchPreview} />}
         {tab === 'activity' && (

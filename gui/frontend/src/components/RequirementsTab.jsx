@@ -15,7 +15,7 @@ const TOOLS = [
     name: 'Wails CLI',
     url: 'https://wails.io/docs/gettingstarted/installation',
     command: 'go install github.com/wailsapp/wails/v2/cmd/wails@latest',
-    requiredFor: 'Building AppleMusicDownloader.exe (GUI)',
+    requiredFor: 'Building AuraAudioDownloader.exe (GUI)',
     withoutIt: 'You can still build the CLI only (`amd.exe`).',
   },
   {

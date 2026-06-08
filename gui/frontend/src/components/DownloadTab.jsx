@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder } from '../wailsjs/go/main/App'
-import { parseJobResult, parseTrackRows, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
+import { parseJobResult, parseTrackRows, parseYouTubeProgress, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
+import { YouTubeFetchSkeleton, YouTubeProgressPanel } from './YouTubeUI'
+import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
 
 const QUALITIES = [
   { id: 'aac', label: 'AAC', desc: 'Works immediately', needsWrapper: false },
@@ -17,9 +19,10 @@ function outputFolderForQuality(settings, quality, youtubeMode) {
   return settings?.['aac-save-folder'] || ''
 }
 
-function JobStatusBanner({ jobResult, onOpenFolder, onOpenLog }) {
+function JobStatusBanner({ jobResult, onOpenFolder, onOpenLog, onSplitIntoTracks }) {
   if (!jobResult) return null
   const meta = jobStatusMeta(jobResult.phase)
+  const canSplit = Boolean(jobResult.handoff?.master_path || jobResult.masterPath)
   return (
     <div className={`rounded-xl border px-4 py-3 ${meta.className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -39,7 +42,12 @@ function JobStatusBanner({ jobResult, onOpenFolder, onOpenLog }) {
             </ul>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {canSplit && onSplitIntoTracks && (
+            <button type="button" onClick={onSplitIntoTracks} className="rounded-lg bg-accent/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-accent">
+              Split into tracks
+            </button>
+          )}
           <button type="button" onClick={onOpenFolder} className="rounded-lg bg-black/20 px-3 py-1.5 text-xs hover:bg-black/30">
             Open folder
           </button>
@@ -65,7 +73,9 @@ export default function DownloadTab({
   engineEvents,
   jobSession,
   onClearJobSession,
+  onResetPipeline,
   onSettingsChange,
+  onSplitIntoTracks,
 }) {
   const [url, setUrl] = useState('')
   const [urlType, setUrlType] = useState('')
@@ -75,6 +85,9 @@ export default function DownloadTab({
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
   const [jobStarted, setJobStarted] = useState(false)
+  const [saveVideo, setSaveVideo] = useState(false)
+  const [fetchStep, setFetchStep] = useState(0)
+  const [metaByTrack, setMetaByTrack] = useState({})
 
   const youtubeMode = Boolean(settings?.['youtube-mode'])
   const ytDlpOk = deps?.some((d) => d.name === 'yt-dlp' && d.ok)
@@ -97,6 +110,11 @@ export default function DownloadTab({
     return parseJobResult(engineEvents)
   }, [engineEvents, downloading, jobStarted])
 
+  const youtubeProgress = useMemo(
+    () => (youtubeMode ? parseYouTubeProgress(engineEvents) : null),
+    [engineEvents, youtubeMode],
+  )
+
   useEffect(() => {
     if (prefillUrl && !youtubeMode) {
       setUrl(prefillUrl)
@@ -113,21 +131,39 @@ export default function DownloadTab({
   }, [url, youtubeMode])
 
   useEffect(() => {
+    if (!fetching || !youtubeMode) {
+      setFetchStep(0)
+      return undefined
+    }
+    let step = 0
+    const timer = setInterval(() => {
+      step += 1
+      setFetchStep(step)
+    }, 1400)
+    return () => clearInterval(timer)
+  }, [fetching, youtubeMode])
+
+  useEffect(() => {
     if (!downloading && jobStarted) {
       onDownloadEnd?.(parseJobResult(engineEvents))
     }
   }, [downloading, jobStarted, engineEvents, onDownloadEnd])
 
-  const resetPreview = () => {
+  const resetPreview = ({ clearPipeline = false } = {}) => {
     setPreview(null)
     setSelected(new Set())
     setFetchError('')
     setJobStarted(false)
-    onClearJobSession?.()
+    setMetaByTrack({})
+    if (clearPipeline) {
+      onResetPipeline?.()
+    } else {
+      onClearJobSession?.()
+    }
   }
 
   const setMode = async (nextYouTube) => {
-    resetPreview()
+    resetPreview({ clearPipeline: true })
     setUrl('')
     setUrlType('')
     await onSettingsChange?.({ 'youtube-mode': nextYouTube })
@@ -141,7 +177,7 @@ export default function DownloadTab({
     setPreview(null)
     setSelected(new Set())
     setJobStarted(false)
-    onClearJobSession?.()
+    onResetPipeline?.()
     try {
       const res = await PreviewURL(trimmed)
       if (res.error) {
@@ -150,6 +186,7 @@ export default function DownloadTab({
       }
       setPreview(res)
       setSelected(new Set(res.tracks?.map((t) => t.num) || [1]))
+      setMetaByTrack(buildMetaFromPreview(res))
     } finally {
       setFetching(false)
     }
@@ -170,8 +207,8 @@ export default function DownloadTab({
       setFetchError('AAC downloads require media-user-token in Settings')
       return
     }
-    if (youtubeMode && (!ytDlpOk || !ffmpegOk)) {
-      setFetchError('YouTube mode requires yt-dlp and ffmpeg — check the Requirements tab')
+    if (youtubeMode && (!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok))) {
+      setFetchError('YouTube mode requires yt-dlp, ffmpeg, and ffprobe in the same folder — check Requirements tab')
       return
     }
 
@@ -197,7 +234,8 @@ export default function DownloadTab({
     setJobStarted(true)
     onDownloadStart?.()
     try {
-      await StartDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, selectedTrackNums, childURLs)
+      const youtubeMeta = youtubeMode ? metaPayload(metaByTrack, selected) : []
+      await StartDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, selectedTrackNums, childURLs, saveVideo, youtubeMeta)
     } catch (err) {
       setJobStarted(false)
       const msg = typeof err === 'string' ? err : err?.message || String(err)
@@ -207,8 +245,8 @@ export default function DownloadTab({
   }
 
   const selectedCount = selected.size
-  const showProgress = jobStarted && trackRows.length > 0
-  const urlUnknown = urlType === 'Unknown' && url.trim().length > 12
+  const showProgress = jobStarted && (trackRows.length > 0 || (youtubeMode && downloading))
+  const urlUnknown = urlType === 'Unknown' && url.trim().length > 12 && !youtubeMode
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-y-auto pb-4">
@@ -290,11 +328,13 @@ export default function DownloadTab({
 
           {fetchError && <p className="text-sm text-red-400">{fetchError}</p>}
 
-          {youtubeMode ? (
+          {fetching && youtubeMode && <YouTubeFetchSkeleton step={fetchStep} />}
+
+          {!fetching && youtubeMode ? (
             <div className="space-y-2">
-              {(!ytDlpOk || !ffmpegOk) && (
+              {(!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok)) && (
                 <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
-                  Install <strong>yt-dlp</strong> and <strong>ffmpeg</strong> on PATH (or in <code>dist/tools/</code>) — see Requirements tab.
+                  Install <strong>yt-dlp</strong>, <strong>ffmpeg</strong>, and <strong>ffprobe</strong> (essentials build) on PATH or in <code>dist/tools/</code> — see Requirements tab.
                 </p>
               )}
               <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
@@ -316,7 +356,7 @@ export default function DownloadTab({
           <div className="flex items-start justify-between gap-4">
             <button
               type="button"
-              onClick={resetPreview}
+              onClick={() => resetPreview({ clearPipeline: true })}
               className="text-sm text-white/50 hover:text-white"
               disabled={downloading}
             >
@@ -331,6 +371,10 @@ export default function DownloadTab({
             jobResult={jobResult || jobSession}
             onOpenFolder={() => OpenFolder('')}
             onOpenLog={() => OpenLogFile()}
+            onSplitIntoTracks={() => {
+              const h = (jobResult || jobSession)?.handoff
+              if (h?.master_path) onSplitIntoTracks?.(h)
+            }}
           />
 
           <div className="flex gap-4 rounded-xl border border-white/10 bg-surface-raised p-4">
@@ -385,9 +429,50 @@ export default function DownloadTab({
           )}
 
           {youtubeMode && (
-            <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-white/70">
-              Best available audio stream · embedded thumbnail & metadata · saved as high-quality audio file
-            </p>
+            <div className="space-y-3">
+              <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-white/70">
+                Downloads convert to <strong>AAC 256 kbps</strong> with Apple Music tags · organized in Album folders
+              </p>
+              <YouTubeMetadataEditor
+                preview={preview}
+                selected={selected}
+                metaByTrack={metaByTrack}
+                disabled={downloading}
+                onChange={(num, patch) =>
+                  setMetaByTrack((prev) => ({
+                    ...prev,
+                    [num]: { ...prev[num], ...patch },
+                  }))
+                }
+                onSharedChange={(patch) =>
+                  setMetaByTrack((prev) => {
+                    const next = { ...prev }
+                    Object.keys(next).forEach((k) => {
+                      if (selected.has(Number(k))) {
+                        next[k] = { ...next[k], ...patch }
+                      }
+                    })
+                    return next
+                  })
+                }
+              />
+              <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-surface-raised px-3 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={saveVideo}
+                  onChange={(e) => setSaveVideo(e.target.checked)}
+                  disabled={downloading}
+                  className="mt-1 shrink-0"
+                />
+                <span>
+                  <span className="font-medium text-white/90">Also save MP4 video copy</span>
+                  <span className="mt-1 block text-xs text-white/50">
+                    Creates a separate H.264/AAC MP4 file you can sync to your Apple Music library and watch offline.
+                    Adds extra download time.
+                  </span>
+                </span>
+              </label>
+            </div>
           )}
 
           {preview.can_select_tracks && preview.tracks?.length > 0 && (
@@ -425,7 +510,11 @@ export default function DownloadTab({
                       disabled={downloading}
                       className="shrink-0"
                     />
-                    <span className="w-6 shrink-0 text-right text-xs text-white/40">{t.num}</span>
+                    {youtubeMode && t.art_url ? (
+                      <img src={t.art_url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                    ) : (
+                      <span className="w-6 shrink-0 text-right text-xs text-white/40">{t.num}</span>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate">{t.name}</p>
                       <p className="truncate text-xs text-white/40">{t.artist}</p>
@@ -437,6 +526,10 @@ export default function DownloadTab({
                 ))}
               </ul>
             </div>
+          )}
+
+          {youtubeMode && (downloading || jobStarted) && (
+            <YouTubeProgressPanel progress={youtubeProgress} downloading={downloading} trackRows={trackRows} />
           )}
 
           {showProgress && (
@@ -456,8 +549,14 @@ export default function DownloadTab({
                       <span className={`mt-0.5 w-4 shrink-0 ${trackStatusClass(r.status)}`}>{trackStatusIcon(r.status)}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-white/90">{r.label}</p>
-                        {r.detail && r.status !== 'done' && (
+                        {r.sublabel && <p className="truncate text-[11px] text-white/40">{r.sublabel}</p>}
+                        {r.detail && (
                           <p className={`mt-0.5 ${trackStatusClass(r.status)}`}>{r.detail}</p>
+                        )}
+                        {youtubeMode && r.status === 'downloading' && r.percent > 0 && (
+                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/30">
+                            <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${r.percent}%` }} />
+                          </div>
                         )}
                       </div>
                     </div>
@@ -486,11 +585,15 @@ export default function DownloadTab({
             className="rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
           >
             {downloading
-              ? 'Downloading…'
+              ? saveVideo
+                ? 'Downloading audio + video…'
+                : 'Downloading…'
               : jobResult
                 ? 'Download again'
                 : youtubeMode
-                  ? `Download audio (${selectedCount})`
+                  ? saveVideo
+                    ? `Download audio + MP4 (${selectedCount})`
+                    : `Download audio (${selectedCount})`
                   : `Download ${selectedCount} selected`}
           </button>
         </>

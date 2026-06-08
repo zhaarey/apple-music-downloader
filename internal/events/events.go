@@ -13,7 +13,21 @@ const (
 	EventTrackFailed   EventType = "track_failed"
 	EventJobComplete   EventType = "job_complete"
 	EventError         EventType = "error"
+	EventSpliceProgress EventType = "splice_progress"
+	EventSpliceComplete EventType = "splice_complete"
+	EventSpliceError    EventType = "splice_error"
 )
+
+// SpliceHandoff prefills the Split mix tab after a download.
+type SpliceHandoff struct {
+	MasterPath  string `json:"master_path"`
+	Album       string `json:"album"`
+	AlbumArtist string `json:"album_artist"`
+	Artist      string `json:"artist"`
+	Year        string `json:"year"`
+	Genre       string `json:"genre"`
+	ArtURL      string `json:"art_url,omitempty"`
+}
 
 type Event struct {
 	Type    EventType `json:"type"`
@@ -25,6 +39,8 @@ type Event struct {
 	Success int       `json:"success,omitempty"`
 	Error   int       `json:"error,omitempty"`
 	Total_  int       `json:"total_count,omitempty"`
+	MasterPath string        `json:"master_path,omitempty"`
+	Handoff    *SpliceHandoff `json:"handoff,omitempty"`
 }
 
 type Emitter interface {

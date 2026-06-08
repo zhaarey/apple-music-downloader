@@ -185,6 +185,9 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
       </section>
 
       <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
           className="flex w-full items-center justify-between text-sm font-medium"
         >
           Advanced

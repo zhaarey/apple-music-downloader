@@ -1,16 +1,16 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Build Apple Music Downloader GUI, CLI, and Windows installer.
+  Build Aura Audio Downloader GUI, CLI, and Windows installer.
 
 .DESCRIPTION
   1. Builds frontend (npm)
-  2. Builds amd.exe CLI
-  3. Builds AppleMusicDownloader.exe via Wails
+  2. Builds aura.exe and amd.exe CLI (legacy alias)
+  3. Builds AuraAudioDownloader.exe via Wails
   4. Optionally compiles Inno Setup installer
 
   Place third-party binaries in dist\tools\ before packaging:
-    MP4Box.exe, ffmpeg.exe, mp4decrypt.exe, yt-dlp.exe
+    MP4Box.exe, ffmpeg.exe, ffprobe.exe, mp4decrypt.exe, yt-dlp.exe
 #>
 param(
     [switch]$SkipFrontend,
@@ -60,30 +60,31 @@ if (-not $SkipFrontend) {
     Pop-Location
 }
 
-Write-Host "Building CLI (amd.exe)..."
-& $go build -ldflags="-s -w" -o (Join-Path $Dist "amd.exe") ./cmd/amd
+Write-Host "Building CLI (aura.exe + amd.exe)..."
+& $go build -ldflags="-s -w" -o (Join-Path $Dist "aura.exe") ./cmd/amd
 if ($LASTEXITCODE -ne 0) { throw "CLI build failed" }
+Copy-Item (Join-Path $Dist "aura.exe") (Join-Path $Dist "amd.exe") -Force
 
 Write-Host "Building GUI (Wails)..."
 $wails = Find-Wails
 $wailsArgs = @("build", "-platform", "windows/amd64", "-clean")
 if (-not $SkipFrontend) {
-    # Frontend was built above; avoid rebuilding in Wails.
     $wailsArgs += "-s"
 }
 Push-Location (Join-Path $Root "gui")
 & $wails @wailsArgs
-if (Test-Path (Join-Path $Root "gui\build\bin\AppleMusicDownloader.exe")) {
-    Copy-Item (Join-Path $Root "gui\build\bin\AppleMusicDownloader.exe") (Join-Path $Dist "AppleMusicDownloader.exe") -Force
-} elseif (Test-Path (Join-Path $Root "build\bin\AppleMusicDownloader.exe")) {
-    Copy-Item (Join-Path $Root "build\bin\AppleMusicDownloader.exe") (Join-Path $Dist "AppleMusicDownloader.exe") -Force
+$builtGui = @(
+    (Join-Path $Root "gui\build\bin\AuraAudioDownloader.exe"),
+    (Join-Path $Root "build\bin\AuraAudioDownloader.exe")
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($builtGui) {
+    Copy-Item $builtGui (Join-Path $Dist "AuraAudioDownloader.exe") -Force
 }
 Pop-Location
 if ($LASTEXITCODE -ne 0) { throw "Wails build failed" }
 
-# Verify bundled tools
 $requiredTools = @("MP4Box.exe")
-$optionalTools = @("ffmpeg.exe", "mp4decrypt.exe", "yt-dlp.exe")
+$optionalTools = @("ffmpeg.exe", "ffprobe.exe", "mp4decrypt.exe", "yt-dlp.exe")
 foreach ($t in $requiredTools) {
     if (-not (Test-Path (Join-Path $Tools $t))) {
         Write-Warning "Missing dist\tools\$t - download from GPAC and copy before creating installer."
@@ -104,7 +105,7 @@ if (-not $SkipInstaller) {
     if ($iscc) {
         Write-Host "Building installer with Inno Setup..."
         & $iscc (Join-Path $Root "installer\setup.iss")
-        Write-Host "Installer: $(Join-Path $Dist 'AppleMusicDownloader-Setup.exe')"
+        Write-Host "Installer: $(Join-Path $Dist 'AuraAudioDownloader-Setup.exe')"
     } else {
         Write-Warning "Inno Setup not found - skipping installer. Install from https://jrsoftware.org/isinfo.php"
     }
@@ -112,6 +113,6 @@ if (-not $SkipInstaller) {
 
 Write-Host ""
 Write-Host "Build complete:"
-Write-Host "  GUI:  $Dist\AppleMusicDownloader.exe"
-Write-Host "  CLI:  $Dist\amd.exe"
+Write-Host "  GUI:  $Dist\AuraAudioDownloader.exe"
+Write-Host "  CLI:  $Dist\aura.exe (amd.exe is a copy for legacy scripts)"
 Write-Host "  Tools: $Tools\"

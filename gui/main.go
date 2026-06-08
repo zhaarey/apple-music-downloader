@@ -13,6 +13,7 @@ import (
 	"main/internal/engine"
 	"main/internal/events"
 	"main/internal/logging"
+	"main/internal/splice"
 	"main/utils/structs"
 
 	"github.com/wailsapp/wails/v2"
@@ -31,13 +32,14 @@ func main() {
 
 	app := NewApp()
 	err := wails.Run(&options.App{
-		Title:     "Apple Music Downloader",
+		Title:     "Aura Audio Downloader",
 		Width:     1100,
 		Height:    720,
 		MinWidth:  900,
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:     assets,
+			Middleware: spliceMediaMiddleware,
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 18, B: 20, A: 255},
 		OnStartup:        app.startup,
@@ -63,9 +65,17 @@ func (a *App) emitEngineEvent(ev events.Event) {
 	}
 }
 
+func (a *App) emitSpliceEvent(ev events.Event) {
+	logging.Info("[splice:%s] %s", ev.Type, ev.Message)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "splice:event", ev)
+	}
+}
+
 type App struct {
 	ctx     context.Context
 	eng     *engine.Engine
+	splice  *splice.Service
 	mu      sync.Mutex
 	running bool
 }
@@ -116,12 +126,14 @@ func (a *App) PreviewURL(url string) engine.PreviewResult {
 	return a.eng.PreviewURL(url)
 }
 
-func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string) error {
+func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string, youtubeSaveVideo bool, youtubeMeta []engine.YouTubeDownloadMeta) error {
 	opts := engine.RunOptions{
 		URLs:              []string{url},
 		Quality:           quality,
 		SelectedTrackNums: selectedTrackNums,
 		ChildURLs:         childURLs,
+		YouTubeSaveVideo:  youtubeSaveVideo,
+		YouTubeMeta:       youtubeMeta,
 	}
 	if err := a.eng.ValidateDownloadRequest(opts); err != nil {
 		return err
@@ -135,7 +147,7 @@ func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []i
 	a.running = true
 	a.mu.Unlock()
 
-	logging.Info("StartDownloadJob quality=%s url=%s tracks=%v childURLs=%d", quality, url, selectedTrackNums, len(childURLs))
+	logging.Info("StartDownloadJob quality=%s url=%s tracks=%v childURLs=%d saveVideo=%v", quality, url, selectedTrackNums, len(childURLs), youtubeSaveVideo)
 
 	go func() {
 		defer func() {
@@ -176,7 +188,7 @@ func (a *App) StartDownload(urls []string, quality string, singleSong, selectTra
 	if len(urls) > 0 {
 		url = urls[0]
 	}
-	return a.StartDownloadJob(url, quality, nil, nil)
+	return a.StartDownloadJob(url, quality, nil, nil, false, nil)
 }
 
 func (a *App) CancelDownload() {

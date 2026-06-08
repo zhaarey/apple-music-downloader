@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
-import { parseJobResult, jobStatusMeta, trackStatusIcon } from '../lib/downloadStatus'
+import { parseJobResult, sliceEventsForCurrentJob, jobStatusMeta, trackStatusIcon } from '../lib/downloadStatus'
 
 export default function QueueTab({ logs, engineEvents, downloading, onCancel, onOpenFolder, jobSession }) {
   const jobResult = useMemo(() => jobSession || parseJobResult(engineEvents), [jobSession, engineEvents])
   const meta = jobResult ? jobStatusMeta(jobResult.phase) : null
 
   const failedTracks = useMemo(() => {
-    return (engineEvents || [])
+    return sliceEventsForCurrentJob(engineEvents)
       .filter((e) => e.type === 'track_failed')
       .slice(-20)
       .map((e) => ({

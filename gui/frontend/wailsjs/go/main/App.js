@@ -66,10 +66,74 @@ export function SetWizardComplete(arg1) {
   return window['go']['main']['App']['SetWizardComplete'](arg1);
 }
 
+export function SpliceCancelExport() {
+  return window['go']['main']['App']['SpliceCancelExport']();
+}
+
+export function SpliceComputeTimings(arg1) {
+  return window['go']['main']['App']['SpliceComputeTimings'](arg1);
+}
+
+export function SpliceDistributeDrift(arg1) {
+  return window['go']['main']['App']['SpliceDistributeDrift'](arg1);
+}
+
+export function SpliceGetPeaks(arg1, arg2) {
+  return window['go']['main']['App']['SpliceGetPeaks'](arg1, arg2);
+}
+
+export function SpliceIsExporting() {
+  return window['go']['main']['App']['SpliceIsExporting']();
+}
+
+export function SpliceLoadProject(arg1) {
+  return window['go']['main']['App']['SpliceLoadProject'](arg1);
+}
+
+export function SpliceMasterAudioURL(arg1) {
+  return window['go']['main']['App']['SpliceMasterAudioURL'](arg1);
+}
+
+export function SplicePickArtwork() {
+  return window['go']['main']['App']['SplicePickArtwork']();
+}
+
+export function SplicePickMasterFile() {
+  return window['go']['main']['App']['SplicePickMasterFile']();
+}
+
+export function SplicePickOutputDir() {
+  return window['go']['main']['App']['SplicePickOutputDir']();
+}
+
+export function SpliceProbeMaster(arg1) {
+  return window['go']['main']['App']['SpliceProbeMaster'](arg1);
+}
+
+export function SpliceSaveProject(arg1) {
+  return window['go']['main']['App']['SpliceSaveProject'](arg1);
+}
+
+export function SpliceSetBoundary(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SpliceSetBoundary'](arg1, arg2, arg3);
+}
+
+export function SpliceSetTrackDuration(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SpliceSetTrackDuration'](arg1, arg2, arg3);
+}
+
+export function SpliceSetTrackStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SpliceSetTrackStart'](arg1, arg2, arg3);
+}
+
+export function SpliceStartExport(arg1) {
+  return window['go']['main']['App']['SpliceStartExport'](arg1);
+}
+
 export function StartDownload(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['StartDownload'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function StartDownloadJob(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4);
+export function StartDownloadJob(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4, arg5, arg6);
 }

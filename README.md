@@ -1,4 +1,47 @@
-# Apple Music ALAC / Dolby Atmos Downloader
+# Aura Audio Downloader
+
+Download Apple Music (AAC / ALAC / Dolby Atmos), YouTube audio, and split long DJ sets into tagged tracks for your library.
+
+## Quick start (Windows)
+
+Build with:
+
+```powershell
+.\scripts\build-windows.ps1 -SkipInstaller
+```
+
+Run:
+
+```powershell
+.\dist\AuraAudioDownloader.exe
+```
+
+CLI (legacy alias `amd.exe` also shipped):
+
+```powershell
+.\dist\aura.exe --help
+```
+
+Config and logs:
+
+```
+%APPDATA%\AuraAudioDownloader\config.yaml
+%APPDATA%\AuraAudioDownloader\logs\app.log
+```
+
+## Suites
+
+| Tab | Purpose |
+|-----|---------|
+| **Download** | Apple Music or YouTube audio |
+| **Split mix** | Slice a long recording into AAC tracks with album tags |
+| **Search** | Apple Music catalog search |
+
+After a YouTube DJ set download, use **Split into tracks** on the completion banner to open the splicer with the master file prefilled.
+
+---
+
+# Apple Music ALAC / Dolby Atmos Downloader (legacy README section)
 
 [English](./README.md) | [简体中文](./README-CN.md)
 

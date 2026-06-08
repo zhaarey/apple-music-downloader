@@ -27,15 +27,17 @@ type Engine struct {
 }
 
 type RunOptions struct {
-	URLs            []string
-	Quality         string // alac, aac, atmos
-	SingleSong      bool
-	SelectTracks    bool
+	URLs              []string
+	Quality           string // alac, aac, atmos, youtube
+	SingleSong        bool
+	SelectTracks      bool
 	SelectedTrackNums []int
 	ChildURLs         []string
 	AllArtistAlbums   bool
-	Debug           bool
-	PrintJSON       bool
+	YouTubeSaveVideo  bool
+	YouTubeMeta       []YouTubeDownloadMeta
+	Debug             bool
+	PrintJSON         bool
 }
 
 type DependencyStatus struct {
@@ -138,6 +140,15 @@ func (e *Engine) CheckDependencies() []DependencyStatus {
 			ffmpegErr = nil
 		}
 	}
+	ffmpegBundleErr := appconfig.ValidateFFmpegForYouTube(Config.FFmpegPath)
+
+	ytdlp := appconfig.YtDlpPath(Config.YtDlpPath)
+	_, ytdlpErr := exec.LookPath(ytdlp)
+	if ytdlpErr != nil {
+		if _, statErr := os.Stat(ytdlp); statErr == nil {
+			ytdlpErr = nil
+		}
+	}
 
 	mp4decrypt := appconfig.MP4DecryptPath()
 	_, mp4decErr := exec.LookPath(mp4decrypt)
@@ -150,17 +161,10 @@ func (e *Engine) CheckDependencies() []DependencyStatus {
 	wrapperDecrypt := probePort(Config.DecryptM3u8Port)
 	wrapperM3u8 := probePort(Config.GetM3u8Port)
 
-	ytdlp := appconfig.YtDlpPath(Config.YtDlpPath)
-	_, ytdlpErr := exec.LookPath(ytdlp)
-	if ytdlpErr != nil {
-		if _, statErr := os.Stat(ytdlp); statErr == nil {
-			ytdlpErr = nil
-		}
-	}
-
 	return []DependencyStatus{
 		{Name: "MP4Box", OK: mp4boxErr == nil, Detail: mp4box, Required: true},
 		{Name: "ffmpeg", OK: ffmpegErr == nil, Detail: ffmpeg, Required: false},
+		{Name: "ffprobe (YouTube)", OK: ffmpegBundleErr == nil, Detail: appconfig.FFmpegLocation(Config.FFmpegPath), Required: false},
 		{Name: "yt-dlp", OK: ytdlpErr == nil, Detail: ytdlp, Required: false},
 		{Name: "mp4decrypt", OK: mp4decErr == nil, Detail: mp4decrypt, Required: false},
 		{Name: "wrapper (decrypt)", OK: wrapperDecrypt, Detail: Config.DecryptM3u8Port, Required: false},

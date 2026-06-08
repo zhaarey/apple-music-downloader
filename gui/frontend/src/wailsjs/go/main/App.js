@@ -6,8 +6,8 @@ export const CheckDependencies = () => window.go?.main?.App?.CheckDependencies?.
 export const Search = (type, query, offset) => window.go?.main?.App?.Search?.(type, query, offset) ?? Promise.resolve({ hits: [], hasNext: false })
 export const DetectURLType = (url) => window.go?.main?.App?.DetectURLType?.(url) ?? 'Unknown'
 export const PreviewURL = (url) => window.go?.main?.App?.PreviewURL?.(url) ?? Promise.resolve({ error: 'Preview not available' })
-export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs) =>
-  window.go?.main?.App?.StartDownloadJob?.(url, quality, selectedTrackNums, childURLs) ?? Promise.resolve()
+export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs, youtubeSaveVideo, youtubeMeta) =>
+  window.go?.main?.App?.StartDownloadJob?.(url, quality, selectedTrackNums, childURLs, youtubeSaveVideo, youtubeMeta) ?? Promise.resolve()
 export const StartDownload = (urls, quality, singleSong, selectTracks, allArtistAlbums) =>
   window.go?.main?.App?.StartDownload?.(urls, quality, singleSong, selectTracks, allArtistAlbums) ?? Promise.resolve()
 export const CancelDownload = () => window.go?.main?.App?.CancelDownload?.() ?? Promise.resolve()
@@ -17,8 +17,29 @@ export const OpenFolder = (path) => window.go?.main?.App?.OpenFolder?.(path) ?? 
 export const GetWizardComplete = () => window.go?.main?.App?.GetWizardComplete?.() ?? Promise.resolve(false)
 export const SetWizardComplete = (v) => window.go?.main?.App?.SetWizardComplete?.(v) ?? Promise.resolve()
 export const GetConfigPath = () => window.go?.main?.App?.GetConfigPath?.() ?? Promise.resolve('')
+export const GetAppDataDir = () => window.go?.main?.App?.GetAppDataDir?.() ?? Promise.resolve('')
 export const GetLogPath = () => window.go?.main?.App?.GetLogPath?.() ?? Promise.resolve('')
 export const OpenLogFile = () => window.go?.main?.App?.OpenLogFile?.() ?? Promise.resolve()
+
+export const SpliceProbeMaster = (path) => window.go?.main?.App?.SpliceProbeMaster?.(path) ?? Promise.resolve({})
+export const SpliceLoadProject = (path) => window.go?.main?.App?.SpliceLoadProject?.(path) ?? Promise.resolve({})
+export const SpliceSaveProject = (project) => window.go?.main?.App?.SpliceSaveProject?.(project) ?? Promise.resolve('')
+export const SpliceComputeTimings = (project) => window.go?.main?.App?.SpliceComputeTimings?.(project) ?? Promise.resolve([])
+export const SpliceSetBoundary = (project, boundaryIndex, positionMs) =>
+  window.go?.main?.App?.SpliceSetBoundary?.(project, boundaryIndex, positionMs) ?? Promise.resolve(project)
+export const SpliceSetTrackStart = (project, row, startMs) =>
+  window.go?.main?.App?.SpliceSetTrackStart?.(project, row, startMs) ?? Promise.resolve(project)
+export const SpliceSetTrackDuration = (project, row, durationMs) =>
+  window.go?.main?.App?.SpliceSetTrackDuration?.(project, row, durationMs) ?? Promise.resolve(project)
+export const SpliceDistributeDrift = (project) => window.go?.main?.App?.SpliceDistributeDrift?.(project) ?? Promise.resolve(project)
+export const SpliceGetPeaks = (path, binCount) => window.go?.main?.App?.SpliceGetPeaks?.(path, binCount) ?? Promise.resolve({ bins: [] })
+export const SpliceStartExport = (project) => window.go?.main?.App?.SpliceStartExport?.(project) ?? Promise.resolve()
+export const SpliceCancelExport = () => window.go?.main?.App?.SpliceCancelExport?.() ?? Promise.resolve()
+export const SpliceIsExporting = () => window.go?.main?.App?.SpliceIsExporting?.() ?? Promise.resolve(false)
+export const SplicePickMasterFile = () => window.go?.main?.App?.SplicePickMasterFile?.() ?? Promise.resolve('')
+export const SplicePickArtwork = () => window.go?.main?.App?.SplicePickArtwork?.() ?? Promise.resolve('')
+export const SplicePickOutputDir = () => window.go?.main?.App?.SplicePickOutputDir?.() ?? Promise.resolve('')
+export const SpliceMasterAudioURL = (path) => window.go?.main?.App?.SpliceMasterAudioURL?.(path) ?? ''
 
 export const EventsOn = (eventName, callback) => {
   if (window.runtime?.EventsOn) {

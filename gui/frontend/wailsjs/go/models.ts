@@ -1,23 +1,5 @@
-export namespace engine {
+export namespace apple {
 	
-	export class DependencyStatus {
-	    name: string;
-	    ok: boolean;
-	    detail: string;
-	    required: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new DependencyStatus(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.ok = source["ok"];
-	        this.detail = source["detail"];
-	        this.required = source["required"];
-	    }
-	}
 	export class PreviewTrack {
 	    num: number;
 	    id: string;
@@ -29,6 +11,13 @@ export namespace engine {
 	    explicit: boolean;
 	    is_mv: boolean;
 	    url?: string;
+	    art_url?: string;
+	    album?: string;
+	    album_artist?: string;
+	    genre?: string;
+	    year?: string;
+	    track_number?: number;
+	    disc_number?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new PreviewTrack(source);
@@ -46,6 +35,13 @@ export namespace engine {
 	        this.explicit = source["explicit"];
 	        this.is_mv = source["is_mv"];
 	        this.url = source["url"];
+	        this.art_url = source["art_url"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.track_number = source["track_number"];
+	        this.disc_number = source["disc_number"];
 	    }
 	}
 	export class PreviewResult {
@@ -78,6 +74,195 @@ export namespace engine {
 	        this.can_select_tracks = source["can_select_tracks"];
 	        this.output_folder = source["output_folder"];
 	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace engine {
+	
+	export class DependencyStatus {
+	    name: string;
+	    ok: boolean;
+	    detail: string;
+	    required: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DependencyStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.ok = source["ok"];
+	        this.detail = source["detail"];
+	        this.required = source["required"];
+	    }
+	}
+
+}
+
+export namespace splice {
+	
+	export class AlbumMetadata {
+	    album: string;
+	    album_artist: string;
+	    artist: string;
+	    year: string;
+	    genre: string;
+	    artwork_path?: string;
+	    total_tracks?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AlbumMetadata(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.artist = source["artist"];
+	        this.year = source["year"];
+	        this.genre = source["genre"];
+	        this.artwork_path = source["artwork_path"];
+	        this.total_tracks = source["total_tracks"];
+	    }
+	}
+	export class MasterProbe {
+	    duration_ms: number;
+	    sample_rate: number;
+	    channels: number;
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MasterProbe(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.duration_ms = source["duration_ms"];
+	        this.sample_rate = source["sample_rate"];
+	        this.channels = source["channels"];
+	        this.summary = source["summary"];
+	    }
+	}
+	export class PeakBin {
+	    min: number;
+	    max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PeakBin(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.min = source["min"];
+	        this.max = source["max"];
+	    }
+	}
+	export class Track {
+	    title: string;
+	    duration_ms: number;
+	    start_ms?: number;
+	    artist?: string;
+	    track_number?: number;
+	    duration?: string;
+	    album?: string;
+	    album_artist?: string;
+	    genre?: string;
+	    year?: string;
+	    disc_number?: number;
+	    disc_total?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Track(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.duration_ms = source["duration_ms"];
+	        this.start_ms = source["start_ms"];
+	        this.artist = source["artist"];
+	        this.track_number = source["track_number"];
+	        this.duration = source["duration"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.disc_number = source["disc_number"];
+	        this.disc_total = source["disc_total"];
+	    }
+	}
+	export class Project {
+	    master_path: string;
+	    output_dir: string;
+	    album: AlbumMetadata;
+	    tracks: Track[];
+	    master_duration_ms: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Project(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.master_path = source["master_path"];
+	        this.output_dir = source["output_dir"];
+	        this.album = this.convertValues(source["album"], AlbumMetadata);
+	        this.tracks = this.convertValues(source["tracks"], Track);
+	        this.master_duration_ms = source["master_duration_ms"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class WaveformPeaks {
+	    bins: PeakBin[];
+	    duration_ms: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WaveformPeaks(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bins = this.convertValues(source["bins"], PeakBin);
+	        this.duration_ms = source["duration_ms"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -157,6 +342,9 @@ export namespace structs {
 	    "convert-delete-bad-alac": boolean;
 	    "alac-fix": boolean;
 	    "exit-on-error": boolean;
+	    "youtube-mode": boolean;
+	    "yt-dlp-path": string;
+	    "youtube-save-folder": string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConfigSet(source);
@@ -217,6 +405,46 @@ export namespace structs {
 	        this["convert-delete-bad-alac"] = source["convert-delete-bad-alac"];
 	        this["alac-fix"] = source["alac-fix"];
 	        this["exit-on-error"] = source["exit-on-error"];
+	        this["youtube-mode"] = source["youtube-mode"];
+	        this["yt-dlp-path"] = source["yt-dlp-path"];
+	        this["youtube-save-folder"] = source["youtube-save-folder"];
+	    }
+	}
+
+}
+
+export namespace youtube {
+	
+	export class DownloadMeta {
+	    num: number;
+	    title: string;
+	    artist: string;
+	    album: string;
+	    album_artist: string;
+	    genre: string;
+	    year: string;
+	    track_number: number;
+	    disc_number: number;
+	    track_total: number;
+	    art_url?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.num = source["num"];
+	        this.title = source["title"];
+	        this.artist = source["artist"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.track_number = source["track_number"];
+	        this.disc_number = source["disc_number"];
+	        this.track_total = source["track_total"];
+	        this.art_url = source["art_url"];
 	    }
 	}
 

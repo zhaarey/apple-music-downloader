@@ -6,41 +6,49 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	appconfig "main/internal/config"
 	"main/internal/events"
+	"main/internal/media"
+	"main/internal/youtube"
 	"main/utils/structs"
 )
 
 type ytDlpEntry struct {
-	Type      string       `json:"_type"`
-	ID        string       `json:"id"`
-	Title     string       `json:"title"`
-	Uploader  string       `json:"uploader"`
-	Channel   string       `json:"channel"`
-	Duration  float64      `json:"duration"`
-	Thumbnail string       `json:"thumbnail"`
-	URL       string       `json:"url"`
-	WebpageURL string      `json:"webpage_url"`
-	Entries   []ytDlpEntry `json:"entries"`
+	Type       string       `json:"_type"`
+	ID         string       `json:"id"`
+	Title      string       `json:"title"`
+	Uploader   string       `json:"uploader"`
+	Channel    string       `json:"channel"`
+	Playlist   string       `json:"playlist"`
+	Duration   float64      `json:"duration"`
+	Thumbnail  string       `json:"thumbnail"`
+	URL        string       `json:"url"`
+	WebpageURL string       `json:"webpage_url"`
+	Thumbnails []struct {
+		URL string `json:"url"`
+	} `json:"thumbnails"`
+	Entries []ytDlpEntry `json:"entries"`
 }
 
+var (
+	reYtDownloadPct  = regexp.MustCompile(`\[download\]\s+(\d+(?:\.\d+)?)%`)
+	reYtDownloadItem = regexp.MustCompile(`\[info\]\s+Downloading item (\d+) of (\d+)`)
+	reYtPostProcess  = regexp.MustCompile(`\[(ExtractAudio|Merger|EmbedThumbnail|Metadata|FixupM3u8)\]`)
+)
+
 func IsYouTubeURL(raw string) bool {
-	raw = strings.ToLower(strings.TrimSpace(raw))
-	if raw == "" {
-		return false
-	}
-	return strings.Contains(raw, "youtube.com/") ||
-		strings.Contains(raw, "youtu.be/") ||
-		strings.Contains(raw, "youtube.com?") ||
-		strings.HasPrefix(raw, "youtu.be")
+	return youtube.IsURL(raw)
 }
 
 func ytDlpPath() string {
@@ -48,11 +56,28 @@ func ytDlpPath() string {
 }
 
 func youtubeOutputDir() string {
-	dir := Config.YouTubeSaveFolder
-	if dir == "" {
-		dir = Config.AacSaveFolder
+	return youtube.OutputDir(Config)
+}
+
+func ytDlpFFmpegArgs() []string {
+	return youtube.FFmpegArgs(Config)
+}
+
+func bestThumbnail(entry ytDlpEntry) string {
+	if entry.Thumbnail != "" {
+		return entry.Thumbnail
 	}
-	return dir
+	if n := len(entry.Thumbnails); n > 0 {
+		return entry.Thumbnails[n-1].URL
+	}
+	return ""
+}
+
+func entryUploader(entry ytDlpEntry) string {
+	if entry.Uploader != "" {
+		return entry.Uploader
+	}
+	return entry.Channel
 }
 
 func (e *Engine) previewYouTube(raw string) PreviewResult {
@@ -91,48 +116,30 @@ func (e *Engine) detectYouTubeType(raw string) string {
 }
 
 func (e *Engine) fetchYouTubeInfo(raw string) (ytDlpEntry, error) {
-	args := []string{
-		"--no-warnings",
-		"--no-playlist",
-		"-J",
-		raw,
-	}
+	args := []string{"--no-warnings", "--no-playlist", "-J", raw}
 	if strings.Contains(raw, "list=") {
-		args = []string{
-			"--no-warnings",
-			"--flat-playlist",
-			"-J",
-			raw,
-		}
+		args = []string{"--no-warnings", "--flat-playlist", "-J", raw}
 	}
-	out, err := e.runYtDlp(args...)
+	out, err := e.runYtDlpWithTimeout(300*time.Second, args...)
 	if err != nil {
 		return ytDlpEntry{}, fmt.Errorf("could not read YouTube metadata: %w", err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(out))
+
 	var info ytDlpEntry
-	if err := decoder.Decode(&info); err != nil {
-		// Flat playlist returns one JSON object per line.
-		scanner := bufio.NewScanner(bytes.NewReader(out))
-		var entries []ytDlpEntry
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
-			var entry ytDlpEntry
-			if json.Unmarshal([]byte(line), &entry) != nil {
-				continue
-			}
-			if entry.Title == "" {
-				entry.Title = entry.ID
-			}
-			entries = append(entries, entry)
+	if err := json.Unmarshal(out, &info); err != nil {
+		return ytDlpEntry{}, fmt.Errorf("could not parse YouTube metadata: %w", err)
+	}
+	if len(info.Entries) > 0 {
+		if info.Title == "" {
+			info.Title = info.Playlist
 		}
-		if len(entries) == 0 {
-			return ytDlpEntry{}, fmt.Errorf("could not parse YouTube metadata")
+		if info.Title == "" {
+			info.Title = "YouTube playlist"
 		}
-		return ytDlpEntry{Type: "playlist", Entries: entries, Title: "YouTube playlist"}, nil
+		return info, nil
+	}
+	if info.Title == "" && info.ID != "" {
+		info.Title = info.ID
 	}
 	return info, nil
 }
@@ -142,25 +149,33 @@ func (e *Engine) previewYouTubeVideo(raw string, info ytDlpEntry, out PreviewRes
 	if title == "" {
 		title = "YouTube video"
 	}
-	subtitle := info.Uploader
+	subtitle := entryUploader(info)
 	if subtitle == "" {
-		subtitle = info.Channel
+		subtitle = "YouTube"
 	}
 	out.Title = title
 	out.Subtitle = subtitle
-	out.ArtURL = info.Thumbnail
+	out.ArtURL = bestThumbnail(info)
 	out.TrackCount = 1
 	out.CanSelectTracks = false
 	out.TotalDuration = formatDuration(int(info.Duration * 1000))
+	year := youtube.DefaultYear()
 	out.Tracks = []PreviewTrack{{
-		Num:        1,
-		ID:         info.ID,
-		Name:       title,
-		Artist:     subtitle,
-		Type:       "youtube",
-		Duration:   out.TotalDuration,
-		DurationMs: int(info.Duration * 1000),
-		URL:        raw,
+		Num:         1,
+		ID:          info.ID,
+		Name:        title,
+		Artist:      subtitle,
+		Type:        "youtube",
+		Duration:    out.TotalDuration,
+		DurationMs:  int(info.Duration * 1000),
+		URL:         raw,
+		ArtURL:      out.ArtURL,
+		Album:       title,
+		AlbumArtist: subtitle,
+		Genre:       "DJ Mix",
+		Year:        year,
+		TrackNumber: 1,
+		DiscNumber:  1,
 	}}
 	return out
 }
@@ -170,38 +185,59 @@ func (e *Engine) previewYouTubePlaylist(raw string, info ytDlpEntry, out Preview
 	if title == "" {
 		title = "YouTube playlist"
 	}
+	channel := entryUploader(info)
+	subtitle := fmt.Sprintf("%d videos", len(info.Entries))
+	if channel != "" {
+		subtitle = fmt.Sprintf("%s · %s", channel, subtitle)
+	}
 	out.Title = title
-	out.Subtitle = fmt.Sprintf("%d videos", len(info.Entries))
+	out.Subtitle = subtitle
 	out.CanSelectTracks = true
+	out.ArtURL = bestThumbnail(info)
+
 	tracks := make([]PreviewTrack, 0, len(info.Entries))
 	totalMs := 0
+	year := youtube.DefaultYear()
 	for i, entry := range info.Entries {
 		name := entry.Title
 		if name == "" {
 			name = fmt.Sprintf("Video %d", i+1)
 		}
-		artist := entry.Uploader
+		artist := entryUploader(entry)
 		if artist == "" {
-			artist = entry.Channel
+			artist = channel
 		}
 		durMs := int(entry.Duration * 1000)
 		totalMs += durMs
+		durationLabel := formatDuration(durMs)
+		if durMs == 0 {
+			durationLabel = "—"
+		}
 		tracks = append(tracks, PreviewTrack{
-			Num:        i + 1,
-			ID:         entry.ID,
-			Name:       name,
-			Artist:     artist,
-			Type:       "youtube",
-			Duration:   formatDuration(durMs),
-			DurationMs: durMs,
-			URL:        entry.URL,
+			Num:         i + 1,
+			ID:          entry.ID,
+			Name:        name,
+			Artist:      artist,
+			Type:        "youtube",
+			Duration:    durationLabel,
+			DurationMs:  durMs,
+			URL:         entry.URL,
+			ArtURL:      bestThumbnail(entry),
+			Album:       title,
+			AlbumArtist: channel,
+			Genre:       "DJ Mix",
+			Year:        year,
+			TrackNumber: i + 1,
+			DiscNumber:  1,
 		})
 	}
 	out.Tracks = tracks
 	out.TrackCount = len(tracks)
-	out.TotalDuration = formatDuration(totalMs)
-	if out.ArtURL == "" && len(info.Entries) > 0 {
-		out.ArtURL = info.Entries[0].Thumbnail
+	if totalMs > 0 {
+		out.TotalDuration = formatDuration(totalMs)
+	}
+	if out.ArtURL == "" && len(tracks) > 0 {
+		out.ArtURL = tracks[0].ArtURL
 	}
 	return out
 }
@@ -217,13 +253,7 @@ func (e *Engine) ensureYtDlp() error {
 }
 
 func (e *Engine) ensureFFmpegForYouTube() error {
-	bin := appconfig.FFmpegPath(Config.FFmpegPath)
-	if _, err := exec.LookPath(bin); err != nil {
-		if _, statErr := os.Stat(bin); statErr != nil {
-			return fmt.Errorf("ffmpeg not found — YouTube audio extraction requires ffmpeg on PATH or in dist/tools/")
-		}
-	}
-	return nil
+	return appconfig.ValidateFFmpegForYouTube(Config.FFmpegPath)
 }
 
 func (e *Engine) validateYouTubeDownload(opts RunOptions) error {
@@ -260,9 +290,15 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 	AddedTracks = nil
 	okDict = make(map[string][]int)
 
+	var lastHandoff *youtube.HandoffPayload
+
+	jobMsg := "Starting YouTube download (AAC 256 kbps for Apple Music)"
+	if opts.YouTubeSaveVideo {
+		jobMsg += " + MP4 video"
+	}
 	e.emit(events.Event{
 		Type:    events.EventJobStart,
-		Message: "Starting YouTube audio download (best quality)",
+		Message: jobMsg,
 		Phase:   "youtube",
 	})
 
@@ -274,12 +310,16 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 	for i, raw := range urls {
 		select {
 		case <-e.ctx.Done():
-			e.finishYouTubeJob("cancelled", fmt.Sprintf("Cancelled — %d completed before stop", counter.Success))
+			e.finishYouTubeJob("cancelled", fmt.Sprintf("Cancelled — %d completed before stop", counter.Success), nil)
 			return
 		default:
 		}
 		e.log(fmt.Sprintf("YouTube %d of %d", i+1, len(urls)))
-		if err := e.downloadYouTubeURL(raw, opts.SelectedTrackNums); err != nil {
+		handoff, err := e.downloadYouTubeURL(raw, opts.SelectedTrackNums, opts.YouTubeSaveVideo, opts.YouTubeMeta)
+		if handoff != nil {
+			lastHandoff = handoff
+		}
+		if err != nil {
 			e.logError(err.Error())
 			if Config.ExitOnError {
 				break
@@ -289,115 +329,460 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 
 	msg := fmt.Sprintf("Finished: %d succeeded, %d failed (of %d attempted)",
 		counter.Success, counter.Error, counter.Total)
+	var eventHandoff *events.SpliceHandoff
+	if lastHandoff != nil {
+		eventHandoff = &events.SpliceHandoff{
+			MasterPath:  lastHandoff.MasterPath,
+			Album:       lastHandoff.Album,
+			AlbumArtist: lastHandoff.AlbumArtist,
+			Artist:      lastHandoff.Artist,
+			Year:        lastHandoff.Year,
+			Genre:       lastHandoff.Genre,
+			ArtURL:      lastHandoff.ArtURL,
+		}
+	}
 	e.emit(events.Event{
-		Type:    events.EventJobComplete,
-		Message: msg,
-		Phase:   jobCompletePhase(),
-		Success: counter.Success,
-		Error:   counter.Error + counter.Unavailable,
-		Total_:  counter.Total,
+		Type:       events.EventJobComplete,
+		Message:    msg,
+		Phase:      jobCompletePhase(),
+		Success:    counter.Success,
+		Error:      counter.Error + counter.Unavailable,
+		Total_:     counter.Total,
+		MasterPath: lastHandoffPath(lastHandoff),
+		Handoff:    eventHandoff,
 	})
 }
 
-func (e *Engine) finishYouTubeJob(phase, msg string) {
+func lastHandoffPath(h *youtube.HandoffPayload) string {
+	if h == nil {
+		return ""
+	}
+	return h.MasterPath
+}
+
+func handoffFromMeta(outPath string, meta YouTubeDownloadMeta) *youtube.HandoffPayload {
+	return &youtube.HandoffPayload{
+		MasterPath:  outPath,
+		Album:       meta.Album,
+		AlbumArtist: meta.AlbumArtist,
+		Artist:      meta.Artist,
+		Year:        meta.Year,
+		Genre:       meta.Genre,
+		ArtURL:      meta.ArtURL,
+	}
+}
+
+func (e *Engine) finishYouTubeJob(phase, msg string, handoff *youtube.HandoffPayload) {
+	var eventHandoff *events.SpliceHandoff
+	if handoff != nil {
+		eventHandoff = &events.SpliceHandoff{
+			MasterPath:  handoff.MasterPath,
+			Album:       handoff.Album,
+			AlbumArtist: handoff.AlbumArtist,
+			Artist:      handoff.Artist,
+			Year:        handoff.Year,
+			Genre:       handoff.Genre,
+			ArtURL:      handoff.ArtURL,
+		}
+	}
 	e.emit(events.Event{
-		Type:    events.EventJobComplete,
-		Message: msg,
-		Phase:   phase,
-		Success: counter.Success,
-		Error:   counter.Error + counter.Unavailable,
-		Total_:  counter.Total,
+		Type:       events.EventJobComplete,
+		Message:    msg,
+		Phase:      phase,
+		Success:    counter.Success,
+		Error:      counter.Error + counter.Unavailable,
+		Total_:     counter.Total,
+		MasterPath: lastHandoffPath(handoff),
+		Handoff:    eventHandoff,
 	})
 }
 
-func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int) error {
-	saveDir := youtubeOutputDir()
-	outputTemplate := filepath.Join(saveDir, "%(title)s.%(ext)s")
-	if strings.Contains(raw, "list=") || len(selectedNums) > 1 {
-		outputTemplate = filepath.Join(saveDir, "%(playlist_index)02d - %(title)s.%(ext)s")
-	}
-
-	args := []string{
-		"--newline",
-		"--no-warnings",
-		"--ffmpeg-location", appconfig.FFmpegPath(Config.FFmpegPath),
-		"-f", "ba/b",
-		"--extract-audio",
-		"--audio-quality", "0",
-		"--audio-format", "m4a",
-		"--embed-thumbnail",
-		"--embed-metadata",
-		"--retries", "10",
-		"--fragment-retries", "10",
-		"-o", outputTemplate,
-	}
-
+func appendYouTubePlaylistArgs(args []string, raw string, selectedNums []int) []string {
 	if len(selectedNums) > 0 {
 		parts := make([]string, len(selectedNums))
 		for i, n := range selectedNums {
 			parts[i] = strconv.Itoa(n)
 		}
-		args = append(args, "--playlist-items", strings.Join(parts, ","))
-	} else if !strings.Contains(raw, "list=") {
-		args = append(args, "--no-playlist")
+		return append(args, "--playlist-items", strings.Join(parts, ","))
+	}
+	if !strings.Contains(raw, "list=") {
+		return append(args, "--no-playlist")
+	}
+	return args
+}
+
+func youtubeTempTemplate(tempDir string, isPlaylist bool) string {
+	if isPlaylist {
+		return filepath.Join(tempDir, "%(playlist_index)03d_%(id)s.%(ext)s")
+	}
+	return filepath.Join(tempDir, "%(id)s.%(ext)s")
+}
+
+func buildYouTubeAudioArgs(tempDir, raw string, selectedNums []int, isPlaylist bool) []string {
+	args := []string{
+		"--newline",
+		"--no-warnings",
+		"--progress",
+	}
+	args = append(args, ytDlpFFmpegArgs()...)
+	args = append(args,
+		// Audio-only: do NOT fall back to "b"/best (muxed video) — that breaks AAC step on DJ sets.
+		"-f", "bestaudio/ba/ba.*",
+		"--extract-audio",
+		"--audio-quality", "0",
+		"--audio-format", "best",
+		"--embed-thumbnail",
+		"--embed-metadata",
+		"--retries", "10",
+		"--fragment-retries", "10",
+		"-o", youtubeTempTemplate(tempDir, isPlaylist),
+	)
+	return appendYouTubePlaylistArgs(args, raw, selectedNums)
+}
+
+func buildYouTubeVideoArgs(tempDir, raw string, selectedNums []int, isPlaylist bool) []string {
+	args := []string{
+		"--newline",
+		"--no-warnings",
+		"--progress",
+	}
+	args = append(args, ytDlpFFmpegArgs()...)
+	args = append(args,
+		"-f", "bv*+ba/b",
+		"-S", "vcodec:h264,acodec:aac",
+		"--merge-output-format", "mp4",
+		"--embed-thumbnail",
+		"--embed-metadata",
+		"--retries", "10",
+		"--fragment-retries", "10",
+		"-o", youtubeTempTemplate(tempDir, isPlaylist),
+	)
+	return appendYouTubePlaylistArgs(args, raw, selectedNums)
+}
+
+func convertMetas(metas []YouTubeDownloadMeta) []youtube.DownloadMeta {
+	out := make([]youtube.DownloadMeta, len(metas))
+	for i, m := range metas {
+		out[i] = youtube.DownloadMeta(m)
+	}
+	return out
+}
+
+func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bool, metas []YouTubeDownloadMeta) (*youtube.HandoffPayload, error) {
+	saveDir := youtubeOutputDir()
+	trackLabel := e.DetectURLType(raw)
+	isPlaylist := strings.Contains(raw, "list=") || len(selectedNums) > 1
+	multiTrack := isPlaylist || len(selectedNums) > 1
+	metaMap := youtube.MetaByNum(convertMetas(metas))
+
+	resolveMeta := func(num int) youtube.DownloadMeta {
+		if m, ok := metaMap[num]; ok {
+			if m.TrackTotal == 0 && len(selectedNums) > 0 {
+				m.TrackTotal = len(selectedNums)
+			} else if m.TrackTotal == 0 && isPlaylist {
+				m.TrackTotal = len(metas)
+			}
+			return m
+		}
+		return youtube.DownloadMeta{Num: num, TrackNumber: num, DiscNumber: 1, TrackTotal: 1}
 	}
 
-	args = append(args, raw)
-
 	counter.Total++
-	trackLabel := e.DetectURLType(raw)
 	e.emit(events.Event{
 		Type:    events.EventTrackStart,
-		Message: "Downloading audio…",
+		Message: "Preparing download…",
 		Track:   trackLabel,
 		Current: 1,
 		Total:   1,
 	})
 
-	ctx, cancel := context.WithCancel(e.ctx)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, ytDlpPath(), args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	stdout, err := cmd.StdoutPipe()
+	tempDir, err := os.MkdirTemp(saveDir, "yt-dl-*")
 	if err != nil {
 		counter.Error++
 		e.emitTrackFailed(trackLabel, 1, 1, err.Error())
-		return err
+		return nil, err
 	}
-	if err := cmd.Start(); err != nil {
+	defer os.RemoveAll(tempDir)
+
+	audioArgs := buildYouTubeAudioArgs(tempDir, raw, selectedNums, isPlaylist)
+	if err := e.runYtDlpDownload(raw, audioArgs, trackLabel, "audio"); err != nil {
 		counter.Error++
 		e.emitTrackFailed(trackLabel, 1, 1, err.Error())
-		return err
+		return nil, err
 	}
 
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "[download]") {
-			e.log(line)
-		}
-	}
-	if err := cmd.Wait(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
+	downloaded, err := listTempDownloads(tempDir)
+	if err != nil || len(downloaded) == 0 {
+		counter.Error++
+		msg := "no audio files produced by yt-dlp"
+		if err != nil {
 			msg = err.Error()
 		}
-		counter.Error++
 		e.emitTrackFailed(trackLabel, 1, 1, msg)
-		return fmt.Errorf("%s", msg)
+		return nil, fmt.Errorf("%s", msg)
+	}
+
+	e.emit(events.Event{
+		Type:    events.EventProgress,
+		Message: "Converting to AAC (256 kbps) and writing Apple Music tags…",
+		Track:   trackLabel,
+		Phase:   "postprocess",
+		Current: 850,
+		Total:   1000,
+	})
+
+	var handoff *youtube.HandoffPayload
+
+	if isPlaylist {
+		for i, src := range downloaded {
+			num := parseDownloadIndex(filepath.Base(src))
+			if len(selectedNums) > 0 && i < len(selectedNums) {
+				num = selectedNums[i]
+			}
+			meta := resolveMeta(num)
+			e.emit(events.Event{
+				Type:    events.EventTrackStart,
+				Message: fmt.Sprintf("Processing: %s", meta.Title),
+				Track:   meta.Title,
+				Current: int64(num),
+				Total:   int64(len(downloaded)),
+			})
+			outPath, err := youtube.FinalizeAudio(Config, saveDir, src, meta, multiTrack)
+			if err != nil {
+				counter.Error++
+				e.emitTrackFailed(meta.Title, int64(num), int64(len(downloaded)), err.Error())
+				return nil, err
+			}
+			e.log(fmt.Sprintf("Saved AAC: %s", outPath))
+		}
+	} else {
+		meta := resolveMeta(1)
+		outPath, err := youtube.FinalizeAudio(Config, saveDir, downloaded[0], meta, multiTrack)
+		if err != nil {
+			counter.Error++
+			e.emitTrackFailed(trackLabel, 1, 1, err.Error())
+			return nil, err
+		}
+		e.log(fmt.Sprintf("Saved AAC: %s", outPath))
+		handoff = handoffFromMeta(outPath, YouTubeDownloadMeta(meta))
+	}
+
+	if saveVideo {
+		e.emit(events.Event{
+			Type:    events.EventProgress,
+			Message: "Starting MP4 video copy for Apple Music…",
+			Track:   trackLabel,
+			Phase:   "video",
+			Current: 0,
+			Total:   1000,
+		})
+		videoTemp, err := os.MkdirTemp(saveDir, "yt-vid-*")
+		if err != nil {
+			counter.Error++
+			e.emitTrackFailed(trackLabel, 1, 1, "Video temp dir: "+err.Error())
+			return handoff, err
+		}
+		defer os.RemoveAll(videoTemp)
+		videoArgs := buildYouTubeVideoArgs(videoTemp, raw, selectedNums, isPlaylist)
+		if err := e.runYtDlpDownload(raw, videoArgs, trackLabel, "video"); err != nil {
+			counter.Error++
+			e.emitTrackFailed(trackLabel, 1, 1, "Video copy failed: "+err.Error())
+			return handoff, err
+		}
+		videos, _ := listTempDownloads(videoTemp)
+		for i, src := range videos {
+			num := 1
+			if isPlaylist {
+				num = parseDownloadIndex(filepath.Base(src))
+				if len(selectedNums) > 0 && i < len(selectedNums) {
+					num = selectedNums[i]
+				}
+			}
+			meta := resolveMeta(num)
+			dst := youtube.OutputPath(saveDir, meta, multiTrack, true)
+			if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+				return handoff, err
+			}
+			if err := os.Rename(src, dst); err != nil {
+				if err2 := copyFile(src, dst); err2 != nil {
+					return handoff, fmt.Errorf("move video: %w", err)
+				}
+			}
+			tags := youtube.MetaFromDownload(meta, Config)
+			_ = mediaWriteTrackTags(dst, tags)
+			e.log(fmt.Sprintf("Saved video: %s", dst))
+		}
 	}
 
 	counter.Success++
 	e.emit(events.Event{
 		Type:    events.EventTrackComplete,
-		Message: "Saved to " + saveDir,
+		Message: "Saved AAC files ready for Apple Music import",
 		Track:   trackLabel,
 		Current: 1,
 		Total:   1,
 	})
+	return handoff, nil
+}
+
+func mediaWriteTrackTags(path string, tags media.TrackTags) error {
+	return media.WriteTrackTags(path, tags)
+}
+
+func listTempDownloads(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(ent.Name()))
+		switch ext {
+		case ".m4a", ".opus", ".webm", ".mp3", ".mp4", ".m4b", ".ogg":
+			files = append(files, filepath.Join(dir, ent.Name()))
+		}
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no media files in %s", dir)
+	}
+	sortStrings(files)
+	return files, nil
+}
+
+func parseDownloadIndex(filename string) int {
+	base := filepath.Base(filename)
+	idx := strings.Index(base, "_")
+	if idx <= 0 {
+		return 1
+	}
+	n, err := strconv.Atoi(base[:idx])
+	if err != nil || n <= 0 {
+		return 1
+	}
+	return n
+}
+
+func sortStrings(items []string) {
+	for i := 0; i < len(items); i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[j] < items[i] {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func (e *Engine) runYtDlpDownload(raw string, args []string, trackLabel, phase string) error {
+	args = append(append([]string(nil), args...), raw)
+
+	ctx, cancel := context.WithCancel(e.ctx)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, ytDlpPath(), args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	var stderrBuf bytes.Buffer
+	var wg sync.WaitGroup
+	consume := func(r io.Reader, captureErr bool) {
+		defer wg.Done()
+		scanner := bufio.NewScanner(r)
+		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if captureErr {
+				stderrBuf.WriteString(line)
+				stderrBuf.WriteByte('\n')
+			}
+			e.handleYtDlpLine(line, trackLabel, phase)
+		}
+	}
+	wg.Add(2)
+	go consume(stdout, false)
+	go consume(stderr, true)
+	wg.Wait()
+
+	if err := cmd.Wait(); err != nil {
+		msg := strings.TrimSpace(stderrBuf.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
 	return nil
+}
+
+func (e *Engine) handleYtDlpLine(line, trackLabel, phase string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+	if m := reYtDownloadItem.FindStringSubmatch(line); len(m) == 3 {
+		item, _ := strconv.Atoi(m[1])
+		total, _ := strconv.Atoi(m[2])
+		e.emit(events.Event{
+			Type:    events.EventTrackStart,
+			Message: fmt.Sprintf("Downloading item %d of %d", item, total),
+			Track:   trackLabel,
+			Current: int64(item),
+			Total:   int64(total),
+		})
+	}
+	if m := reYtDownloadPct.FindStringSubmatch(line); len(m) == 2 {
+		pct, _ := strconv.ParseFloat(m[1], 64)
+		e.emit(events.Event{
+			Type:    events.EventProgress,
+			Message: line,
+			Track:   trackLabel,
+			Phase:   phase,
+			Current: int64(pct * 10),
+			Total:   1000,
+		})
+	}
+	if reYtPostProcess.MatchString(line) {
+		label := "Processing audio…"
+		if phase == "video" {
+			label = "Merging video for Apple Music…"
+		}
+		e.emit(events.Event{
+			Type:    events.EventProgress,
+			Message: label,
+			Track:   trackLabel,
+			Phase:   "postprocess",
+			Current: 950,
+			Total:   1000,
+		})
+	}
+	if strings.HasPrefix(line, "[download]") || strings.HasPrefix(line, "[info]") {
+		e.log(line)
+	}
 }
 
 func (e *Engine) emitTrackFailed(label string, current, total int64, msg string) {
@@ -412,7 +797,11 @@ func (e *Engine) emitTrackFailed(label string, current, total int64, msg string)
 }
 
 func (e *Engine) runYtDlp(args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	return e.runYtDlpWithTimeout(120*time.Second, args...)
+}
+
+func (e *Engine) runYtDlpWithTimeout(timeout time.Duration, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, ytDlpPath(), args...)
 	out, err := cmd.CombinedOutput()

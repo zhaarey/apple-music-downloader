@@ -37,12 +37,12 @@ export default function Wizard({ settings, deps, onComplete, onRefreshDeps }) {
 
         {step === 0 && (
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold">Welcome</h2>
+            <h2 className="text-2xl font-bold">Welcome to Aura</h2>
             <p className="text-white/70 leading-relaxed">
-              Download albums, songs, and playlists from Apple Music in AAC (works immediately), or ALAC / Dolby Atmos
-              when the wrapper decrypt service is configured.
+              Aura Audio Downloader fetches Apple Music in AAC (works immediately) or ALAC / Dolby Atmos with the
+              wrapper service, downloads YouTube DJ sets, and splits long recordings into tagged tracks.
             </p>
-            <p className="text-sm text-white/50">An active Apple Music subscription is required.</p>
+            <p className="text-sm text-white/50">Apple Music downloads require an active subscription.</p>
           </div>
         )}
 
