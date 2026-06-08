@@ -120,6 +120,12 @@ export default function App() {
             engineEvents={engineEvents}
             jobSession={jobSession}
             onClearJobSession={() => setJobSession(null)}
+            onSettingsChange={async (patch) => {
+              const cfg = { ...settings, ...patch }
+              await SaveSettings(cfg)
+              setSettings(cfg)
+              refreshDeps()
+            }}
           />
         )}
         {tab === 'search' && <SearchTab onPreview={handleSearchPreview} />}

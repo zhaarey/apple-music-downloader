@@ -25,6 +25,9 @@ func firstGenre(names []string) string {
 }
 
 func (e *Engine) validateDownload(opts RunOptions) error {
+	if Config.YouTubeMode {
+		return e.validateYouTubeDownload(opts)
+	}
 	if len(opts.URLs) == 0 {
 		return fmt.Errorf("no download URL provided")
 	}

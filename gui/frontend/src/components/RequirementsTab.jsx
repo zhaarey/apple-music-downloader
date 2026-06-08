@@ -27,8 +27,14 @@ const TOOLS = [
   {
     name: 'ffmpeg.exe',
     url: 'https://ffmpeg.org/download.html',
-    requiredFor: 'Optional conversion and animated artwork',
-    withoutIt: 'Downloads still work; conversion/animated-artwork features are unavailable.',
+    requiredFor: 'Optional conversion, animated artwork, and YouTube audio extraction',
+    withoutIt: 'Apple Music downloads still work; conversion/YouTube mode need it.',
+  },
+  {
+    name: 'yt-dlp',
+    url: 'https://github.com/yt-dlp/yt-dlp/releases',
+    requiredFor: 'YouTube audio downloads (Download tab → YouTube Audio mode)',
+    withoutIt: 'YouTube mode is unavailable. Apple Music downloads are unaffected.',
   },
   {
     name: 'mp4decrypt.exe',
@@ -51,6 +57,7 @@ const FEATURES = [
   { feature: 'Lyrics (LRC)', worksWithoutTools: true, notes: 'Needs valid media-user-token.' },
   { feature: 'Music video downloads', worksWithoutTools: false, notes: 'Needs mp4decrypt + media-user-token.' },
   { feature: 'Post-download conversion', worksWithoutTools: false, notes: 'Needs ffmpeg.' },
+  { feature: 'YouTube audio (DJ sets, mixes)', worksWithoutTools: false, notes: 'Enable YouTube Audio on Download tab. Needs yt-dlp + ffmpeg. No Apple account.' },
 ]
 
 export default function RequirementsTab({ deps, onRefreshDeps }) {

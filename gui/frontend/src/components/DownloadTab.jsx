@@ -8,7 +8,10 @@ const QUALITIES = [
   { id: 'atmos', label: 'Dolby Atmos', desc: 'Requires wrapper', needsWrapper: true },
 ]
 
-function outputFolderForQuality(settings, quality) {
+function outputFolderForQuality(settings, quality, youtubeMode) {
+  if (youtubeMode) {
+    return settings?.['youtube-save-folder'] || settings?.['aac-save-folder'] || ''
+  }
   if (quality === 'alac') return settings?.['alac-save-folder'] || settings?.['aac-save-folder'] || ''
   if (quality === 'atmos') return settings?.['atmos-save-folder'] || settings?.['aac-save-folder'] || ''
   return settings?.['aac-save-folder'] || ''
@@ -62,6 +65,7 @@ export default function DownloadTab({
   engineEvents,
   jobSession,
   onClearJobSession,
+  onSettingsChange,
 }) {
   const [url, setUrl] = useState('')
   const [urlType, setUrlType] = useState('')
@@ -72,6 +76,9 @@ export default function DownloadTab({
   const [fetchError, setFetchError] = useState('')
   const [jobStarted, setJobStarted] = useState(false)
 
+  const youtubeMode = Boolean(settings?.['youtube-mode'])
+  const ytDlpOk = deps?.some((d) => d.name === 'yt-dlp' && d.ok)
+  const ffmpegOk = deps?.some((d) => d.name === 'ffmpeg' && d.ok)
   const wrapperOk = deps?.some((d) => d.name?.includes('wrapper') && d.ok)
   const hasToken = (settings?.['media-user-token'] || '').length > 50
 
@@ -91,19 +98,19 @@ export default function DownloadTab({
   }, [engineEvents, downloading, jobStarted])
 
   useEffect(() => {
-    if (prefillUrl) {
+    if (prefillUrl && !youtubeMode) {
       setUrl(prefillUrl)
       onPrefillConsumed()
     }
-  }, [prefillUrl, onPrefillConsumed])
+  }, [prefillUrl, onPrefillConsumed, youtubeMode])
 
   useEffect(() => {
-    if (url.length > 20) {
+    if (url.length > 12) {
       DetectURLType(url).then(setUrlType)
     } else {
       setUrlType('')
     }
-  }, [url])
+  }, [url, youtubeMode])
 
   useEffect(() => {
     if (!downloading && jobStarted) {
@@ -117,6 +124,13 @@ export default function DownloadTab({
     setFetchError('')
     setJobStarted(false)
     onClearJobSession?.()
+  }
+
+  const setMode = async (nextYouTube) => {
+    resetPreview()
+    setUrl('')
+    setUrlType('')
+    await onSettingsChange?.({ 'youtube-mode': nextYouTube })
   }
 
   const fetchPreview = async () => {
@@ -135,7 +149,7 @@ export default function DownloadTab({
         return
       }
       setPreview(res)
-      setSelected(new Set(res.tracks?.map((t) => t.num) || []))
+      setSelected(new Set(res.tracks?.map((t) => t.num) || [1]))
     } finally {
       setFetching(false)
     }
@@ -152,8 +166,12 @@ export default function DownloadTab({
 
   const startDownload = async () => {
     if (!preview || downloading) return
-    if (quality === 'aac' && !hasToken) {
+    if (!youtubeMode && quality === 'aac' && !hasToken) {
       setFetchError('AAC downloads require media-user-token in Settings')
+      return
+    }
+    if (youtubeMode && (!ytDlpOk || !ffmpegOk)) {
+      setFetchError('YouTube mode requires yt-dlp and ffmpeg — check the Requirements tab')
       return
     }
 
@@ -179,7 +197,7 @@ export default function DownloadTab({
     setJobStarted(true)
     onDownloadStart?.()
     try {
-      await StartDownloadJob(preview.url, quality, selectedTrackNums, childURLs)
+      await StartDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, selectedTrackNums, childURLs)
     } catch (err) {
       setJobStarted(false)
       const msg = typeof err === 'string' ? err : err?.message || String(err)
@@ -190,15 +208,51 @@ export default function DownloadTab({
 
   const selectedCount = selected.size
   const showProgress = jobStarted && trackRows.length > 0
+  const urlUnknown = urlType === 'Unknown' && url.trim().length > 12
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-y-auto pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface-raised p-3">
+        <div>
+          <p className="text-sm font-medium">Source</p>
+          <p className="text-xs text-white/50">
+            {youtubeMode ? 'Download audio from YouTube links (DJ sets, mixes)' : 'Download from Apple Music'}
+          </p>
+        </div>
+        <div className="flex rounded-lg bg-surface p-1">
+          <button
+            type="button"
+            disabled={downloading}
+            onClick={() => setMode(false)}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+              !youtubeMode ? 'bg-accent text-white' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            Apple Music
+          </button>
+          <button
+            type="button"
+            disabled={downloading}
+            onClick={() => setMode(true)}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+              youtubeMode ? 'bg-accent text-white' : 'text-white/60 hover:text-white'
+            }`}
+          >
+            YouTube Audio
+          </button>
+        </div>
+      </div>
+
       {!preview && (
         <>
           <div>
-            <h2 className="text-xl font-semibold">Download from Apple Music</h2>
+            <h2 className="text-xl font-semibold">
+              {youtubeMode ? 'Download from YouTube' : 'Download from Apple Music'}
+            </h2>
             <p className="mt-1 text-sm text-white/50">
-              Paste a link, fetch to preview, then download — success and errors show here when finished
+              {youtubeMode
+                ? 'Paste a video or playlist URL — audio is saved in the best available quality'
+                : 'Paste a link, fetch to preview, then download — success and errors show here when finished'}
             </p>
           </div>
 
@@ -211,7 +265,11 @@ export default function DownloadTab({
                   resetPreview()
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && fetchPreview()}
-                placeholder="https://music.apple.com/us/playlist/..."
+                placeholder={
+                  youtubeMode
+                    ? 'https://www.youtube.com/watch?v=... or playlist link'
+                    : 'https://music.apple.com/us/playlist/...'
+                }
                 className="w-full rounded-xl border border-white/10 bg-surface-raised px-4 py-3 pr-24 text-sm focus:border-accent focus:outline-none"
               />
               {urlType && (
@@ -223,7 +281,7 @@ export default function DownloadTab({
             <button
               type="button"
               onClick={fetchPreview}
-              disabled={!url.trim() || fetching || urlType === 'Unknown'}
+              disabled={!url.trim() || fetching || urlUnknown}
               className="rounded-xl bg-accent px-5 py-3 font-medium hover:bg-accent-muted disabled:opacity-40"
             >
               {fetching ? 'Fetching…' : 'Fetch'}
@@ -231,10 +289,24 @@ export default function DownloadTab({
           </div>
 
           {fetchError && <p className="text-sm text-red-400">{fetchError}</p>}
-          {!hasToken && (
-            <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
-              Add your Apple Music <code className="text-accent">media-user-token</code> in Settings before downloading AAC.
-            </p>
+
+          {youtubeMode ? (
+            <div className="space-y-2">
+              {(!ytDlpOk || !ffmpegOk) && (
+                <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                  Install <strong>yt-dlp</strong> and <strong>ffmpeg</strong> on PATH (or in <code>dist/tools/</code>) — see Requirements tab.
+                </p>
+              )}
+              <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
+                Long DJ sets and live streams are supported. No Apple Music account needed.
+              </p>
+            </div>
+          ) : (
+            !hasToken && (
+              <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                Add your Apple Music <code className="text-accent">media-user-token</code> in Settings before downloading AAC.
+              </p>
+            )
           )}
         </>
       )}
@@ -265,7 +337,7 @@ export default function DownloadTab({
             {preview.art_url ? (
               <img src={preview.art_url} alt="" className="h-24 w-24 shrink-0 rounded-lg object-cover" />
             ) : (
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-surface text-3xl">♫</div>
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-surface text-3xl">▶</div>
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs uppercase tracking-wide text-accent">{preview.type}</p>
@@ -278,41 +350,51 @@ export default function DownloadTab({
             </div>
           </div>
 
-          <div>
-            <p className="mb-2 text-sm text-white/60">Quality</p>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {QUALITIES.map((q) => {
-                const blocked = q.needsWrapper && !wrapperOk
-                return (
-                  <button
-                    key={q.id}
-                    type="button"
-                    disabled={blocked || downloading}
-                    onClick={() => setQuality(q.id)}
-                    className={`rounded-xl border p-3 text-left transition ${
-                      quality === q.id
-                        ? 'border-accent bg-accent/10'
-                        : blocked
-                          ? 'border-white/5 opacity-40'
-                          : 'border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="font-medium">{q.label}</div>
-                    <div className="mt-1 text-xs text-white/50">{q.desc}</div>
-                  </button>
-                )
-              })}
+          {!youtubeMode && (
+            <div>
+              <p className="mb-2 text-sm text-white/60">Quality</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {QUALITIES.map((q) => {
+                  const blocked = q.needsWrapper && !wrapperOk
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      disabled={blocked || downloading}
+                      onClick={() => setQuality(q.id)}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        quality === q.id
+                          ? 'border-accent bg-accent/10'
+                          : blocked
+                            ? 'border-white/5 opacity-40'
+                            : 'border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="font-medium">{q.label}</div>
+                      <div className="mt-1 text-xs text-white/50">{q.desc}</div>
+                    </button>
+                  )
+                })}
+              </div>
+              {!wrapperOk && (quality === 'alac' || quality === 'atmos') && (
+                <p className="mt-2 text-sm text-yellow-400">
+                  Wrapper not running — check Requirements tab before using Lossless or Atmos.
+                </p>
+              )}
             </div>
-            {!wrapperOk && (quality === 'alac' || quality === 'atmos') && (
-              <p className="mt-2 text-sm text-yellow-400">Wrapper not running — check Requirements tab before using Lossless or Atmos.</p>
-            )}
-          </div>
+          )}
+
+          {youtubeMode && (
+            <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-white/70">
+              Best available audio stream · embedded thumbnail & metadata · saved as high-quality audio file
+            </p>
+          )}
 
           {preview.can_select_tracks && preview.tracks?.length > 0 && (
             <div className="rounded-xl border border-white/10 bg-surface-raised">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                 <span className="text-sm font-medium">
-                  {preview.type === 'Artist' ? 'Albums & videos' : 'Tracks'}
+                  {preview.type === 'Artist' ? 'Albums & videos' : preview.type === 'YouTube Playlist' ? 'Videos' : 'Tracks'}
                 </span>
                 <div className="flex gap-3 text-xs">
                   <button
@@ -385,8 +467,12 @@ export default function DownloadTab({
             </div>
           )}
 
-          <p className="truncate text-xs text-white/40" title={outputFolderForQuality(settings, quality)}>
-            Output: {outputFolderForQuality(settings, quality) || preview.output_folder || 'Default downloads folder'}
+          <p
+            className="truncate text-xs text-white/40"
+            title={outputFolderForQuality(settings, quality, youtubeMode)}
+          >
+            Output:{' '}
+            {outputFolderForQuality(settings, quality, youtubeMode) || preview.output_folder || 'Default downloads folder'}
           </p>
 
           {fetchError && (
@@ -399,7 +485,13 @@ export default function DownloadTab({
             disabled={downloading || selectedCount === 0}
             className="rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
           >
-            {downloading ? 'Downloading…' : jobResult ? 'Download again' : `Download ${selectedCount} selected`}
+            {downloading
+              ? 'Downloading…'
+              : jobResult
+                ? 'Download again'
+                : youtubeMode
+                  ? `Download audio (${selectedCount})`
+                  : `Download ${selectedCount} selected`}
           </button>
         </>
       )}

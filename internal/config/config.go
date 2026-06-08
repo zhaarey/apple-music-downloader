@@ -64,6 +64,23 @@ func MP4DecryptPath() string {
 	return "mp4decrypt"
 }
 
+func YtDlpPath(configured string) string {
+	if configured != "" && configured != "yt-dlp" {
+		if fileExists(configured) {
+			return configured
+		}
+	}
+	for _, name := range []string{"yt-dlp.exe", "yt-dlp", "youtube-dl.exe", "youtube-dl"} {
+		if p := filepath.Join(ToolsDir(), name); fileExists(p) {
+			return p
+		}
+	}
+	if configured != "" {
+		return configured
+	}
+	return "yt-dlp"
+}
+
 func FFmpegPath(configured string) string {
 	if configured != "" && configured != "ffmpeg" {
 		if fileExists(configured) {
@@ -158,6 +175,8 @@ func DefaultConfig() structs.ConfigSet {
 		MVAudioType:          "atmos",
 		MVMax:                2160,
 		FFmpegPath:           FFmpegPath(""),
+		YtDlpPath:            YtDlpPath(""),
+		YouTubeSaveFolder:    filepath.Join(home, "Music", "YouTube Downloads"),
 	}
 	normalize(&cfg)
 	return cfg
@@ -241,6 +260,10 @@ func normalize(cfg *structs.ConfigSet) {
 		cfg.PlaylistFolderFormat = "{PlaylistName}"
 	}
 	cfg.FFmpegPath = FFmpegPath(cfg.FFmpegPath)
+	cfg.YtDlpPath = YtDlpPath(cfg.YtDlpPath)
+	if cfg.YouTubeSaveFolder == "" {
+		cfg.YouTubeSaveFolder = cfg.AacSaveFolder
+	}
 }
 
 func FromExample(examplePath string) (structs.ConfigSet, error) {

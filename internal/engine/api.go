@@ -96,6 +96,7 @@ func (e *Engine) LoadConfig(path string) error {
 	}
 	Config = cfg
 	Config.FFmpegPath = appconfig.FFmpegPath(Config.FFmpegPath)
+	Config.YtDlpPath = appconfig.YtDlpPath(Config.YtDlpPath)
 	appconfig.Normalize(&Config)
 	return nil
 }
@@ -149,9 +150,18 @@ func (e *Engine) CheckDependencies() []DependencyStatus {
 	wrapperDecrypt := probePort(Config.DecryptM3u8Port)
 	wrapperM3u8 := probePort(Config.GetM3u8Port)
 
+	ytdlp := appconfig.YtDlpPath(Config.YtDlpPath)
+	_, ytdlpErr := exec.LookPath(ytdlp)
+	if ytdlpErr != nil {
+		if _, statErr := os.Stat(ytdlp); statErr == nil {
+			ytdlpErr = nil
+		}
+	}
+
 	return []DependencyStatus{
 		{Name: "MP4Box", OK: mp4boxErr == nil, Detail: mp4box, Required: true},
 		{Name: "ffmpeg", OK: ffmpegErr == nil, Detail: ffmpeg, Required: false},
+		{Name: "yt-dlp", OK: ytdlpErr == nil, Detail: ytdlp, Required: false},
 		{Name: "mp4decrypt", OK: mp4decErr == nil, Detail: mp4decrypt, Required: false},
 		{Name: "wrapper (decrypt)", OK: wrapperDecrypt, Detail: Config.DecryptM3u8Port, Required: false},
 		{Name: "wrapper (m3u8)", OK: wrapperM3u8, Detail: Config.GetM3u8Port, Required: false},
@@ -224,6 +234,12 @@ func (e *Engine) Search(queryType, query string, limit, offset int) ([]SearchHit
 }
 
 func (e *Engine) DetectURLType(raw string) string {
+	if Config.YouTubeMode && IsYouTubeURL(raw) {
+		if strings.Contains(raw, "list=") {
+			return "YouTube Playlist"
+		}
+		return "YouTube Video"
+	}
 	if strings.Contains(raw, "/music-video/") {
 		return "Music Video"
 	}
@@ -271,6 +287,10 @@ func (e *Engine) StartDownload(opts RunOptions) (err error) {
 	}
 	if err := e.validateDownload(opts); err != nil {
 		return err
+	}
+	if Config.YouTubeMode {
+		e.runYouTubeDownload(opts)
+		return nil
 	}
 	token, err := e.getToken()
 	if err != nil {

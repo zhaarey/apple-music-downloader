@@ -198,7 +198,11 @@ func (a *App) PickFolder() (string, error) {
 func (a *App) OpenFolder(path string) error {
 	if path == "" {
 		cfg := a.eng.GetConfig()
-		path = cfg.AacSaveFolder
+		if cfg.YouTubeMode && cfg.YouTubeSaveFolder != "" {
+			path = cfg.YouTubeSaveFolder
+		} else {
+			path = cfg.AacSaveFolder
+		}
 	}
 	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(path))
 	return nil

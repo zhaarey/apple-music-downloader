@@ -54,6 +54,9 @@ type ConfigSet struct {
 	ConvertDeleteBadALAC       bool   `yaml:"convert-delete-bad-alac" json:"convert-delete-bad-alac"`
 	ALACFix                    bool   `yaml:"alac-fix" json:"alac-fix"`
 	ExitOnError                bool   `yaml:"exit-on-error" json:"exit-on-error"`
+	YouTubeMode                bool   `yaml:"youtube-mode" json:"youtube-mode"`
+	YtDlpPath                  string `yaml:"yt-dlp-path" json:"yt-dlp-path"`
+	YouTubeSaveFolder          string `yaml:"youtube-save-folder" json:"youtube-save-folder"`
 }
 
 type Counter struct {

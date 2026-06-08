@@ -40,6 +40,9 @@ type PreviewResult struct {
 
 func (e *Engine) PreviewURL(raw string) PreviewResult {
 	raw = strings.TrimSpace(raw)
+	if Config.YouTubeMode {
+		return e.previewYouTube(raw)
+	}
 	out := PreviewResult{
 		URL:  raw,
 		Type: e.DetectURLType(raw),

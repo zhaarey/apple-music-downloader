@@ -10,7 +10,7 @@
   4. Optionally compiles Inno Setup installer
 
   Place third-party binaries in dist\tools\ before packaging:
-    MP4Box.exe, ffmpeg.exe, mp4decrypt.exe
+    MP4Box.exe, ffmpeg.exe, mp4decrypt.exe, yt-dlp.exe
 #>
 param(
     [switch]$SkipFrontend,
@@ -83,7 +83,7 @@ if ($LASTEXITCODE -ne 0) { throw "Wails build failed" }
 
 # Verify bundled tools
 $requiredTools = @("MP4Box.exe")
-$optionalTools = @("ffmpeg.exe", "mp4decrypt.exe")
+$optionalTools = @("ffmpeg.exe", "mp4decrypt.exe", "yt-dlp.exe")
 foreach ($t in $requiredTools) {
     if (-not (Test-Path (Join-Path $Tools $t))) {
         Write-Warning "Missing dist\tools\$t - download from GPAC and copy before creating installer."

@@ -143,10 +143,48 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
         </select>
       </section>
 
+      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <h3 className="font-medium">YouTube audio</h3>
+        <p className="text-xs text-white/50">
+          Used when YouTube Audio mode is enabled on the Download tab. Requires yt-dlp and ffmpeg.
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={!!cfg['youtube-mode']}
+            onChange={(e) => update('youtube-mode', e.target.checked)}
+          />
+          Default to YouTube mode on launch
+        </label>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-xs text-white/50">YouTube download folder</label>
+            <input
+              value={cfg['youtube-save-folder'] || ''}
+              onChange={(e) => update('youtube-save-folder', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => pickFolder('youtube-save-folder')}
+            className="mt-5 rounded-lg bg-surface px-3 text-sm hover:bg-surface-hover"
+          >
+            Browse
+          </button>
+        </div>
+        <div>
+          <label className="text-xs text-white/50">yt-dlp path (optional)</label>
+          <input
+            value={cfg['yt-dlp-path'] || ''}
+            onChange={(e) => update('yt-dlp-path', e.target.value)}
+            placeholder="yt-dlp"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm font-mono"
+          />
+        </div>
+      </section>
+
       <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
           className="flex w-full items-center justify-between text-sm font-medium"
         >
           Advanced
