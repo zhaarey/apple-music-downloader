@@ -22,7 +22,6 @@ import (
 
 	appconfig "main/internal/config"
 	"main/internal/events"
-	"main/utils/alacfix"
 	"main/utils/ampapi"
 	"main/utils/lyrics"
 	"main/utils/runv2"
@@ -903,45 +902,9 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	}
 	track.Quality = Quality
 
-	stringsToJoin := []string{}
-	if track.Resp.Attributes.IsAppleDigitalMaster {
-		if Config.AppleMasterChoice != "" {
-			stringsToJoin = append(stringsToJoin, Config.AppleMasterChoice)
-		}
-	}
-	if track.Resp.Attributes.ContentRating == "explicit" {
-		if Config.ExplicitChoice != "" {
-			stringsToJoin = append(stringsToJoin, Config.ExplicitChoice)
-		}
-	}
-	if track.Resp.Attributes.ContentRating == "clean" {
-		if Config.CleanChoice != "" {
-			stringsToJoin = append(stringsToJoin, Config.CleanChoice)
-		}
-	}
-	Tag_string := strings.Join(stringsToJoin, " ")
-
-	fileNum := trackFileNumber(track)
-	songName := strings.NewReplacer(
-		"{SongId}", track.ID,
-		"{SongNumer}", fmt.Sprintf("%02d", fileNum),
-		"{ArtistName}", LimitString(track.Resp.Attributes.ArtistName),
-		"{SongName}", LimitString(track.Resp.Attributes.Name),
-		"{DiscNumber}", fmt.Sprintf("%0d", track.Resp.Attributes.DiscNumber),
-		"{TrackNumber}", fmt.Sprintf("%02d", fileNum),
-		"{Quality}", Quality,
-		"{Tag}", Tag_string,
-		"{Codec}", track.Codec,
-	).Replace(Config.SongFileFormat)
-	songName = strings.TrimSpace(songName)
-	if songName == "" || strings.TrimSpace(strings.ReplaceAll(songName, "_", "")) == "" {
-		songName = fmt.Sprintf("%02d. %s", fileNum, LimitString(track.Resp.Attributes.Name))
-	}
-	fmt.Println(songName)
-	filename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
+	filename, lrcFilename := buildSongFilename(track, Quality)
 	track.SaveName = filename
 	trackPath := filepath.Join(track.SaveDir, track.SaveName)
-	lrcFilename := fmt.Sprintf("%s.%s", forbiddenNames.ReplaceAllString(songName, "_"), Config.LrcFormat)
 
 	// Determine possible post-conversion target file (so we can skip re-download)
 	var convertedPath string
@@ -1075,49 +1038,15 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 			}
 		}
 	}
-	// MP4Box flattens fragmented MP4 and embeds cover before mp4tag adds metadata.
-	tags := []string{
-		"tool=",
-		"artist=AppleMusic",
-	}
-	if Config.EmbedCover {
-		coverPath, coverErr := resolveCoverPath(track)
-		if coverErr != nil {
-			fmt.Printf("Cover skipped for %q: %v\n", track.Resp.Attributes.Name, coverErr)
-		} else {
-			track.CoverPath = coverPath
-			tags = append(tags, fmt.Sprintf("cover=%s", coverPath))
-		}
-	}
-	tagsString := strings.Join(tags, ":")
-	cmd := exec.Command(mp4boxPath(), "-flat", "-itags", tagsString, trackPath)
-	if err := cmd.Run(); err != nil {
-		counter.Error++
-		emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("MP4Box failed (%s): %v", mp4boxPath(), err))
-		return
-	}
-	if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && Config.DlAlbumcoverForPlaylist && track.CoverPath != "" {
-		if err := os.Remove(track.CoverPath); err != nil {
+	if err := finalizeTrackFile(track, trackPath, lrc); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "MP4Box failed") {
 			counter.Error++
-			emitTrackDone(track, trackLabel, "failed", fmt.Sprintf("Cleanup failed: %v", err))
-			return
-		}
-	}
-	track.SavePath = trackPath
-
-	if Config.ALACFix {
-		err = alacfix.Run(track.SavePath, false)
-		if err != nil {
-			fmt.Println("\u26A0 Failed to fix ALAC:", err)
+			emitTrackDone(track, trackLabel, "failed", msg)
+		} else {
 			counter.Unavailable++
-			return
+			emitTrackDone(track, trackLabel, "unavailable", fmt.Sprintf("Post-processing failed: %v", err))
 		}
-	}
-
-	err = writeMP4Tags(track, lrc)
-	if err != nil {
-		counter.Unavailable++
-		emitTrackDone(track, trackLabel, "unavailable", fmt.Sprintf("Tagging failed: %v", err))
 		return
 	}
 
@@ -2240,8 +2169,8 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		return nil
 	}
 
-	mvm3u8url, _, _, _ := runv3.GetWebplayback(adamID, token, mediaUserToken, true)
-	if mvm3u8url == "" {
+	mvm3u8url, err := runv3.GetMVPlaylistURL(adamID, token, mediaUserToken)
+	if err != nil || mvm3u8url == "" {
 		return errors.New("media-user-token may wrong or expired")
 	}
 

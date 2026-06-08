@@ -1,5 +1,7 @@
 # Apple Music Downloader — Windows
 
+For build-from-source and first-run steps, see the **[Quick start — Windows GUI](./README.md#quick-start--windows-gui-exe)** section in the main README.
+
 ## Quick start (installer)
 
 1. Download and run `AppleMusicDownloader-Setup.exe`

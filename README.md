@@ -6,16 +6,102 @@
 
 ---
 
-## ⚠️ Prerequisites
+## Quick start — Windows GUI (`.exe`)
 
-**Must be installed first:**
+This is the fastest way to build and run the desktop app on Windows.
 
-- **[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)** - Ensure it's correctly added to your environment variables
-- **[wrapper](https://github.com/WorldObservationLog/wrapper)** - Decryption program must be running before use
+### 1. Prerequisites
 
-**Optional (for MV download):**
+| Requirement | Purpose | Notes |
+|-------------|---------|-------|
+| [Go 1.23+](https://go.dev/dl/) | Build backend | Add `go` to PATH |
+| [Node.js 18+](https://nodejs.org/) | Build React UI | Used by Wails frontend |
+| [Wails CLI v2](https://wails.io/docs/gettingstarted/installation) | Package GUI | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
+| [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/) | Tagging & flattening | On PATH, or bundled in `dist/tools/` |
+| Apple Music subscription | Downloads | Required for all formats |
+| `media-user-token` | Lyrics, MV, AAC-LC | Paste in Settings (see below) |
 
-- **[mp4decrypt](https://www.bento4.com/downloads/)**
+**Optional**
+
+- [Inno Setup 6](https://jrsoftware.org/isinfo.php) — builds `AppleMusicDownloader-Setup.exe`
+- [wrapper](https://github.com/WorldObservationLog/wrapper) — **only** for ALAC / Dolby Atmos (see [README-WINDOWS.md](./README-WINDOWS.md))
+- [mp4decrypt](https://www.bento4.com/downloads/) — music video decryption
+
+> **AAC downloads do not require wrapper.** The GUI uses in-process Widevine for AAC-LC.
+
+### 2. Build the executables
+
+From the project root in PowerShell:
+
+```powershell
+.\scripts\build-windows.ps1 -SkipInstaller
+```
+
+This produces:
+
+| Output | Description |
+|--------|-------------|
+| `dist\AppleMusicDownloader.exe` | Desktop GUI |
+| `dist\amd.exe` | CLI (same engine) |
+
+To also build the installer (requires Inno Setup):
+
+```powershell
+.\scripts\build-windows.ps1
+```
+
+Place optional tools in `dist\tools\` before packaging: `MP4Box.exe`, `ffmpeg.exe`, `mp4decrypt.exe`.
+
+### 3. Run the app
+
+```powershell
+.\dist\AppleMusicDownloader.exe
+```
+
+On first launch, complete the setup wizard:
+
+1. Choose your **storefront** (e.g. `us`)
+2. Paste your **`media-user-token`** (recommended — required for AAC, lyrics, and MV)
+3. Set your **download folder**
+
+Config is saved to:
+
+```
+%APPDATA%\AppleMusicDownloader\config.yaml
+```
+
+Logs:
+
+```
+%APPDATA%\AppleMusicDownloader\logs\app.log
+```
+
+### 4. Download music
+
+1. Open the **Download** tab
+2. Paste an Apple Music album, song, or playlist URL
+3. Select **AAC** quality (works without wrapper)
+4. Click **Start download**
+
+Use **Settings → Requirements** to verify MP4Box and token status. For ALAC / Atmos, see **[README-WINDOWS.md](./README-WINDOWS.md)**.
+
+### 5. CLI alternative
+
+The same build also outputs a command-line binary:
+
+```powershell
+.\dist\amd.exe --aac "https://music.apple.com/us/album/..."
+```
+
+---
+
+## ⚠️ Prerequisites (CLI / Docker)
+
+For **CLI-only** or **Docker** usage (non-GUI):
+
+- **[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)** — tagging
+- **[wrapper](https://github.com/WorldObservationLog/wrapper)** — required for ALAC / Atmos / most CLI flows
+- **`media-user-token`** — required for AAC-LC, lyrics, and MV
 
 ---
 
@@ -33,6 +119,7 @@
    ```bash
    go run main.go --search [song/album/artist] "search_term"
    ```
+7. **Windows GUI** - Paste URLs, queue downloads, manage settings (see Quick start above)
 
 ---
 
@@ -50,21 +137,17 @@
 
 > **Note:** For `aac-lc`, `MV`, and `lyrics`, you must provide a valid `media-user-token` from an active subscription.
 
+| Format | Wrapper required? |
+|--------|-------------------|
+| AAC / AAC-LC (GUI) | No |
+| ALAC / Atmos | Yes |
+| MV | No (needs `mp4decrypt`) |
+
 ---
 
-## Windows GUI (recommended)
+## Windows GUI details
 
-For Windows users, a desktop app and one-click installer are available. See **[README-WINDOWS.md](./README-WINDOWS.md)** for setup and build instructions.
-
-- **GUI app** — paste URLs, search, queue downloads, manage settings
-- **AAC downloads** work immediately without wrapper
-- **ALAC / Atmos** require manual wrapper setup (documented in README-WINDOWS)
-
-Build the installer:
-
-```powershell
-.\scripts\build-windows.ps1
-```
+See **[README-WINDOWS.md](./README-WINDOWS.md)** for installer usage, bundled tools, wrapper/WSL setup for ALAC/Atmos, and advanced build options.
 
 ---
 
@@ -116,7 +199,7 @@ docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config
 
 ### Running Locally (Go)
 
-1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running
+1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running (ALAC/Atmos only; AAC-LC works without it)
 
 2. **Download albums:**
    ```bash
