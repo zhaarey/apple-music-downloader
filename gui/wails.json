@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "AppleMusicDownloader",
+  "outputfilename": "AppleMusicDownloader",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Apple Music Downloader"
+  },
+  "info": {
+    "companyName": "Apple Music Downloader",
+    "productName": "Apple Music Downloader",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "Download Apple Music in high quality"
+  }
+}

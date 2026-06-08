@@ -52,6 +52,22 @@
 
 ---
 
+## Windows GUI (recommended)
+
+For Windows users, a desktop app and one-click installer are available. See **[README-WINDOWS.md](./README-WINDOWS.md)** for setup and build instructions.
+
+- **GUI app** — paste URLs, search, queue downloads, manage settings
+- **AAC downloads** work immediately without wrapper
+- **ALAC / Atmos** require manual wrapper setup (documented in README-WINDOWS)
+
+Build the installer:
+
+```powershell
+.\scripts\build-windows.ps1
+```
+
+---
+
 ## 🚀 Usage
 
 ### Running with Docker

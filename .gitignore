@@ -9,7 +9,16 @@
 !/go.sum
 !/main.go
 !/README.md
+!/README-WINDOWS.md
 !/utils/
 !/utils/**
 !/cmd/
 !/cmd/**
+!/internal/
+!/internal/**
+!/gui/
+!/gui/**
+!/scripts/
+!/scripts/**
+!/installer/
+!/installer/**
