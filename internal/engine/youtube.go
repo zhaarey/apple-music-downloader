@@ -468,9 +468,9 @@ func buildYouTubeVideoArgs(tempDir, raw string, selectedNums []int, isPlaylist b
 	}
 	args = append(args, ytDlpFFmpegArgs()...)
 	args = append(args,
-		// Best H.264 video + best audio; audio is re-encoded to AAC stereo after download.
-		"-f", "bv*+ba/b",
-		"-S", "vcodec:h264",
+		// Prefer H.264 MP4 video + best audio; re-encoded to AAC stereo after download.
+		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba/b[ext=mp4]/bv*+ba/b",
+		"-S", "vcodec:h264,res,acodec",
 		"--merge-output-format", "mp4",
 		"--embed-thumbnail",
 		"--embed-metadata",
@@ -631,10 +631,10 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			meta := resolveMeta(num)
 			e.emit(events.Event{
 				Type:    events.EventProgress,
-				Message: "Converting MP4 to AAC stereo for Apple Music…",
+				Message: "Muxing H.264 + AAC stereo for Apple Music…",
 				Track:   meta.Title,
 				Phase:   "video",
-				Current: 850,
+				Current: 750,
 				Total:   1000,
 			})
 			outPath, err := youtube.FinalizeVideo(Config, src, meta, multiTrack)

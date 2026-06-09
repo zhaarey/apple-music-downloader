@@ -529,7 +529,7 @@ export default function DownloadTab({
                 <span>
                   <span className="font-medium text-white/90">Also save MP4 video copy</span>
                   <span className="mt-1 block text-xs text-white/50">
-                    Creates a separate H.264 MP4 with AAC stereo audio (required for sound in the iPhone Music app).
+                    Standalone H.264 MP4 with validated AAC stereo audio — plays in the iPhone Music app without the separate .m4a file.
                     Adds extra download and conversion time.
                   </span>
                 </span>

@@ -25,6 +25,32 @@ var (
 
 var encoderPriority = []string{"libfdk_aac", "aac_mf", "aac"}
 
+var videoEncoderOnce sync.Once
+var videoEncoder AACEncoder
+
+// VideoAACEncoder picks an iOS-safe AAC encoder for MP4 video exports (avoids aac_mf).
+func VideoAACEncoder(ffmpegConfigured string) AACEncoder {
+	videoEncoderOnce.Do(func() {
+		available := ffmpegEncoders(ffmpegConfigured)
+		if _, ok := available["aac"]; ok {
+			videoEncoder = AACEncoder{
+				Name:  "aac",
+				Label: "AAC-LC (256 kbps — Apple Music video)",
+				Parameters: []string{
+					"-c:a", "aac", "-b:a", IPhoneAACBitrate, "-profile:a", "aac_low",
+				},
+			}
+			return
+		}
+		if _, ok := available["libfdk_aac"]; ok {
+			videoEncoder = encoderConfig("libfdk_aac")
+			return
+		}
+		videoEncoder = encoderConfig("aac")
+	})
+	return videoEncoder
+}
+
 // DetectAACEncoder picks the best available AAC encoder (cached).
 func DetectAACEncoder(ffmpegConfigured string) AACEncoder {
 	encoderOnce.Do(func() {
