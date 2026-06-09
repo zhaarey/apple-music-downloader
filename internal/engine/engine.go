@@ -22,6 +22,7 @@ import (
 
 	appconfig "main/internal/config"
 	"main/internal/events"
+	"main/internal/media"
 	"main/utils/ampapi"
 	"main/utils/lyrics"
 	"main/utils/runv2"
@@ -1898,11 +1899,10 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 			}
 		}
 		if coverData, err := loadCoverBytes(coverPath); err == nil && len(coverData) > 0 {
-			format := mp4tag.ImageTypeJPEG
-			if strings.HasSuffix(strings.ToLower(coverPath), ".png") {
-				format = mp4tag.ImageTypePNG
+			if normalized, nerr := media.NormalizeCoverForApple(coverData); nerr == nil && len(normalized) > 0 {
+				coverData = normalized
 			}
-			t.Pictures = []*mp4tag.MP4Picture{{Format: format, Data: coverData}}
+			t.Pictures = []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: coverData}}
 		}
 	}
 

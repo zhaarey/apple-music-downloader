@@ -23,10 +23,13 @@ var (
 	encoder     AACEncoder
 )
 
-var encoderPriority = []string{"libfdk_aac", "aac_mf", "aac"}
-
 var videoEncoderOnce sync.Once
 var videoEncoder AACEncoder
+
+// appleAACEncoderParams returns iOS / Apple Music–safe AAC-LC 256 kbps settings.
+func appleAACEncoderParams(encoderName string) []string {
+	return []string{"-c:a", encoderName, "-b:a", IPhoneAACBitrate, "-profile:a", "aac_low"}
+}
 
 // VideoAACEncoder picks an iOS-safe AAC encoder for MP4 video exports (avoids aac_mf).
 func VideoAACEncoder(ffmpegConfigured string) AACEncoder {
@@ -36,26 +39,41 @@ func VideoAACEncoder(ffmpegConfigured string) AACEncoder {
 			videoEncoder = AACEncoder{
 				Name:  "aac",
 				Label: "AAC-LC (256 kbps — Apple Music video)",
-				Parameters: []string{
-					"-c:a", "aac", "-b:a", IPhoneAACBitrate, "-profile:a", "aac_low",
-				},
+				Parameters: appleAACEncoderParams("aac"),
+			}
+			return
+		}
+		if _, ok := available["aac_mf"]; ok {
+			videoEncoder = AACEncoder{
+				Name:  "aac_mf",
+				Label: "AAC-LC (256 kbps — Apple Music video)",
+				Parameters: appleAACEncoderParams("aac_mf"),
 			}
 			return
 		}
 		if _, ok := available["libfdk_aac"]; ok {
-			videoEncoder = encoderConfig("libfdk_aac")
+			videoEncoder = AACEncoder{
+				Name:  "libfdk_aac",
+				Label: "AAC-LC (256 kbps — Apple Music video)",
+				Parameters: appleAACEncoderParams("libfdk_aac"),
+			}
 			return
 		}
-		videoEncoder = encoderConfig("aac")
+		videoEncoder = AACEncoder{
+			Name:  "aac",
+			Label: "AAC-LC (256 kbps — Apple Music video)",
+			Parameters: appleAACEncoderParams("aac"),
+		}
 	})
 	return videoEncoder
 }
 
-// DetectAACEncoder picks the best available AAC encoder (cached).
+// DetectAACEncoder picks the best available AAC encoder for Apple Music import (cached).
+// Prefers native AAC-LC 256 kbps for consistent quality on iPhone sync.
 func DetectAACEncoder(ffmpegConfigured string) AACEncoder {
 	encoderOnce.Do(func() {
 		available := ffmpegEncoders(ffmpegConfigured)
-		for _, name := range encoderPriority {
+		for _, name := range []string{"aac", "aac_mf", "libfdk_aac"} {
 			if _, ok := available[name]; ok {
 				encoder = encoderConfig(name)
 				return
@@ -68,29 +86,23 @@ func DetectAACEncoder(ffmpegConfigured string) AACEncoder {
 
 func encoderConfig(name string) AACEncoder {
 	switch name {
-	case "libfdk_aac":
-		return AACEncoder{
-			Name:  name,
-			Label: "AAC (libfdk_aac VBR5 — highest quality)",
-			Parameters: []string{
-				"-c:a", "libfdk_aac", "-vbr", "5",
-			},
-		}
 	case "aac_mf":
 		return AACEncoder{
 			Name:  name,
-			Label: "AAC (MediaFoundation — 256 kbps, Windows)",
-			Parameters: []string{
-				"-c:a", "aac_mf", "-b:a", IPhoneAACBitrate,
-			},
+			Label: "AAC-LC (256 kbps — Apple Music)",
+			Parameters: appleAACEncoderParams("aac_mf"),
+		}
+	case "libfdk_aac":
+		return AACEncoder{
+			Name:  name,
+			Label: "AAC-LC (256 kbps — Apple Music)",
+			Parameters: appleAACEncoderParams("libfdk_aac"),
 		}
 	default:
 		return AACEncoder{
 			Name:  "aac",
-			Label: "AAC-LC (256 kbps — Apple Music tier)",
-			Parameters: []string{
-				"-c:a", "aac", "-b:a", IPhoneAACBitrate, "-profile:a", "aac_low",
-			},
+			Label: "AAC-LC (256 kbps — Apple Music)",
+			Parameters: appleAACEncoderParams("aac"),
 		}
 	}
 }
@@ -114,14 +126,14 @@ func ffmpegEncoders(ffmpegConfigured string) map[string]struct{} {
 	return set
 }
 
-// ConvertToAppleAAC re-encodes a file to AAC 256k M4A for Apple Music import.
+// ConvertToAppleAAC re-encodes a file to AAC-LC 256k M4A for Apple Music import.
 func ConvertToAppleAAC(ffmpegConfigured, src, dst string) error {
 	ffmpeg := appconfig.FFmpegPath(ffmpegConfigured)
 	enc := DetectAACEncoder(ffmpegConfigured)
 	attempts := [][]string{
 		append([]string{"-vn", "-sn", "-dn", "-map", "0:a:0?"}, append(enc.Parameters, "-movflags", "+faststart")...),
 		append([]string{"-vn", "-sn", "-dn", "-map", "0:a:0"}, append(enc.Parameters, "-movflags", "+faststart")...),
-		{"-vn", "-sn", "-dn", "-map", "0:a", "-c:a", "aac", "-b:a", IPhoneAACBitrate, "-movflags", "+faststart"},
+		{"-vn", "-sn", "-dn", "-map", "0:a", "-c:a", "aac", "-b:a", IPhoneAACBitrate, "-profile:a", "aac_low", "-movflags", "+faststart"},
 	}
 	var lastErr error
 	for _, mid := range attempts {

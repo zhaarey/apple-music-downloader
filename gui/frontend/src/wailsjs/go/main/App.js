@@ -14,9 +14,11 @@ export const CancelDownload = () => window.go?.main?.App?.CancelDownload?.() ?? 
 export const IsDownloading = () => window.go?.main?.App?.IsDownloading?.() ?? Promise.resolve(false)
 export const PickFolder = () => window.go?.main?.App?.PickFolder?.() ?? Promise.resolve('')
 export const OpenFolder = (path) => window.go?.main?.App?.OpenFolder?.(path) ?? Promise.resolve()
+export const RevealInFolder = (path) => window.go?.main?.App?.RevealInFolder?.(path) ?? Promise.resolve()
 export const GetWizardComplete = () => window.go?.main?.App?.GetWizardComplete?.() ?? Promise.resolve(false)
 export const SetWizardComplete = (v) => window.go?.main?.App?.SetWizardComplete?.(v) ?? Promise.resolve()
 export const GetConfigPath = () => window.go?.main?.App?.GetConfigPath?.() ?? Promise.resolve('')
+export const GetPlatform = () => window.go?.main?.App?.GetPlatform?.() ?? Promise.resolve('windows')
 export const GetAppDataDir = () => window.go?.main?.App?.GetAppDataDir?.() ?? Promise.resolve('')
 export const GetLogPath = () => window.go?.main?.App?.GetLogPath?.() ?? Promise.resolve('')
 export const OpenLogFile = () => window.go?.main?.App?.OpenLogFile?.() ?? Promise.resolve()
@@ -49,6 +51,15 @@ export const TagPickArtworkFile = () => window.go?.main?.App?.TagPickArtworkFile
 export const TagReadFile = (path) => window.go?.main?.App?.TagReadFile?.(path) ?? Promise.resolve({})
 export const TagWriteFile = (input) => window.go?.main?.App?.TagWriteFile?.(input) ?? Promise.resolve({})
 export const TagLocalFileURL = (path) => window.go?.main?.App?.TagLocalFileURL?.(path) ?? Promise.resolve('')
+
+export const ValidateIPhoneSync = (path) => window.go?.main?.App?.ValidateIPhoneSync?.(path) ?? Promise.resolve({ ready: false, summary: 'Unavailable', checks: [] })
+export const ValidateIPhoneSyncFolder = (folder) =>
+  window.go?.main?.App?.ValidateIPhoneSyncFolder?.(folder) ?? Promise.resolve({ ready: false, summary: 'Unavailable', files: [] })
+export const GetAppleMusicCacheInfo = () => window.go?.main?.App?.GetAppleMusicCacheInfo?.() ?? Promise.resolve({ paths: [], note: '' })
+export const ClearAppleMusicArtworkCache = () =>
+  window.go?.main?.App?.ClearAppleMusicArtworkCache?.() ?? Promise.resolve({ ok: false, message: 'Unavailable' })
+export const ClearAppTempCache = () => window.go?.main?.App?.ClearAppTempCache?.() ?? Promise.resolve({ ok: false, message: 'Unavailable' })
+export const ClearAllSyncCaches = () => window.go?.main?.App?.ClearAllSyncCaches?.() ?? Promise.resolve({ ok: false, message: 'Unavailable' })
 
 export const EventsOn = (eventName, callback) => {
   if (window.runtime?.EventsOn) {

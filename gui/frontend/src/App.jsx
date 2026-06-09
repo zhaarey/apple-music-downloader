@@ -8,6 +8,7 @@ import {
   PickFolder,
   GetWizardComplete,
   SetWizardComplete,
+  GetPlatform,
   EventsOn,
   IsDownloading,
   SpliceIsExporting,
@@ -21,36 +22,21 @@ import SpliceTab from './features/splice/SpliceTab'
 import MetadataTab from './features/metadata/MetadataTab'
 import ErrorBoundary from './components/ErrorBoundary'
 import { parseYouTubeProgress } from './lib/downloadStatus'
+import { featuresForPlatform, isTabEnabled } from './config/platform'
 
-const WORKFLOW_TABS = [
-  { id: 'apple', label: 'Apple Music' },
-  { id: 'youtube', label: 'YouTube' },
-  { id: 'splice', label: 'Split mix' },
-  { id: 'metadata', label: 'Tag Editor' },
-]
-
-const UTILITY_TABS = [
-  { id: 'activity', label: 'Activity' },
-  { id: 'requirements', label: 'Requirements' },
-  { id: 'settings', label: 'Settings' },
-]
-
-/** Tabs you can always open while a download runs (multitask-friendly). */
-const DOWNLOAD_MULTITASK_TABS = new Set(['activity', 'splice', 'metadata', 'requirements', 'settings'])
-
-function canSwitchTabWhileDownloading(targetTab, downloadJob) {
+function canSwitchTabWhileDownloading(targetTab, downloadJob, multitaskTabs) {
   if (!downloadJob?.source) return true
   if (targetTab === downloadJob.source) return true
-  if (DOWNLOAD_MULTITASK_TABS.has(targetTab)) return true
+  if (multitaskTabs.has(targetTab)) return true
   if (targetTab === 'apple' || targetTab === 'youtube') return false
   return true
 }
 
-function tabSwitchBlockedReason(targetTab, downloadJob) {
+function tabSwitchBlockedReason(targetTab, downloadJob, multitaskTabs) {
   if (!downloadJob?.source) return ''
-  if (canSwitchTabWhileDownloading(targetTab, downloadJob)) return ''
+  if (canSwitchTabWhileDownloading(targetTab, downloadJob, multitaskTabs)) return ''
   const label = downloadJob.source === 'youtube' ? 'YouTube' : 'Apple Music'
-  return `A ${label} download is in progress — finish it or open Activity to monitor before switching download tabs.`
+  return `A ${label} download is in progress — finish it or wait before switching download tabs.`
 }
 
 function TabButton({ tab, active, onClick, badge, disabled, title }) {
@@ -85,7 +71,7 @@ function TabPanel({ active, children }) {
   )
 }
 
-function GlobalJobBar({ downloading, downloadJob, spliceExporting, progress, onOpenActivity }) {
+function GlobalJobBar({ downloading, downloadJob, spliceExporting, progress, onOpenActivity, showActivityLink }) {
   if (!downloading && !spliceExporting) return null
 
   const downloadLabel =
@@ -111,7 +97,7 @@ function GlobalJobBar({ downloading, downloadJob, spliceExporting, progress, onO
           {downloading && progress?.percent > 0 && (
             <span className="tabular-nums text-accent">{progress.percent}%</span>
           )}
-          {downloading && (
+          {downloading && showActivityLink && (
             <button type="button" onClick={onOpenActivity} className="text-accent hover:underline">
               Open Activity
             </button>
@@ -131,8 +117,11 @@ function GlobalJobBar({ downloading, downloadJob, spliceExporting, progress, onO
 }
 
 export default function App() {
+  const [platform, setPlatform] = useState('windows')
+  const features = useMemo(() => featuresForPlatform(platform), [platform])
+
   const [tab, setTab] = useState('apple')
-  const [showWizard, setShowWizard] = useState(true)
+  const [showWizard, setShowWizard] = useState(false)
   const [settings, setSettings] = useState(null)
   const [deps, setDeps] = useState([])
   const [logs, setLogs] = useState([])
@@ -145,15 +134,28 @@ export default function App() {
   const [spliceHandoff, setSpliceHandoff] = useState(null)
   const [navBlockHint, setNavBlockHint] = useState('')
 
+  const spliceEnabled = isTabEnabled(features, 'splice')
+
   const syncBackendJobs = useCallback(async () => {
-    const [dl, splice] = await Promise.all([IsDownloading(), SpliceIsExporting()])
+    const dl = await IsDownloading()
     setDownloading(dl)
-    setSpliceExporting(splice)
     if (!dl) setDownloadJob(null)
-  }, [])
+    if (spliceEnabled) {
+      setSpliceExporting(await SpliceIsExporting())
+    }
+  }, [spliceEnabled])
 
   useEffect(() => {
-    GetWizardComplete().then((done) => setShowWizard(!done))
+    GetPlatform().then((goos) => {
+      const p = goos || 'windows'
+      setPlatform(p)
+      const f = featuresForPlatform(p)
+      if (f.showWizard) {
+        GetWizardComplete().then((done) => setShowWizard(!done))
+      } else {
+        setShowWizard(false)
+      }
+    })
     GetSettings().then(setSettings)
     CheckDependencies().then(setDeps)
     syncBackendJobs()
@@ -169,12 +171,15 @@ export default function App() {
       }
     })
 
-    const offSplice = EventsOn('splice:event', (ev) => {
-      if (ev?.type === 'splice_progress') setSpliceExporting(true)
-      if (ev?.type === 'splice_complete' || ev?.type === 'splice_error') {
-        setSpliceExporting(false)
-      }
-    })
+    let offSplice
+    if (spliceEnabled) {
+      offSplice = EventsOn('splice:event', (ev) => {
+        if (ev?.type === 'splice_progress') setSpliceExporting(true)
+        if (ev?.type === 'splice_complete' || ev?.type === 'splice_error') {
+          setSpliceExporting(false)
+        }
+      })
+    }
 
     const poll = setInterval(syncBackendJobs, 2500)
 
@@ -183,7 +188,7 @@ export default function App() {
       offSplice?.()
       clearInterval(poll)
     }
-  }, [syncBackendJobs])
+  }, [syncBackendJobs, spliceEnabled])
 
   const globalProgress = useMemo(
     () => (downloading ? parseYouTubeProgress(engineEvents) : null),
@@ -223,7 +228,7 @@ export default function App() {
   }
 
   const navigateTab = (targetTab) => {
-    const reason = tabSwitchBlockedReason(targetTab, downloading ? downloadJob : null)
+    const reason = tabSwitchBlockedReason(targetTab, downloading ? downloadJob : null, features.multitaskTabs)
     if (reason) {
       setNavBlockHint(reason)
       return
@@ -233,6 +238,7 @@ export default function App() {
   }
 
   const openSpliceWithHandoff = (handoff) => {
+    if (!features.showSplitHandoff) return
     setSpliceHandoff(handoff)
     navigateTab('splice')
   }
@@ -240,6 +246,7 @@ export default function App() {
   const makeDownloadTabProps = (sourceMode) => ({
     settings,
     deps,
+    platform,
     prefillUrl: sourceMode === 'apple' ? prefillUrl : '',
     onPrefillConsumed: () => setPrefillUrl(''),
     downloading,
@@ -249,7 +256,7 @@ export default function App() {
     jobSession: jobSessions[sourceMode],
     onClearJobSession: () => setJobSessions((prev) => ({ ...prev, [sourceMode]: null })),
     onResetPipeline: resetDownloadPipeline,
-    onSplitIntoTracks: openSpliceWithHandoff,
+    onSplitIntoTracks: features.showSplitHandoff ? openSpliceWithHandoff : undefined,
     onSettingsChange: async (patch) => {
       const cfg = { ...settings, ...patch }
       await SaveSettings(cfg)
@@ -257,6 +264,8 @@ export default function App() {
       refreshDeps()
     },
     sourceMode,
+    showAppleSearch: features.showAppleSearch,
+    showLosslessQualities: features.showLosslessQualities,
   })
 
   const tabBadge = (tabId) => {
@@ -266,9 +275,10 @@ export default function App() {
     return false
   }
 
-  const tabDisabled = (tabId) => downloading && !canSwitchTabWhileDownloading(tabId, downloadJob)
+  const tabDisabled = (tabId) =>
+    downloading && !canSwitchTabWhileDownloading(tabId, downloadJob, features.multitaskTabs)
 
-  if (showWizard) {
+  if (showWizard && features.showWizard) {
     return <Wizard settings={settings} deps={deps} onComplete={handleWizardDone} onRefreshDeps={refreshDeps} />
   }
 
@@ -279,35 +289,39 @@ export default function App() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-lg font-bold">♫</div>
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight">Aura Audio Downloader</h1>
-            <p className="truncate text-xs text-white/50">Download · split · tag for Apple Music</p>
+            <p className="truncate text-xs text-white/50">{features.tagline}</p>
           </div>
         </div>
         <nav className="flex shrink-0 items-center gap-3">
           <div className="flex gap-1 rounded-xl bg-surface-raised p-1">
-            {WORKFLOW_TABS.map((t) => (
+            {features.workflowTabs.map((t) => (
               <TabButton
                 key={t.id}
                 tab={t}
                 active={tab === t.id}
                 badge={tabBadge(t.id)}
                 disabled={tabDisabled(t.id)}
-                title={tabDisabled(t.id) ? tabSwitchBlockedReason(t.id, downloadJob) : undefined}
+                title={tabDisabled(t.id) ? tabSwitchBlockedReason(t.id, downloadJob, features.multitaskTabs) : undefined}
                 onClick={() => navigateTab(t.id)}
               />
             ))}
           </div>
-          <div className="hidden h-6 w-px bg-white/10 sm:block" aria-hidden />
-          <div className="flex gap-1 rounded-xl bg-surface-raised/70 p-1">
-            {UTILITY_TABS.map((t) => (
-              <TabButton
-                key={t.id}
-                tab={t}
-                active={tab === t.id}
-                badge={tabBadge(t.id)}
-                onClick={() => navigateTab(t.id)}
-              />
-            ))}
-          </div>
+          {features.utilityTabs.length > 0 && (
+            <>
+              <div className="hidden h-6 w-px bg-white/10 sm:block" aria-hidden />
+              <div className="flex gap-1 rounded-xl bg-surface-raised/70 p-1">
+                {features.utilityTabs.map((t) => (
+                  <TabButton
+                    key={t.id}
+                    tab={t}
+                    active={tab === t.id}
+                    badge={tabBadge(t.id)}
+                    onClick={() => navigateTab(t.id)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </nav>
       </header>
 
@@ -317,6 +331,7 @@ export default function App() {
         spliceExporting={spliceExporting}
         progress={globalProgress}
         onOpenActivity={() => navigateTab('activity')}
+        showActivityLink={isTabEnabled(features, 'activity')}
       />
 
       {navBlockHint && (
@@ -330,23 +345,25 @@ export default function App() {
         <TabPanel active={tab === 'youtube'}>
           <DownloadTab {...makeDownloadTabProps('youtube')} />
         </TabPanel>
-        <TabPanel active={tab === 'splice'}>
-          <ErrorBoundary
-            name="SpliceTab"
-            title="Split mix tab crashed"
-            hint="Try building tracks again. If it keeps failing, check the log file for the exact error."
-            onRetry={() => setTab('splice')}
-          >
-            <SpliceTab handoff={spliceHandoff} onHandoffConsumed={() => setSpliceHandoff(null)} />
-          </ErrorBoundary>
-        </TabPanel>
+        {spliceEnabled && (
+          <TabPanel active={tab === 'splice'}>
+            <ErrorBoundary
+              name="SpliceTab"
+              title="Split mix tab crashed"
+              hint="Try building tracks again. If it keeps failing, check the log file for the exact error."
+              onRetry={() => setTab('splice')}
+            >
+              <SpliceTab handoff={spliceHandoff} onHandoffConsumed={() => setSpliceHandoff(null)} />
+            </ErrorBoundary>
+          </TabPanel>
+        )}
         <TabPanel active={tab === 'metadata'}>
           <ErrorBoundary name="MetadataTab" title="Tag Editor crashed" onRetry={() => setTab('metadata')}>
-            <MetadataTab />
+            <MetadataTab platform={platform} />
           </ErrorBoundary>
         </TabPanel>
 
-        {tab === 'activity' && (
+        {tab === 'activity' && isTabEnabled(features, 'activity') && (
           <QueueTab
             logs={logs}
             engineEvents={engineEvents}
@@ -356,11 +373,14 @@ export default function App() {
             jobSession={jobSessions[downloadJob?.source] || jobSessions.apple || jobSessions.youtube}
           />
         )}
-        {tab === 'requirements' && <RequirementsTab deps={deps} onRefreshDeps={refreshDeps} />}
+        {tab === 'requirements' && isTabEnabled(features, 'requirements') && (
+          <RequirementsTab deps={deps} onRefreshDeps={refreshDeps} />
+        )}
         {tab === 'settings' && (
           <SettingsTab
             settings={settings}
             deps={deps}
+            platform={platform}
             onSave={async (cfg) => {
               await SaveSettings(cfg)
               setSettings(cfg)
@@ -368,7 +388,7 @@ export default function App() {
             }}
             onPickFolder={PickFolder}
             onRefreshDeps={refreshDeps}
-            onShowWizard={() => setShowWizard(true)}
+            onShowWizard={features.showWizard ? () => setShowWizard(true) : undefined}
           />
         )}
       </main>

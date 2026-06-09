@@ -143,7 +143,13 @@ func writeTrackTagsClearArt(path string, tags TrackTags) error {
 	if err != nil {
 		return err
 	}
-	return writeMP4Tags(path, t, nil)
+	t.Pictures = nil
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return err
+	}
+	defer mp4.Close()
+	return mp4.Write(t, []string{"allpictures"})
 }
 
 func clonePicture(p *mp4tag.MP4Picture) *mp4tag.MP4Picture {
@@ -176,20 +182,14 @@ func readExistingPictures(path string) ([]*mp4tag.MP4Picture, error) {
 func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4tag.MP4Picture, error) {
 	wantNew := tags.CoverPath != "" || len(tags.CoverData) > 0 || tags.CoverURL != ""
 	if wantNew {
-		coverData, coverMIME, err := resolveCover(tags)
+		coverData, err := PrepareCoverBytes(tags)
 		if err != nil || len(coverData) == 0 {
 			if err == nil {
 				err = os.ErrNotExist
 			}
 			return nil, fmt.Errorf("artwork: %w", err)
 		}
-		format := mp4tag.ImageTypeJPEG
-		if strings.Contains(coverMIME, "png") ||
-			strings.HasSuffix(strings.ToLower(tags.CoverPath), ".png") ||
-			strings.HasSuffix(strings.ToLower(tags.CoverURL), ".png") {
-			format = mp4tag.ImageTypePNG
-		}
-		return []*mp4tag.MP4Picture{{Format: format, Data: coverData}}, nil
+		return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: coverData}}, nil
 	}
 	if len(existing) == 0 {
 		return nil, nil
@@ -197,6 +197,9 @@ func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4
 	pic := existing[0]
 	if len(existing) > 1 {
 		pic = existing[len(existing)-1]
+	}
+	if normalized, err := NormalizeCoverForApple(pic.Data); err == nil && len(normalized) > 0 {
+		return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: normalized}}, nil
 	}
 	return []*mp4tag.MP4Picture{clonePicture(pic)}, nil
 }
@@ -267,7 +270,11 @@ func writeMP4Tags(path string, t *mp4tag.MP4Tags, pictures []*mp4tag.MP4Picture)
 		return err
 	}
 	defer mp4.Close()
-	return mp4.Write(t, []string{"allpictures"})
+	delStrings := []string{}
+	if len(pictures) > 0 {
+		delStrings = []string{"allpictures"}
+	}
+	return mp4.Write(t, delStrings)
 }
 
 // TrackTags holds Apple Music–friendly metadata for an M4A file.

@@ -33,20 +33,16 @@ func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
 
 	args := []string{"-y", "-loglevel", "error", "-i", path}
 
-	coverPath, coverMIME, coverErr := resolveCoverOptional(tags)
+	var coverCleanup func()
+	coverPath, coverCleanup, coverErr := PrepareCoverFile(tags)
 	if coverErr == nil && coverPath != "" {
-		defer os.Remove(coverPath)
+		defer coverCleanup()
 		args = append(args, "-i", coverPath)
 	}
 
 	args = append(args, "-map", "0")
 	if coverPath != "" {
-		args = append(args, "-map", "1", "-c", "copy")
-		mime := "image/jpeg"
-		if strings.Contains(coverMIME, "png") {
-			mime = "image/png"
-		}
-		args = append(args, "-metadata:s:t:0", "mimetype="+mime)
+		args = append(args, "-map", "1", "-c", "copy", "-metadata:s:t:0", "mimetype=image/jpeg")
 	} else {
 		args = append(args, "-c", "copy")
 	}
@@ -70,34 +66,6 @@ func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
 		return fmt.Errorf("replace tagged video: %w", err)
 	}
 	return nil
-}
-
-func resolveCoverOptional(tags TrackTags) (path string, mime string, err error) {
-	data, mime, err := resolveCover(tags)
-	if err != nil || len(data) == 0 {
-		return "", "", err
-	}
-	ext := ".jpg"
-	if strings.Contains(mime, "png") ||
-		strings.HasSuffix(strings.ToLower(tags.CoverPath), ".png") ||
-		strings.HasSuffix(strings.ToLower(tags.CoverURL), ".png") {
-		ext = ".png"
-	}
-	f, err := os.CreateTemp("", ".amd-cover-*"+ext)
-	if err != nil {
-		return "", "", err
-	}
-	coverPath := f.Name()
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(coverPath)
-		return "", "", err
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(coverPath)
-		return "", "", err
-	}
-	return coverPath, mime, nil
 }
 
 func appendFFmpegMetadataArgs(args []string, tags TrackTags) []string {

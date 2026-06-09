@@ -1,4 +1,6 @@
 /** Ensures project shape is safe for React rendering after Wails round-trips. */
+export { formatActionError } from '../../lib/formatActionError'
+
 export function normalizeProject(project, fallback = {}) {
   const base = fallback && typeof fallback === 'object' ? fallback : {}
   const p = project && typeof project === 'object' ? project : {}
@@ -50,9 +52,4 @@ function toMs(value, fallback = 0) {
 function toInt(value, fallback = null) {
   const n = Number(value)
   return Number.isFinite(n) && n > 0 ? Math.round(n) : fallback
-}
-
-export function formatActionError(error, action) {
-  const msg = error?.message || String(error ?? 'Unknown error')
-  return `${action} failed: ${msg}`
 }

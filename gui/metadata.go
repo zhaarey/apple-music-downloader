@@ -74,5 +74,5 @@ func (a *App) TagWriteFile(input media.WriteAudioTagsInput) (media.AudioTagInfo,
 
 // TagLocalFileURL returns a webview-safe URL for local file preview (audio or images).
 func (a *App) TagLocalFileURL(path string) string {
-	return spliceMediaURL(path)
+	return localMediaURL(path)
 }

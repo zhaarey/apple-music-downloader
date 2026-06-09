@@ -10,6 +10,18 @@ export function CheckDependencies() {
   return window['go']['main']['App']['CheckDependencies']();
 }
 
+export function ClearAllSyncCaches() {
+  return window['go']['main']['App']['ClearAllSyncCaches']();
+}
+
+export function ClearAppTempCache() {
+  return window['go']['main']['App']['ClearAppTempCache']();
+}
+
+export function ClearAppleMusicArtworkCache() {
+  return window['go']['main']['App']['ClearAppleMusicArtworkCache']();
+}
+
 export function DetectURLType(arg1) {
   return window['go']['main']['App']['DetectURLType'](arg1);
 }
@@ -18,12 +30,20 @@ export function GetAppDataDir() {
   return window['go']['main']['App']['GetAppDataDir']();
 }
 
+export function GetAppleMusicCacheInfo() {
+  return window['go']['main']['App']['GetAppleMusicCacheInfo']();
+}
+
 export function GetConfigPath() {
   return window['go']['main']['App']['GetConfigPath']();
 }
 
 export function GetLogPath() {
   return window['go']['main']['App']['GetLogPath']();
+}
+
+export function GetPlatform() {
+  return window['go']['main']['App']['GetPlatform']();
 }
 
 export function GetSettings() {
@@ -56,6 +76,10 @@ export function PickFolder() {
 
 export function PreviewURL(arg1) {
   return window['go']['main']['App']['PreviewURL'](arg1);
+}
+
+export function RevealInFolder(arg1) {
+  return window['go']['main']['App']['RevealInFolder'](arg1);
 }
 
 export function SaveSettings(arg1) {
@@ -160,4 +184,12 @@ export function TagReadFile(arg1) {
 
 export function TagWriteFile(arg1) {
   return window['go']['main']['App']['TagWriteFile'](arg1);
+}
+
+export function ValidateIPhoneSync(arg1) {
+  return window['go']['main']['App']['ValidateIPhoneSync'](arg1);
+}
+
+export function ValidateIPhoneSyncFolder(arg1) {
+  return window['go']['main']['App']['ValidateIPhoneSyncFolder'](arg1);
 }

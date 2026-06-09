@@ -5,13 +5,15 @@ import {
   TagReadFile,
   TagWriteFile,
   TagLocalFileURL,
-  OpenFolder,
+  ValidateIPhoneSync,
+  RevealInFolder,
 } from '../../wailsjs/go/main/App'
 
 import ArtworkEditor from '../../components/ArtworkEditor'
 import StatusToast from '../../components/StatusToast'
-import { resolveMediaURL } from '../splice/useMasterAudio'
-import { formatActionError } from '../splice/projectUtils'
+import SyncValidationPanel, { SyncTroubleshootingPanel } from './SyncValidationPanel'
+import { resolveMediaURL } from '../../lib/resolveMediaURL'
+import { formatActionError } from '../../lib/formatActionError'
 import { reportFrontendError } from '../../lib/errorReporting'
 
 const EMPTY = {
@@ -77,7 +79,7 @@ function SaveButtonIcon({ saving, saved }) {
   return null
 }
 
-export default function MetadataTab() {
+export default function MetadataTab({ platform = 'windows' }) {
   const [tags, setTags] = useState(EMPTY)
   const [fileInfo, setFileInfo] = useState(null)
   const [coverPath, setCoverPath] = useState('')
@@ -88,6 +90,9 @@ export default function MetadataTab() {
   const [saved, setSaved] = useState(false)
   const [toast, setToast] = useState('')
   const [toastVariant, setToastVariant] = useState('success')
+  const [syncResult, setSyncResult] = useState(null)
+  const [folderSyncResult, setFolderSyncResult] = useState(null)
+  const [validating, setValidating] = useState(false)
 
   const dismissToast = useCallback(() => setToast(''), [])
 
@@ -101,6 +106,19 @@ export default function MetadataTab() {
     [fileInfo, coverPreviewURL, clearArtwork],
   )
 
+  const clearFile = useCallback(() => {
+    if (saving) return
+    setTags(EMPTY)
+    setFileInfo(null)
+    setCoverPath('')
+    setCoverPreviewURL('')
+    setClearArtwork(false)
+    setSaved(false)
+    setSyncResult(null)
+    setValidating(false)
+    setToast('')
+  }, [saving])
+
   const loadFile = async (path) => {
     if (!path) return
     setLoading(true)
@@ -113,6 +131,7 @@ export default function MetadataTab() {
       const info = await TagReadFile(path)
       setFileInfo(info)
       setTags(tagsFromInfo(info, path))
+      setSyncResult(null)
       if (info.artwork_count > 1) {
         showToast(`Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`, 'info')
       } else {
@@ -153,6 +172,24 @@ export default function MetadataTab() {
     return Number.isFinite(n) && n > 0 ? Math.round(n) : 0
   }
 
+  const validateSync = async () => {
+    if (!tags.path) {
+      showToast('Open an audio file first.', 'error')
+      return
+    }
+    setValidating(true)
+    try {
+      const res = await ValidateIPhoneSync(tags.path)
+      setSyncResult(res)
+      showToast(res.summary, res.ready ? 'success' : 'info')
+    } catch (e) {
+      reportFrontendError('MetadataTab.validateSync', e)
+      showToast(formatActionError(e, 'Validate sync'), 'error')
+    } finally {
+      setValidating(false)
+    }
+  }
+
   const save = async () => {
     if (!tags.path) {
       showToast('Open an audio file first.', 'error')
@@ -183,7 +220,9 @@ export default function MetadataTab() {
       setCoverPreviewURL('')
       setClearArtwork(false)
       setSaved(true)
-      showToast('Tags saved successfully.')
+      const validation = await ValidateIPhoneSync(tags.path)
+      setSyncResult(validation)
+      showToast(validation.ready ? 'Tags saved — ready for iPhone sync.' : 'Tags saved — review sync checklist below.')
       setTimeout(() => setSaved(false), 2200)
     } catch (e) {
       reportFrontendError('MetadataTab.save', e)
@@ -197,7 +236,7 @@ export default function MetadataTab() {
 
   return (
     <div className="relative mx-auto flex h-full max-w-4xl flex-col gap-4 overflow-y-auto pb-4">
-      <StatusToast message={toast} variant={toastVariant} onDismiss={dismissToast} />
+      <StatusToast message={toast} variant={toastVariant} onDismiss={dismissToast} duration={4200} />
 
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h2 className="text-xl font-semibold">Tag Editor</h2>
@@ -216,13 +255,30 @@ export default function MetadataTab() {
           {tags.path && (
             <button
               type="button"
-              onClick={() => {
-                const i = Math.max(tags.path.lastIndexOf('\\'), tags.path.lastIndexOf('/'))
-                if (i > 0) OpenFolder(tags.path.slice(0, i))
-              }}
+              onClick={validateSync}
+              disabled={loading || saving || validating}
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm transition-colors duration-200 ease-apple hover:bg-white/5 disabled:opacity-50"
+            >
+              {validating ? 'Checking…' : 'Validate iPhone sync'}
+            </button>
+          )}
+          {tags.path && (
+            <button
+              type="button"
+              onClick={() => RevealInFolder(tags.path)}
               className="rounded-lg border border-white/15 px-4 py-2 text-sm transition-colors duration-200 ease-apple hover:bg-white/5"
             >
               Show in folder
+            </button>
+          )}
+          {tags.path && (
+            <button
+              type="button"
+              onClick={clearFile}
+              disabled={loading || saving}
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 transition-colors duration-200 ease-apple hover:border-white/25 hover:bg-white/5 hover:text-white disabled:opacity-50"
+            >
+              Close file
             </button>
           )}
         </div>
@@ -231,7 +287,19 @@ export default function MetadataTab() {
             {tags.path}
           </p>
         )}
+        {syncResult && tags.path && (
+          <div className="mt-4">
+            <SyncValidationPanel result={syncResult} />
+          </div>
+        )}
       </section>
+
+      <SyncTroubleshootingPanel
+        platform={platform}
+        onStatus={(message, variant) => showToast(message, variant)}
+        folderResult={folderSyncResult}
+        onFolderResult={setFolderSyncResult}
+      />
 
       {!tags.path ? (
         <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/45">

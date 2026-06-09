@@ -21,7 +21,7 @@ import {
 import ArtworkEditor from '../../components/ArtworkEditor'
 import WaveformEditor from './WaveformEditor'
 import TrackPreview from './TrackPreview'
-import { resolveMediaURL } from './useMasterAudio'
+import { resolveMediaURL } from '../../lib/resolveMediaURL'
 import { computeTrackSegment, formatMsPrecise, parseTimeInput } from './spliceTime'
 import { formatActionError, normalizeProject } from './projectUtils'
 import { reportFrontendError } from '../../lib/errorReporting'

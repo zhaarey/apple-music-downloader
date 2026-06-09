@@ -5,7 +5,7 @@ import { FetchPreviewSkeleton, FetchStatusBanner, YouTubeProgressPanel } from '.
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
 import SearchTab from './SearchTab'
 import { reportFrontendError } from '../lib/errorReporting'
-import { formatActionError } from '../features/splice/projectUtils'
+import { formatActionError } from '../lib/formatActionError'
 
 const QUALITIES = [
   { id: 'aac', label: 'AAC', desc: 'Works immediately', needsWrapper: false },
@@ -110,6 +110,8 @@ export default function DownloadTab({
   onSettingsChange,
   onSplitIntoTracks,
   sourceMode,
+  showAppleSearch = true,
+  showLosslessQualities = true,
 }) {
   const [url, setUrl] = useState('')
   const [urlType, setUrlType] = useState('')
@@ -126,7 +128,8 @@ export default function DownloadTab({
 
   const youtubeMode = sourceMode ? sourceMode === 'youtube' : Boolean(settings?.['youtube-mode'])
   const showSourceToggle = !sourceMode
-  const embedSearch = sourceMode === 'apple'
+  const embedSearch = sourceMode === 'apple' && showAppleSearch
+  const qualityOptions = showLosslessQualities ? QUALITIES : QUALITIES.filter((q) => !q.needsWrapper)
   const ytDlpOk = deps?.some((d) => d.name === 'yt-dlp' && d.ok)
   const ffmpegOk = deps?.some((d) => d.name === 'ffmpeg' && d.ok)
   const wrapperOk = deps?.some((d) => d.name?.includes('wrapper') && d.ok)
@@ -519,7 +522,7 @@ export default function DownloadTab({
             <div>
               <p className="mb-2 text-sm text-white/60">Quality</p>
               <div className="grid gap-2 sm:grid-cols-3">
-                {QUALITIES.map((q) => {
+                {qualityOptions.map((q) => {
                   const blocked = q.needsWrapper && !wrapperOk
                   return (
                     <button

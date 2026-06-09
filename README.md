@@ -29,6 +29,22 @@ Config and logs:
 %APPDATA%\AuraAudioDownloader\logs\app.log
 ```
 
+## Quick start (macOS)
+
+See [README-macOS.md](./README-macOS.md) for Apple Silicon build, unsigned DMG install, and Homebrew tool setup.
+
+```bash
+./scripts/build-macos.sh
+open dist/AuraAudioDownloader.app
+```
+
+Config and logs on macOS:
+
+```
+~/Library/Application Support/AuraAudioDownloader/config.yaml
+~/Library/Application Support/AuraAudioDownloader/logs/app.log
+```
+
 ## Suites
 
 | Tab | Purpose |

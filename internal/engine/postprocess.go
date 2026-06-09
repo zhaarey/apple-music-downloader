@@ -11,17 +11,8 @@ import (
 )
 
 func flattenAndEmbedCover(track *task.Track, trackPath string) error {
-	tags := []string{"tool=", "artist=AppleMusic"}
-	if Config.EmbedCover {
-		coverPath, err := resolveCoverPath(track)
-		if err != nil {
-			fmt.Printf("Cover skipped for %q: %v\n", track.Resp.Attributes.Name, err)
-		} else {
-			track.CoverPath = coverPath
-			tags = append(tags, fmt.Sprintf("cover=%s", coverPath))
-		}
-	}
-	cmd := exec.Command(mp4boxPath(), "-flat", "-itags", strings.Join(tags, ":"), trackPath)
+	// Flatten only — artwork and metadata are applied in writeMP4Tags (iOS-safe JPEG covr).
+	cmd := exec.Command(mp4boxPath(), "-flat", trackPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("MP4Box failed (%s): %w", mp4boxPath(), err)
 	}

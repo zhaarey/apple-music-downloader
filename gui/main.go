@@ -13,12 +13,15 @@ import (
 	"main/internal/engine"
 	"main/internal/events"
 	"main/internal/logging"
+	"main/internal/osutil"
+	"main/internal/platform"
 	"main/internal/splice"
 	"main/utils/structs"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -39,7 +42,7 @@ func main() {
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
-			Middleware: spliceMediaMiddleware,
+			Middleware: localMediaMiddleware,
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 18, B: 20, A: 255},
 		OnStartup:        app.startup,
@@ -50,6 +53,10 @@ func main() {
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			Theme:              windows.Dark,
+		},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarDefault(),
+			Appearance: mac.NSAppearanceNameDarkAqua,
 		},
 	})
 	if err != nil {
@@ -96,6 +103,10 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) shutdown(ctx context.Context) {
 	a.eng.Cancel()
+}
+
+func (a *App) GetPlatform() string {
+	return platform.GOOS()
 }
 
 func (a *App) GetSettings() structs.ConfigSet {
@@ -218,6 +229,10 @@ func (a *App) OpenFolder(path string) error {
 	}
 	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(path))
 	return nil
+}
+
+func (a *App) RevealInFolder(filePath string) error {
+	return osutil.RevealInFileManager(filePath)
 }
 
 func (a *App) GetWizardComplete() bool {

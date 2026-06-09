@@ -59,7 +59,7 @@ func (e *Engine) validateDownload(opts RunOptions) error {
 	mp4box := appconfig.MP4BoxPath()
 	if _, err := exec.LookPath(mp4box); err != nil {
 		if _, statErr := os.Stat(mp4box); statErr != nil {
-			return fmt.Errorf("MP4Box not found at %q: tagging requires MP4Box.exe in the app tools folder or on PATH", mp4box)
+			return fmt.Errorf("MP4Box not found at %q: tagging requires MP4Box in the app tools folder or on PATH", mp4box)
 		}
 	}
 

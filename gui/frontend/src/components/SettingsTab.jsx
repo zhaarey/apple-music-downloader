@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { OpenLogFile } from '../wailsjs/go/main/App'
 
-export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRefreshDeps, onShowWizard }) {
+export default function SettingsTab({ settings, deps, platform = 'windows', onSave, onPickFolder, onRefreshDeps, onShowWizard }) {
   const [cfg, setCfg] = useState(settings || {})
   const [saved, setSaved] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -23,10 +23,15 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
     if (path) update(key, path)
   }
 
+  const isMac = platform === 'darwin'
+  const configDirHint = isMac
+    ? 'Config is saved to ~/Library/Application Support/AuraAudioDownloader'
+    : 'Config is saved to your AppData folder'
+
   return (
     <div className="mx-auto h-full max-w-2xl overflow-y-auto">
       <h2 className="text-xl font-semibold">Settings</h2>
-      <p className="mt-1 text-sm text-white/50">Config is saved to your AppData folder</p>
+      <p className="mt-1 text-sm text-white/50">{configDirHint}</p>
 
       <section className="mt-6 space-y-4 rounded-xl border border-white/10 bg-surface-raised p-4">
         <h3 className="font-medium">Account</h3>
@@ -239,7 +244,9 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
           ))}
         </ul>
         <p className="mt-3 text-xs text-white/40">
-          ALAC / Atmos require wrapper on ports above. See README-WINDOWS.md for manual setup via WSL.
+          {isMac
+            ? 'Install MP4Box (gpac), ffmpeg, and yt-dlp via Homebrew if not bundled. See README-macOS.md.'
+            : 'ALAC / Atmos require wrapper on ports above. See README-WINDOWS.md for manual setup via WSL.'}
         </p>
       </section>
 
@@ -257,9 +264,11 @@ export default function SettingsTab({ settings, deps, onSave, onPickFolder, onRe
         <button onClick={save} className="rounded-xl bg-accent px-6 py-2 font-medium">
           {saved ? 'Saved!' : 'Save settings'}
         </button>
-        <button onClick={onShowWizard} className="rounded-xl border border-white/20 px-4 py-2 text-sm">
-          Re-run setup wizard
-        </button>
+        {onShowWizard && (
+          <button onClick={onShowWizard} className="rounded-xl border border-white/20 px-4 py-2 text-sm">
+            Re-run setup wizard
+          </button>
+        )}
       </div>
     </div>
   )

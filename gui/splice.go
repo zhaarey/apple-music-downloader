@@ -129,7 +129,7 @@ func (a *App) SplicePickOutputDir() (string, error) {
 
 // SpliceMasterAudioURL returns an asset-server URL for local master audio playback.
 func (a *App) SpliceMasterAudioURL(path string) string {
-	return spliceMediaURL(path)
+	return localMediaURL(path)
 }
 
 func (a *App) spliceService() *splice.Service {

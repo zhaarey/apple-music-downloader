@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 
+	"main/internal/platform"
 	"main/utils/structs"
 
 	"gopkg.in/yaml.v2"
@@ -17,81 +17,21 @@ const AppName = "AuraAudioDownloader"
 // LegacyAppName is the previous product folder under %APPDATA%.
 const LegacyAppName = "AppleMusicDownloader"
 
-func appDataRoot() string {
-	if runtime.GOOS == "windows" {
-		if appData := os.Getenv("APPDATA"); appData != "" {
-			return appData
-		}
-	}
-	home, _ := os.UserHomeDir()
-	return home
-}
-
 func AppDataDir() string {
-	if runtime.GOOS == "windows" {
-		return filepath.Join(appDataRoot(), AppName)
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "."+AppName)
+	return platform.AppDataDir()
 }
 
 func LegacyAppDataDir() string {
-	if runtime.GOOS == "windows" {
-		return filepath.Join(appDataRoot(), LegacyAppName)
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "."+LegacyAppName)
+	return platform.LegacyAppDataDir()
 }
 
 func SpliceProjectsDir() string {
 	return filepath.Join(AppDataDir(), "splice-projects")
 }
 
-// MigrateLegacyAppData copies config/logs from the old Apple Music Downloader folder once.
+// MigrateLegacyAppData copies config/logs from older product folders once.
 func MigrateLegacyAppData() error {
-	newDir := AppDataDir()
-	oldDir := LegacyAppDataDir()
-	if oldDir == newDir {
-		return nil
-	}
-	if _, err := os.Stat(oldDir); err != nil {
-		return nil
-	}
-	if err := os.MkdirAll(newDir, 0755); err != nil {
-		return err
-	}
-	copyIfMissing := func(name string) {
-		src := filepath.Join(oldDir, name)
-		dst := filepath.Join(newDir, name)
-		if _, err := os.Stat(dst); err == nil {
-			return
-		}
-		data, err := os.ReadFile(src)
-		if err != nil {
-			return
-		}
-		_ = os.WriteFile(dst, data, 0644)
-	}
-	copyIfMissing("config.yaml")
-	copyIfMissing("wizard.json")
-	oldLogs := filepath.Join(oldDir, "logs")
-	newLogs := filepath.Join(newDir, "logs")
-	if _, err := os.Stat(newLogs); err != nil {
-		if entries, err := os.ReadDir(oldLogs); err == nil && len(entries) > 0 {
-			_ = os.MkdirAll(newLogs, 0755)
-			for _, ent := range entries {
-				if ent.IsDir() {
-					continue
-				}
-				data, err := os.ReadFile(filepath.Join(oldLogs, ent.Name()))
-				if err != nil {
-					continue
-				}
-				_ = os.WriteFile(filepath.Join(newLogs, ent.Name()), data, 0644)
-			}
-		}
-	}
-	return nil
+	return platform.MigrateAppDataDir()
 }
 
 func ConfigPath() string {
@@ -243,7 +183,7 @@ func FFmpegLocation(configured string) string {
 func ValidateFFmpegForYouTube(configured string) error {
 	ffmpeg, ffmpegOK := resolveBinaryPath(FFmpegPath(configured))
 	if !ffmpegOK {
-		return fmt.Errorf("ffmpeg not found — install the ffmpeg essentials build and add to PATH, or place ffmpeg.exe and ffprobe.exe in dist/tools/")
+		return fmt.Errorf("ffmpeg not found — install ffmpeg and add to PATH, or place ffmpeg and ffprobe in the app tools folder (dist/tools/)")
 	}
 	ffmpegDir := filepath.Dir(ffmpeg)
 	if _, ok := ffprobeInDir(ffmpegDir); ok {
@@ -251,11 +191,11 @@ func ValidateFFmpegForYouTube(configured string) error {
 	}
 	if probe, ok := resolveBinaryPath(FFprobePath(configured)); ok {
 		if filepath.Dir(probe) != ffmpegDir {
-			return fmt.Errorf("ffmpeg and ffprobe must be in the same folder for YouTube downloads (copy ffprobe.exe next to ffmpeg.exe, or use dist/tools/)")
+			return fmt.Errorf("ffmpeg and ffprobe must be in the same folder for YouTube downloads (install via Homebrew or copy both into tools/)")
 		}
 		return nil
 	}
-	return fmt.Errorf("ffprobe not found — YouTube audio extraction requires ffprobe (included in the ffmpeg essentials build). Install ffmpeg or add ffprobe.exe to dist/tools/ next to ffmpeg.exe")
+	return fmt.Errorf("ffprobe not found — YouTube downloads require ffprobe alongside ffmpeg. Install ffmpeg or add both to tools/")
 }
 
 func fileExists(path string) bool {
@@ -307,7 +247,7 @@ func DefaultConfig() structs.ConfigSet {
 		AuthorizationToken:   "",
 		EmbedLrc:             true,
 		EmbedCover:           true,
-		CoverSize:            "5000x5000",
+		CoverSize:            "3000x3000",
 		CoverFormat:          "jpg",
 		TagSortOrder:         true,
 		TagItunesID:          true,

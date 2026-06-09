@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { resolveMediaURL } from '../../lib/resolveMediaURL'
 
 const BLOB_FALLBACK_MAX_BYTES = 400 * 1024 * 1024
-
-/** Turn a splice-media path into an absolute URL for the current webview origin. */
-export function resolveMediaURL(relativePath) {
-  const path = relativePath == null ? '' : String(relativePath)
-  if (!path || path === '[object Promise]') return ''
-  if (/^(https?:|wails:)/i.test(path)) return path
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  if (!origin || origin === 'null') return path
-  return `${origin}${path.startsWith('/') ? path : `/${path}`}`
-}
 
 async function probeMediaURL(url) {
   const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' } })
