@@ -1,13 +1,201 @@
 package media
 
 import (
+	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/zhaarey/go-mp4tag"
 )
+
+// AudioTagInfo is metadata read from or written to an audio file (GUI/API).
+type AudioTagInfo struct {
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	Artist      string `json:"artist"`
+	Album       string `json:"album"`
+	AlbumArtist string `json:"album_artist"`
+	Genre       string `json:"genre"`
+	Year        string `json:"year"`
+	TrackNumber int16  `json:"track_number"`
+	TrackTotal  int16  `json:"track_total"`
+	DiscNumber  int16  `json:"disc_number"`
+	DiscTotal   int16  `json:"disc_total"`
+	HasArtwork  bool   `json:"has_artwork"`
+	ArtworkMime string `json:"artwork_mime,omitempty"`
+	ArtworkB64  string `json:"artwork_b64,omitempty"`
+	Summary     string `json:"summary"`
+}
+
+// ReadAudioTags reads Apple Music–friendly tags from an M4A file.
+func ReadAudioTags(path string) (AudioTagInfo, error) {
+	out := AudioTagInfo{Path: path}
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return out, err
+	}
+	defer mp4.Close()
+
+	tags, err := mp4.Read()
+	if err != nil {
+		return out, err
+	}
+	if tags == nil {
+		return out, nil
+	}
+
+	out.Title = strings.TrimSpace(tags.Title)
+	out.Artist = strings.TrimSpace(tags.Artist)
+	if out.Artist == "" {
+		out.Artist = strings.TrimSpace(tags.Custom["PERFORMER"])
+	}
+	out.Album = strings.TrimSpace(tags.Album)
+	out.AlbumArtist = strings.TrimSpace(tags.AlbumArtist)
+	out.Genre = strings.TrimSpace(tags.CustomGenre)
+	out.Year = strings.TrimSpace(tags.Date)
+	out.TrackNumber = tags.TrackNumber
+	out.TrackTotal = tags.TrackTotal
+	out.DiscNumber = tags.DiscNumber
+	out.DiscTotal = tags.DiscTotal
+
+	if len(tags.Pictures) > 0 && len(tags.Pictures[0].Data) > 0 {
+		out.HasArtwork = true
+		out.ArtworkMime = pictureMIME(tags.Pictures[0].Format)
+		out.ArtworkB64 = base64.StdEncoding.EncodeToString(tags.Pictures[0].Data)
+	}
+
+	title := out.Title
+	if title == "" {
+		title = "Unknown Title"
+	}
+	artist := out.Artist
+	if artist == "" {
+		artist = "Unknown Artist"
+	}
+	out.Summary = title + " · " + artist
+	if out.Album != "" {
+		out.Summary += " · " + out.Album
+	}
+	return out, nil
+}
+
+func pictureMIME(format mp4tag.ImageType) string {
+	if format == mp4tag.ImageTypePNG {
+		return "image/png"
+	}
+	return "image/jpeg"
+}
+
+// WriteAudioTagsInput is the payload from the tag editor UI.
+type WriteAudioTagsInput struct {
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	Artist      string `json:"artist"`
+	Album       string `json:"album"`
+	AlbumArtist string `json:"album_artist"`
+	Genre       string `json:"genre"`
+	Year        string `json:"year"`
+	TrackNumber int16  `json:"track_number"`
+	TrackTotal  int16  `json:"track_total"`
+	DiscNumber  int16  `json:"disc_number"`
+	DiscTotal   int16  `json:"disc_total"`
+	CoverPath   string `json:"cover_path"`
+	ClearArtwork bool  `json:"clear_artwork"`
+	SortTags    bool   `json:"sort_tags"`
+}
+
+// WriteAudioTags applies metadata to an existing M4A file.
+func WriteAudioTags(input WriteAudioTagsInput) error {
+	tags := TrackTags{
+		Title:       input.Title,
+		Artist:      input.Artist,
+		Album:       input.Album,
+		AlbumArtist: input.AlbumArtist,
+		Genre:       input.Genre,
+		Year:        input.Year,
+		TrackNumber: input.TrackNumber,
+		TrackTotal:  input.TrackTotal,
+		DiscNumber:  input.DiscNumber,
+		DiscTotal:   input.DiscTotal,
+		CoverPath:   strings.TrimSpace(input.CoverPath),
+		SortTags:    input.SortTags,
+	}
+	if input.ClearArtwork {
+		tags.CoverPath = ""
+		tags.CoverData = nil
+		return writeTrackTagsClearArt(input.Path, tags)
+	}
+	return WriteTrackTags(input.Path, tags)
+}
+
+func writeTrackTagsClearArt(path string, tags TrackTags) error {
+	title := strings.TrimSpace(tags.Title)
+	artist := strings.TrimSpace(tags.Artist)
+	album := strings.TrimSpace(tags.Album)
+	if title == "" {
+		title = "Unknown Title"
+	}
+	if artist == "" {
+		artist = "Unknown Artist"
+	}
+	if album == "" {
+		album = title
+	}
+	albumArtist := strings.TrimSpace(tags.AlbumArtist)
+	if albumArtist == "" {
+		albumArtist = artist
+	}
+	trackNum := tags.TrackNumber
+	if trackNum <= 0 {
+		trackNum = 1
+	}
+	discNum := tags.DiscNumber
+	if discNum <= 0 {
+		discNum = 1
+	}
+	trackTotal := tags.TrackTotal
+	if trackTotal <= 0 {
+		trackTotal = trackNum
+	}
+	discTotal := tags.DiscTotal
+	if discTotal <= 0 {
+		discTotal = 1
+	}
+
+	t := &mp4tag.MP4Tags{
+		Title:       title,
+		Artist:      artist,
+		Album:       album,
+		AlbumArtist: albumArtist,
+		CustomGenre: strings.TrimSpace(tags.Genre),
+		TrackNumber: trackNum,
+		TrackTotal:  trackTotal,
+		DiscNumber:  discNum,
+		DiscTotal:   discTotal,
+		Date:        strings.TrimSpace(tags.Year),
+		Custom: map[string]string{
+			"PERFORMER": artist,
+		},
+		Pictures: nil,
+	}
+	if tags.SortTags {
+		t.TitleSort = title
+		t.ArtistSort = artist
+		t.AlbumSort = album
+		t.AlbumArtistSort = albumArtist
+	}
+
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return err
+	}
+	defer mp4.Close()
+	return mp4.Write(t, []string{"allpictures"})
+}
 
 // TrackTags holds Apple Music–friendly metadata for an M4A file.
 type TrackTags struct {
@@ -85,12 +273,23 @@ func WriteTrackTags(path string, tags TrackTags) error {
 		t.AlbumArtistSort = albumArtist
 	}
 	coverData, coverMIME, err := resolveCover(tags)
-	if err == nil && len(coverData) > 0 {
+	delStrings := []string{}
+	wantCover := tags.CoverPath != "" || len(tags.CoverData) > 0 || tags.CoverURL != ""
+	if wantCover {
+		if err != nil || len(coverData) == 0 {
+			if err == nil {
+				err = os.ErrNotExist
+			}
+			return fmt.Errorf("artwork: %w", err)
+		}
 		format := mp4tag.ImageTypeJPEG
-		if strings.Contains(coverMIME, "png") || strings.HasSuffix(strings.ToLower(tags.CoverURL), ".png") {
+		if strings.Contains(coverMIME, "png") ||
+			strings.HasSuffix(strings.ToLower(tags.CoverPath), ".png") ||
+			strings.HasSuffix(strings.ToLower(tags.CoverURL), ".png") {
 			format = mp4tag.ImageTypePNG
 		}
 		t.Pictures = []*mp4tag.MP4Picture{{Format: format, Data: coverData}}
+		delStrings = []string{"allpictures"}
 	}
 
 	mp4, err := mp4tag.Open(path)
@@ -98,7 +297,7 @@ func WriteTrackTags(path string, tags TrackTags) error {
 		return err
 	}
 	defer mp4.Close()
-	return mp4.Write(t, []string{})
+	return mp4.Write(t, delStrings)
 }
 
 func resolveCover(tags TrackTags) ([]byte, string, error) {
@@ -110,7 +309,12 @@ func resolveCover(tags TrackTags) ([]byte, string, error) {
 		if err != nil {
 			return nil, "", err
 		}
-		return data, "image/jpeg", nil
+		mime := "image/jpeg"
+		ext := strings.ToLower(filepath.Ext(tags.CoverPath))
+		if ext == ".png" {
+			mime = "image/png"
+		}
+		return data, mime, nil
 	}
 	if tags.CoverURL == "" {
 		return nil, "", os.ErrNotExist

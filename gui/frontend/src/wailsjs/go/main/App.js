@@ -44,6 +44,12 @@ export const SplicePickOutputDir = () => window.go?.main?.App?.SplicePickOutputD
 export const SpliceMasterAudioURL = (path) =>
   window.go?.main?.App?.SpliceMasterAudioURL?.(path) ?? Promise.resolve('')
 
+export const TagPickAudioFile = () => window.go?.main?.App?.TagPickAudioFile?.() ?? Promise.resolve('')
+export const TagPickArtworkFile = () => window.go?.main?.App?.TagPickArtworkFile?.() ?? Promise.resolve('')
+export const TagReadFile = (path) => window.go?.main?.App?.TagReadFile?.(path) ?? Promise.resolve({})
+export const TagWriteFile = (input) => window.go?.main?.App?.TagWriteFile?.(input) ?? Promise.resolve({})
+export const TagLocalFileURL = (path) => window.go?.main?.App?.TagLocalFileURL?.(path) ?? Promise.resolve('')
+
 export const EventsOn = (eventName, callback) => {
   if (window.runtime?.EventsOn) {
     return window.runtime.EventsOn(eventName, callback)

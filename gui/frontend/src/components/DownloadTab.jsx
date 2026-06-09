@@ -3,6 +3,7 @@ import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder } 
 import { parseJobResult, parseTrackRows, parseYouTubeProgress, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
 import { YouTubeFetchSkeleton, YouTubeProgressPanel } from './YouTubeUI'
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
+import SearchTab from './SearchTab'
 
 const QUALITIES = [
   { id: 'aac', label: 'AAC', desc: 'Works immediately', needsWrapper: false },
@@ -76,6 +77,7 @@ export default function DownloadTab({
   onResetPipeline,
   onSettingsChange,
   onSplitIntoTracks,
+  sourceMode,
 }) {
   const [url, setUrl] = useState('')
   const [urlType, setUrlType] = useState('')
@@ -89,7 +91,9 @@ export default function DownloadTab({
   const [fetchStep, setFetchStep] = useState(0)
   const [metaByTrack, setMetaByTrack] = useState({})
 
-  const youtubeMode = Boolean(settings?.['youtube-mode'])
+  const youtubeMode = sourceMode ? sourceMode === 'youtube' : Boolean(settings?.['youtube-mode'])
+  const showSourceToggle = !sourceMode
+  const embedSearch = sourceMode === 'apple'
   const ytDlpOk = deps?.some((d) => d.name === 'yt-dlp' && d.ok)
   const ffmpegOk = deps?.some((d) => d.name === 'ffmpeg' && d.ok)
   const wrapperOk = deps?.some((d) => d.name?.includes('wrapper') && d.ok)
@@ -169,9 +173,10 @@ export default function DownloadTab({
     await onSettingsChange?.({ 'youtube-mode': nextYouTube })
   }
 
-  const fetchPreview = async () => {
-    const trimmed = url.trim()
+  const fetchPreview = async (forcedUrl) => {
+    const trimmed = (forcedUrl ?? url).trim()
     if (!trimmed) return
+    if (forcedUrl) setUrl(trimmed)
     setFetching(true)
     setFetchError('')
     setPreview(null)
@@ -248,8 +253,19 @@ export default function DownloadTab({
   const showProgress = jobStarted && (trackRows.length > 0 || (youtubeMode && downloading))
   const urlUnknown = urlType === 'Unknown' && url.trim().length > 12 && !youtubeMode
 
+  const handleSearchSelect = (searchUrl) => {
+    setUrl(searchUrl)
+    resetPreview({ clearPipeline: true })
+    fetchPreview(searchUrl)
+  }
+
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-y-auto pb-4">
+      {embedSearch && !preview && (
+        <SearchTab embedded onPreview={handleSearchSelect} />
+      )}
+
+      {showSourceToggle && (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface-raised p-3">
         <div>
           <p className="text-sm font-medium">Source</p>
@@ -280,6 +296,7 @@ export default function DownloadTab({
           </button>
         </div>
       </div>
+      )}
 
       {!preview && (
         <>
@@ -290,7 +307,9 @@ export default function DownloadTab({
             <p className="mt-1 text-sm text-white/50">
               {youtubeMode
                 ? 'Paste a video or playlist URL — audio is saved in the best available quality'
-                : 'Paste a link, fetch to preview, then download — success and errors show here when finished'}
+                : embedSearch
+                  ? 'Paste a link below or pick from search results — fetch to preview, then download'
+                  : 'Paste a link, fetch to preview, then download — success and errors show here when finished'}
             </p>
           </div>
 
@@ -467,8 +486,8 @@ export default function DownloadTab({
                 <span>
                   <span className="font-medium text-white/90">Also save MP4 video copy</span>
                   <span className="mt-1 block text-xs text-white/50">
-                    Creates a separate H.264/AAC MP4 file you can sync to your Apple Music library and watch offline.
-                    Adds extra download time.
+                    Creates a separate H.264 MP4 with AAC stereo audio (required for sound in the iPhone Music app).
+                    Adds extra download and conversion time.
                   </span>
                 </span>
               </label>

@@ -120,6 +120,89 @@ export namespace engine {
 
 }
 
+export namespace media {
+	
+	export class AudioTagInfo {
+	    path: string;
+	    title: string;
+	    artist: string;
+	    album: string;
+	    album_artist: string;
+	    genre: string;
+	    year: string;
+	    track_number: number;
+	    track_total: number;
+	    disc_number: number;
+	    disc_total: number;
+	    has_artwork: boolean;
+	    artwork_mime?: string;
+	    artwork_b64?: string;
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AudioTagInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	        this.artist = source["artist"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.track_number = source["track_number"];
+	        this.track_total = source["track_total"];
+	        this.disc_number = source["disc_number"];
+	        this.disc_total = source["disc_total"];
+	        this.has_artwork = source["has_artwork"];
+	        this.artwork_mime = source["artwork_mime"];
+	        this.artwork_b64 = source["artwork_b64"];
+	        this.summary = source["summary"];
+	    }
+	}
+	export class WriteAudioTagsInput {
+	    path: string;
+	    title: string;
+	    artist: string;
+	    album: string;
+	    album_artist: string;
+	    genre: string;
+	    year: string;
+	    track_number: number;
+	    track_total: number;
+	    disc_number: number;
+	    disc_total: number;
+	    cover_path: string;
+	    clear_artwork: boolean;
+	    sort_tags: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WriteAudioTagsInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	        this.artist = source["artist"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.track_number = source["track_number"];
+	        this.track_total = source["track_total"];
+	        this.disc_number = source["disc_number"];
+	        this.disc_total = source["disc_total"];
+	        this.cover_path = source["cover_path"];
+	        this.clear_artwork = source["clear_artwork"];
+	        this.sort_tags = source["sort_tags"];
+	    }
+	}
+
+}
+
 export namespace splice {
 	
 	export class AlbumMetadata {

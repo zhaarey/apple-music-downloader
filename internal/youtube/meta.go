@@ -97,6 +97,22 @@ func stringsTrimSuffix(s, suffix string) string {
 	return s
 }
 
+// FinalizeVideo converts a downloaded MP4 to H.264 + AAC stereo and tags it for Apple Music import.
+func FinalizeVideo(cfg structs.ConfigSet, srcPath string, meta DownloadMeta, multiTrack bool) (string, error) {
+	dst := OutputPath(OutputDir(cfg), meta, multiTrack, true)
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return "", err
+	}
+	if err := media.ConvertVideoToAppleMP4(cfg.FFmpegPath, srcPath, dst); err != nil {
+		return "", err
+	}
+	tags := MetaFromDownload(meta, cfg)
+	if err := media.WriteTrackTags(dst, tags); err != nil {
+		return dst, fmt.Errorf("tagging failed: %w", err)
+	}
+	return dst, nil
+}
+
 // FinalizeAudio converts and tags a downloaded file for Apple Music import.
 func FinalizeAudio(cfg structs.ConfigSet, saveDir string, srcPath string, meta DownloadMeta, multiTrack bool) (string, error) {
 	dst := OutputPath(saveDir, meta, multiTrack, false)

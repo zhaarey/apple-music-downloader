@@ -13,10 +13,14 @@ const spliceMediaPrefix = "/splice-media/"
 var spliceMediaExtensions = map[string]string{
 	".m4a":  "audio/mp4",
 	".mp4":  "audio/mp4",
+	".m4b":  "audio/mp4",
 	".aac":  "audio/aac",
 	".mp3":  "audio/mpeg",
 	".wav":  "audio/wav",
 	".flac": "audio/flac",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
 }
 
 func spliceMediaURL(path string) string {

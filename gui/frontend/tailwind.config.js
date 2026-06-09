@@ -17,6 +17,18 @@ export default {
       fontFamily: {
         sans: ['Segoe UI', 'system-ui', 'sans-serif'],
       },
+      keyframes: {
+        'status-in': {
+          from: { opacity: '0', transform: 'translateY(-6px) scale(0.97)' },
+          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+      },
+      animation: {
+        'status-in': 'status-in 0.32s cubic-bezier(0.2, 0, 0, 1)',
+      },
+      transitionTimingFunction: {
+        apple: 'cubic-bezier(0.2, 0, 0, 1)',
+      },
     },
   },
   plugins: [],

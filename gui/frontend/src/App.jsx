@@ -12,24 +12,42 @@ import {
 } from './wailsjs/go/main/App'
 import Wizard from './components/Wizard'
 import DownloadTab from './components/DownloadTab'
-import SearchTab from './components/SearchTab'
 import QueueTab from './components/QueueTab'
 import SettingsTab from './components/SettingsTab'
 import RequirementsTab from './components/RequirementsTab'
 import SpliceTab from './features/splice/SpliceTab'
+import MetadataTab from './features/metadata/MetadataTab'
 import ErrorBoundary from './components/ErrorBoundary'
 
-const TABS = [
-  { id: 'download', label: 'Download' },
+const WORKFLOW_TABS = [
+  { id: 'apple', label: 'Apple Music' },
+  { id: 'youtube', label: 'YouTube' },
   { id: 'splice', label: 'Split mix' },
-  { id: 'search', label: 'Search' },
+  { id: 'metadata', label: 'Tag Editor' },
+]
+
+const UTILITY_TABS = [
   { id: 'activity', label: 'Activity' },
   { id: 'requirements', label: 'Requirements' },
   { id: 'settings', label: 'Settings' },
 ]
 
+function TabButton({ tab, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+        active ? 'bg-accent text-white shadow' : 'text-white/60 hover:bg-surface-hover hover:text-white'
+      }`}
+    >
+      {tab.label}
+    </button>
+  )
+}
+
 export default function App() {
-  const [tab, setTab] = useState('download')
+  const [tab, setTab] = useState('apple')
   const [showWizard, setShowWizard] = useState(true)
   const [settings, setSettings] = useState(null)
   const [deps, setDeps] = useState([])
@@ -67,11 +85,6 @@ export default function App() {
     refreshDeps()
   }
 
-  const handleSearchPreview = (url) => {
-    setPrefillUrl(url)
-    setTab('download')
-  }
-
   const resetDownloadPipeline = () => {
     setEngineEvents([])
     setLogs([])
@@ -93,57 +106,59 @@ export default function App() {
     setTab('splice')
   }
 
+  const downloadTabProps = {
+    settings,
+    deps,
+    prefillUrl,
+    onPrefillConsumed: () => setPrefillUrl(''),
+    downloading,
+    onDownloadStart: handleDownloadStart,
+    onDownloadEnd: handleDownloadEnd,
+    engineEvents,
+    jobSession,
+    onClearJobSession: () => setJobSession(null),
+    onResetPipeline: resetDownloadPipeline,
+    onSplitIntoTracks: openSpliceWithHandoff,
+    onSettingsChange: async (patch) => {
+      const cfg = { ...settings, ...patch }
+      await SaveSettings(cfg)
+      setSettings(cfg)
+      refreshDeps()
+    },
+  }
+
   if (showWizard) {
     return <Wizard settings={settings} deps={deps} onComplete={handleWizardDone} onRefreshDeps={refreshDeps} />
   }
 
   return (
     <div className="flex h-screen flex-col bg-surface">
-      <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-lg font-bold">♫</div>
-          <div>
+      <header className="flex items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-lg font-bold">♫</div>
+          <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight">Aura Audio Downloader</h1>
-            <p className="text-xs text-white/50">Apple Music · YouTube · Split DJ sets into tracks</p>
+            <p className="truncate text-xs text-white/50">Download · split · tag for Apple Music</p>
           </div>
         </div>
-        <nav className="flex gap-1 rounded-xl bg-surface-raised p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                tab === t.id ? 'bg-accent text-white shadow' : 'text-white/60 hover:text-white hover:bg-surface-hover'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <nav className="flex shrink-0 items-center gap-3">
+          <div className="flex gap-1 rounded-xl bg-surface-raised p-1">
+            {WORKFLOW_TABS.map((t) => (
+              <TabButton key={t.id} tab={t} active={tab === t.id} onClick={() => setTab(t.id)} />
+            ))}
+          </div>
+          <div className="hidden h-6 w-px bg-white/10 sm:block" aria-hidden />
+          <div className="flex gap-1 rounded-xl bg-surface-raised/70 p-1">
+            {UTILITY_TABS.map((t) => (
+              <TabButton key={t.id} tab={t} active={tab === t.id} onClick={() => setTab(t.id)} />
+            ))}
+          </div>
         </nav>
       </header>
 
       <main className="flex-1 overflow-hidden p-6">
-        {tab === 'download' && (
-          <DownloadTab
-            settings={settings}
-            deps={deps}
-            prefillUrl={prefillUrl}
-            onPrefillConsumed={() => setPrefillUrl('')}
-            downloading={downloading}
-            onDownloadStart={handleDownloadStart}
-            onDownloadEnd={handleDownloadEnd}
-            engineEvents={engineEvents}
-            jobSession={jobSession}
-            onClearJobSession={() => setJobSession(null)}
-            onResetPipeline={resetDownloadPipeline}
-            onSplitIntoTracks={openSpliceWithHandoff}
-            onSettingsChange={async (patch) => {
-              const cfg = { ...settings, ...patch }
-              await SaveSettings(cfg)
-              setSettings(cfg)
-              refreshDeps()
-            }}
-          />
+        {(tab === 'apple' || tab === 'youtube') && (
+          <DownloadTab key={tab} {...downloadTabProps} sourceMode={tab} />
         )}
         {tab === 'splice' && (
           <ErrorBoundary
@@ -155,7 +170,11 @@ export default function App() {
             <SpliceTab handoff={spliceHandoff} onHandoffConsumed={() => setSpliceHandoff(null)} />
           </ErrorBoundary>
         )}
-        {tab === 'search' && <SearchTab onPreview={handleSearchPreview} />}
+        {tab === 'metadata' && (
+          <ErrorBoundary name="MetadataTab" title="Tag Editor crashed" onRetry={() => setTab('metadata')}>
+            <MetadataTab />
+          </ErrorBoundary>
+        )}
         {tab === 'activity' && (
           <QueueTab
             logs={logs}

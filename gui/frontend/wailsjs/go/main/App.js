@@ -141,3 +141,23 @@ export function StartDownload(arg1, arg2, arg3, arg4, arg5) {
 export function StartDownloadJob(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
+
+export function TagLocalFileURL(arg1) {
+  return window['go']['main']['App']['TagLocalFileURL'](arg1);
+}
+
+export function TagPickArtworkFile() {
+  return window['go']['main']['App']['TagPickArtworkFile']();
+}
+
+export function TagPickAudioFile() {
+  return window['go']['main']['App']['TagPickAudioFile']();
+}
+
+export function TagReadFile(arg1) {
+  return window['go']['main']['App']['TagReadFile'](arg1);
+}
+
+export function TagWriteFile(arg1) {
+  return window['go']['main']['App']['TagWriteFile'](arg1);
+}

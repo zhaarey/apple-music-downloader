@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Search as searchApi } from '../wailsjs/go/main/App'
+import { Search as searchApi } from '../../wailsjs/go/main/App'
 
 const TYPES = ['album', 'song', 'artist']
 
-export default function SearchTab({ onPreview }) {
+export default function SearchTab({ onPreview, embedded = false }) {
   const [type, setType] = useState('album')
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState([])
@@ -28,79 +28,104 @@ export default function SearchTab({ onPreview }) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div>
-        <h2 className="text-xl font-semibold">Search Apple Music</h2>
-        <p className="mt-1 text-sm text-white/50">Results open in Download to fetch tracks and start a job</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
+    <section
+      className={`rounded-xl border border-white/10 bg-surface-raised ${
+        embedded ? 'p-4' : 'flex h-full flex-col gap-4 p-0 border-0 bg-transparent'
+      }`}
+    >
+      {!embedded && (
+        <div>
+          <h2 className="text-xl font-semibold">Search Apple Music</h2>
+          <p className="mt-1 text-sm text-white/50">Results open in Download to fetch tracks and start a job</p>
+        </div>
+      )}
+      {embedded && (
+        <div className="mb-3">
+          <h3 className="font-medium">Search catalog</h3>
+          <p className="mt-1 text-xs text-white/50">Find albums, songs, or artists — then fetch below to download</p>
+        </div>
+      )}
+      <div className={`flex flex-wrap gap-2 ${embedded ? '' : ''}`}>
         {TYPES.map((t) => (
           <button
             key={t}
+            type="button"
             onClick={() => setType(t)}
-            className={`rounded-lg px-4 py-2 text-sm capitalize ${
-              type === t ? 'bg-accent' : 'bg-surface-raised text-white/70'
+            className={`rounded-lg px-3 py-1.5 text-sm capitalize ${
+              type === t ? 'bg-accent text-white' : 'bg-black/20 text-white/70 hover:bg-black/30'
             }`}
           >
             {t}s
           </button>
         ))}
       </div>
-      <div className="flex gap-2">
+      <div className="mt-3 flex gap-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && runSearch(0)}
           placeholder="Search Apple Music…"
-          className="flex-1 rounded-xl border border-white/10 bg-surface-raised px-4 py-3"
+          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-sm"
         />
-        <button onClick={() => runSearch(0)} disabled={loading} className="rounded-xl bg-accent px-6 py-3 font-medium">
+        <button
+          type="button"
+          onClick={() => runSearch(0)}
+          disabled={loading}
+          className="rounded-xl bg-accent px-5 py-2.5 text-sm font-medium disabled:opacity-50"
+        >
           Search
         </button>
       </div>
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {hits.map((h) => (
-            <div
-              key={h.id + h.url}
-              className="flex gap-3 rounded-xl border border-white/10 bg-surface-raised p-3 transition hover:border-accent/50"
-            >
-              {h.art_url ? (
-                <img src={h.art_url} alt="" className="h-16 w-16 rounded-lg object-cover" />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-surface text-2xl">♫</div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{h.name}</p>
-                <p className="truncate text-xs text-white/50">{h.detail}</p>
-                <button
-                  onClick={() => onPreview(h.url)}
-                  className="mt-2 text-xs font-medium text-accent hover:underline"
-                >
-                  Preview & download →
-                </button>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {hits.length > 0 && (
+        <div className={`mt-3 ${embedded ? 'max-h-52 overflow-y-auto' : 'flex-1 overflow-y-auto'}`}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {hits.map((h) => (
+              <div
+                key={h.id + h.url}
+                className="flex gap-3 rounded-lg border border-white/10 bg-black/20 p-2.5 transition hover:border-accent/40"
+              >
+                {h.art_url ? (
+                  <img src={h.art_url} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-xl">♫</div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{h.name}</p>
+                  <p className="truncate text-xs text-white/50">{h.detail}</p>
+                  <button
+                    type="button"
+                    onClick={() => onPreview(h.url)}
+                    className="mt-1 text-xs font-medium text-accent hover:underline"
+                  >
+                    Use in download →
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex justify-center gap-2">
-        <button
-          disabled={offset === 0 || loading}
-          onClick={() => runSearch(Math.max(0, offset - 15))}
-          className="rounded-lg bg-surface-raised px-4 py-2 text-sm disabled:opacity-30"
-        >
-          Previous
-        </button>
-        <button
-          disabled={!hasNext || loading}
-          onClick={() => runSearch(offset + 15)}
-          className="rounded-lg bg-surface-raised px-4 py-2 text-sm disabled:opacity-30"
-        >
-          Next
-        </button>
-      </div>
-    </div>
+      )}
+      {hits.length > 0 && (
+        <div className="mt-2 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={offset === 0 || loading}
+            onClick={() => runSearch(Math.max(0, offset - 15))}
+            className="rounded-lg bg-black/20 px-3 py-1.5 text-xs disabled:opacity-30"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            disabled={!hasNext || loading}
+            onClick={() => runSearch(offset + 15)}
+            className="rounded-lg bg-black/20 px-3 py-1.5 text-xs disabled:opacity-30"
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </section>
   )
 }

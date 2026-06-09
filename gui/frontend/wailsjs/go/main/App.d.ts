@@ -5,6 +5,7 @@ import {structs} from '../models';
 import {apple} from '../models';
 import {splice} from '../models';
 import {youtube} from '../models';
+import {media} from '../models';
 
 export function CancelDownload():Promise<void>;
 
@@ -75,3 +76,13 @@ export function SpliceStartExport(arg1:splice.Project):Promise<void>;
 export function StartDownload(arg1:Array<string>,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<void>;
 
 export function StartDownloadJob(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>,arg5:boolean,arg6:Array<youtube.DownloadMeta>):Promise<void>;
+
+export function TagLocalFileURL(arg1:string):Promise<string>;
+
+export function TagPickArtworkFile():Promise<string>;
+
+export function TagPickAudioFile():Promise<string>;
+
+export function TagReadFile(arg1:string):Promise<media.AudioTagInfo>;
+
+export function TagWriteFile(arg1:media.WriteAudioTagsInput):Promise<media.AudioTagInfo>;

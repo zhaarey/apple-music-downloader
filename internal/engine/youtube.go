@@ -448,8 +448,9 @@ func buildYouTubeVideoArgs(tempDir, raw string, selectedNums []int, isPlaylist b
 	}
 	args = append(args, ytDlpFFmpegArgs()...)
 	args = append(args,
+		// Best H.264 video + best audio; audio is re-encoded to AAC stereo after download.
 		"-f", "bv*+ba/b",
-		"-S", "vcodec:h264,acodec:aac",
+		"-S", "vcodec:h264",
 		"--merge-output-format", "mp4",
 		"--embed-thumbnail",
 		"--embed-metadata",
@@ -570,7 +571,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 	if saveVideo {
 		e.emit(events.Event{
 			Type:    events.EventProgress,
-			Message: "Starting MP4 video copy for Apple Music…",
+			Message: "Downloading MP4 video (H.264)…",
 			Track:   trackLabel,
 			Phase:   "video",
 			Current: 0,
@@ -589,7 +590,16 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			e.emitTrackFailed(trackLabel, 1, 1, "Video copy failed: "+err.Error())
 			return handoff, err
 		}
-		videos, _ := listTempDownloads(videoTemp)
+		videos, err := listTempDownloads(videoTemp)
+		if err != nil || len(videos) == 0 {
+			msg := "no video files produced by yt-dlp"
+			if err != nil {
+				msg = err.Error()
+			}
+			counter.Error++
+			e.emitTrackFailed(trackLabel, 1, 1, msg)
+			return handoff, fmt.Errorf("%s", msg)
+		}
 		for i, src := range videos {
 			num := 1
 			if isPlaylist {
@@ -599,18 +609,21 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 				}
 			}
 			meta := resolveMeta(num)
-			dst := youtube.OutputPath(saveDir, meta, multiTrack, true)
-			if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			e.emit(events.Event{
+				Type:    events.EventProgress,
+				Message: "Converting MP4 to AAC stereo for Apple Music…",
+				Track:   meta.Title,
+				Phase:   "video",
+				Current: 850,
+				Total:   1000,
+			})
+			outPath, err := youtube.FinalizeVideo(Config, src, meta, multiTrack)
+			if err != nil {
+				counter.Error++
+				e.emitTrackFailed(meta.Title, int64(num), int64(len(videos)), err.Error())
 				return handoff, err
 			}
-			if err := os.Rename(src, dst); err != nil {
-				if err2 := copyFile(src, dst); err2 != nil {
-					return handoff, fmt.Errorf("move video: %w", err)
-				}
-			}
-			tags := youtube.MetaFromDownload(meta, Config)
-			_ = mediaWriteTrackTags(dst, tags)
-			e.log(fmt.Sprintf("Saved video: %s", dst))
+			e.log(fmt.Sprintf("Saved video: %s", outPath))
 		}
 	}
 
