@@ -308,6 +308,7 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 
 	counter = structs.Counter{}
 	AddedTracks = nil
+	lastYouTubeOutput = ""
 	okDict = make(map[string][]int)
 
 	var lastHandoff *youtube.HandoffPayload
@@ -361,6 +362,7 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 			ArtURL:      lastHandoff.ArtURL,
 		}
 	}
+	master := lastHandoffPath(lastHandoff)
 	e.emit(events.Event{
 		Type:       events.EventJobComplete,
 		Message:    msg,
@@ -368,7 +370,8 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 		Success:    counter.Success,
 		Error:      counter.Error + counter.Unavailable,
 		Total_:     counter.Total,
-		MasterPath: lastHandoffPath(lastHandoff),
+		MasterPath: master,
+		OutputPath: lastJobOutputPath(master),
 		Handoff:    eventHandoff,
 	})
 }
@@ -405,6 +408,7 @@ func (e *Engine) finishYouTubeJob(phase, msg string, handoff *youtube.HandoffPay
 			ArtURL:      handoff.ArtURL,
 		}
 	}
+	master := lastHandoffPath(handoff)
 	e.emit(events.Event{
 		Type:       events.EventJobComplete,
 		Message:    msg,
@@ -412,7 +416,8 @@ func (e *Engine) finishYouTubeJob(phase, msg string, handoff *youtube.HandoffPay
 		Success:    counter.Success,
 		Error:      counter.Error + counter.Unavailable,
 		Total_:     counter.Total,
-		MasterPath: lastHandoffPath(handoff),
+		MasterPath: master,
+		OutputPath: lastJobOutputPath(master),
 		Handoff:    eventHandoff,
 	})
 }
@@ -575,6 +580,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 				return nil, err
 			}
 			e.log(fmt.Sprintf("Saved AAC: %s", outPath))
+			noteDownloadOutput(outPath)
 		}
 	} else {
 		meta := resolveMeta(1)
@@ -585,6 +591,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			return nil, err
 		}
 		e.log(fmt.Sprintf("Saved AAC: %s", outPath))
+		noteDownloadOutput(outPath)
 		handoff = handoffFromMeta(outPath, YouTubeDownloadMeta(meta))
 	}
 
@@ -647,6 +654,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 				continue
 			}
 			e.log(fmt.Sprintf("Saved video: %s", outPath))
+			noteDownloadOutput(outPath)
 		}
 	}
 

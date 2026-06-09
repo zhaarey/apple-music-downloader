@@ -9,23 +9,31 @@ import (
 	"main/internal/platform"
 )
 
-// GetAppleMusicCacheInfo returns known Apple Music artwork cache folders on this system.
-func GetAppleMusicCacheInfo() AppleMusicCacheInfo {
-	paths := platform.AppleMusicArtworkCachePaths()
-	existing := make([]string, 0, len(paths))
-	for _, p := range paths {
-		if info, err := os.Stat(p); err == nil && info.IsDir() {
-			existing = append(existing, p)
-		}
+func cacheBlockedMessage() string {
+	if platform.GOOS() == "darwin" {
+		return "Quit Music first — clearing while it is open can rebuild stale artwork immediately."
 	}
-	return AppleMusicCacheInfo{
-		Paths:    existing,
-		Platform: platform.GOOS(),
-		Note:     platform.AppleMusicCacheNote(len(existing)),
+	return "Quit Apple Music first — clearing while it is open can rebuild stale artwork immediately."
+}
+
+// isSafeArtworkCachePath ensures we only delete known Apple artwork cache directories, never media libraries.
+func isSafeArtworkCachePath(p string) bool {
+	if strings.TrimSpace(p) == "" {
+		return false
 	}
+	norm := strings.ToLower(filepath.ToSlash(filepath.Clean(p)))
+	if strings.Contains(norm, "itunes media") || strings.Contains(norm, "/media/music") {
+		return false
+	}
+	return strings.Contains(norm, "artwork") ||
+		strings.Contains(norm, "com.apple.music") ||
+		strings.Contains(norm, "com.apple.itunes")
 }
 
 func removeTree(path string) (bool, string) {
+	if !isSafeArtworkCachePath(path) {
+		return false, "refusing to delete non-cache path"
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -45,8 +53,31 @@ func removeTree(path string) (bool, string) {
 	return true, ""
 }
 
-// ClearAppleMusicArtworkCache removes cached Apple Music artwork.
+// GetAppleMusicCacheInfo returns known Apple Music artwork cache folders on this system.
+func GetAppleMusicCacheInfo() AppleMusicCacheInfo {
+	paths := platform.AppleMusicArtworkCachePaths()
+	existing := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			existing = append(existing, p)
+		}
+	}
+	return AppleMusicCacheInfo{
+		Paths:    existing,
+		Platform: platform.GOOS(),
+		Note:     platform.AppleMusicCacheNote(len(existing)),
+	}
+}
+
+// ClearAppleMusicArtworkCache removes cached Apple Music artwork (PC only — never your .m4a files).
 func ClearAppleMusicArtworkCache() CacheClearResult {
+	if platform.IsAppleMusicRunning() {
+		return CacheClearResult{
+			OK:       false,
+			Message:  cacheBlockedMessage(),
+			Platform: platform.GOOS(),
+		}
+	}
 	paths := platform.AppleMusicArtworkCachePaths()
 	if len(paths) == 0 {
 		return CacheClearResult{
@@ -75,16 +106,16 @@ func ClearAppleMusicArtworkCache() CacheClearResult {
 	case len(errs) > 0:
 		res.OK = len(cleared) > 0
 		if platform.GOOS() == "darwin" {
-			res.Message = fmt.Sprintf("Cleared %d folder(s) with %d error(s). Quit Music and re-import albums.", len(cleared), len(errs))
+			res.Message = fmt.Sprintf("Cleared %d folder(s) with %d error(s). Re-import albums in Music.", len(cleared), len(errs))
 		} else {
-			res.Message = fmt.Sprintf("Cleared %d folder(s) with %d error(s). Quit Apple Music and re-import albums.", len(cleared), len(errs))
+			res.Message = fmt.Sprintf("Cleared %d folder(s) with %d error(s). Re-import albums in Apple Music.", len(cleared), len(errs))
 		}
 	default:
 		res.OK = true
 		if platform.GOOS() == "darwin" {
-			res.Message = fmt.Sprintf("Cleared %d Music artwork cache folder(s). Quit Music, then re-import your albums.", len(cleared))
+			res.Message = fmt.Sprintf("Cleared %d Music artwork cache folder(s). Re-import your albums — music files on disk were not changed.", len(cleared))
 		} else {
-			res.Message = fmt.Sprintf("Cleared %d Apple Music artwork cache folder(s). Quit Apple Music, then re-import your albums.", len(cleared))
+			res.Message = fmt.Sprintf("Cleared %d Apple Music artwork cache folder(s). Re-import your albums — music files on disk were not changed.", len(cleared))
 		}
 	}
 	return res
@@ -138,7 +169,7 @@ func ClearAppTempCache() CacheClearResult {
 	if total == 0 {
 		res.Message = "No app temp files found."
 	} else {
-		res.Message = fmt.Sprintf("Removed %d temporary app file(s).", total)
+		res.Message = fmt.Sprintf("Removed %d temporary app file(s). Your music library was not touched.", total)
 	}
 	if len(errs) > 0 {
 		res.OK = total > 0
@@ -159,6 +190,10 @@ func ClearAllSyncCaches() CacheClearResult {
 	msg := strings.TrimSpace(apple.Message + " " + app.Message)
 	if msg == "" {
 		msg = "Caches cleared."
+	}
+	if !apple.OK && platform.IsAppleMusicRunning() {
+		ok = false
+		msg = apple.Message
 	}
 	return CacheClearResult{OK: ok, Message: msg, Cleared: cleared, Errors: errs, Platform: platform.GOOS()}
 }

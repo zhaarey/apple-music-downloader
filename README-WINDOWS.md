@@ -53,3 +53,24 @@ Outputs:
 
 - **Missing tools** — copy binaries into `dist\tools\` or install on PATH; check the Requirements tab
 - **App crashed** — open `%APPDATA%\AuraAudioDownloader\logs\app.log` (Activity tab → Open log file)
+
+### iPhone artwork missing (album art OK, track art blank)
+
+Apple Music on PC can show album tiles from `cover.jpg` or its artwork cache. **iPhone sync needs the same normalized JPEG embedded in every track** (`covr` atom), not just a sidecar file.
+
+**Repair workflow (Tag Editor → expand Sync repair tools at the bottom):**
+
+Actions are ordered **safest first**. Nothing here modifies your iPhone library directly.
+
+1. **Check folder** — read-only; scans files in that folder only.
+2. **Clear PC caches** — deletes Apple Music artwork cache on this PC; **never changes .m4a files**. Quit Apple Music first. Re-import albums afterward.
+3. **Update album artwork** — embeds one shared JPEG per track in that folder; **preserves title, artist, and track numbers**; skips tracks already correct. Quit Apple Music first.
+4. **Heavy repair** (collapsed) — same as step 3 across all download folders, then cache clear. Last resort only.
+
+**iPhone wrong art:** delete the album on the phone, then re-sync that album only in Apple Devices — PC repairs cannot reset device artwork cache.
+
+After any PC fix: remove albums from Apple Music library (keep files on disk), re-import, delete on iPhone, sync selected albums first.
+
+For normal tag edits, use **Save tags** or **Album bulk** — those do not run the bulk artwork rewrite unless you explicitly use Sync repair tools.
+
+The app cannot reset the iPhone music database from the PC — deleting music on the device and re-syncing is required once stale entries exist.

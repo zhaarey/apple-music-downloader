@@ -247,7 +247,7 @@ func DefaultConfig() structs.ConfigSet {
 		AuthorizationToken:   "",
 		EmbedLrc:             true,
 		EmbedCover:           true,
-		CoverSize:            "3000x3000",
+		CoverSize:            "1200x1200",
 		CoverFormat:          "jpg",
 		TagSortOrder:         true,
 		TagItunesID:          true,
@@ -342,7 +342,7 @@ func normalize(cfg *structs.ConfigSet) {
 		cfg.GetM3u8Mode = "hires"
 	}
 	if cfg.CoverSize == "" {
-		cfg.CoverSize = "5000x5000"
+		cfg.CoverSize = "1200x1200"
 	}
 	if cfg.CoverFormat == "" {
 		cfg.CoverFormat = "jpg"

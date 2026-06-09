@@ -22,7 +22,6 @@ import (
 
 	appconfig "main/internal/config"
 	"main/internal/events"
-	"main/internal/media"
 	"main/utils/ampapi"
 	"main/utils/lyrics"
 	"main/utils/runv2"
@@ -35,8 +34,6 @@ import (
 	"github.com/grafov/m3u8"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/pflag"
-
-	"github.com/zhaarey/go-mp4tag"
 )
 
 var (
@@ -60,6 +57,7 @@ var (
 	counter            structs.Counter
 	okDict             = make(map[string][]int)
 	AddedTracks        []AddedTrack
+	lastYouTubeOutput  string
 )
 
 type AddedTrack struct {
@@ -1232,6 +1230,9 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 		if err := cmd.Run(); err != nil {
 			fmt.Printf("MP4Box embed failed (%s): %v\n", mp4boxPath(), err)
 		}
+		if err := writeStationTrackTags(trackPath, station.Name, station.CoverPath); err != nil {
+			fmt.Printf("Failed to normalize station tags: %v\n", err)
+		}
 		AddedTracks = append(AddedTracks, AddedTrack{
 			Path:     trackPath,
 			Artist:   "Apple Music Station",
@@ -1803,125 +1804,6 @@ func writeM3UPlaylist(folderPath string, name string, tracks []AddedTrack) error
 	return nil
 }
 
-func writeMP4Tags(track *task.Track, lrc string) error {
-	t := &mp4tag.MP4Tags{
-		Title:  track.Resp.Attributes.Name,
-		Artist: track.Resp.Attributes.ArtistName,
-		Custom: map[string]string{
-			"PERFORMER":   track.Resp.Attributes.ArtistName,
-			"RELEASETIME": track.Resp.Attributes.ReleaseDate,
-			"ISRC":        track.Resp.Attributes.Isrc,
-			"LABEL":       "",
-			"UPC":         "",
-		},
-		Composer:    track.Resp.Attributes.ComposerName,
-		CustomGenre: firstGenre(track.Resp.Attributes.GenreNames),
-		Lyrics:      lrc,
-		TrackNumber: int16(track.Resp.Attributes.TrackNumber),
-		DiscNumber:  int16(track.Resp.Attributes.DiscNumber),
-		Album:       track.Resp.Attributes.AlbumName,
-	}
-
-	if Config.TagSortOrder {
-		t.TitleSort = track.Resp.Attributes.Name
-		t.ArtistSort = track.Resp.Attributes.ArtistName
-		t.ComposerSort = track.Resp.Attributes.ComposerName
-		t.AlbumSort = track.Resp.Attributes.AlbumName
-	}
-
-	if Config.TagItunesID {
-		if track.PreType == "albums" {
-			albumID, err := strconv.ParseUint(track.PreID, 10, 64)
-			if err != nil {
-				return err
-			}
-			t.ItunesAlbumID = int32(albumID)
-		}
-
-		if len(track.Resp.Relationships.Artists.Data) > 0 {
-			artistID, err := strconv.ParseUint(track.Resp.Relationships.Artists.Data[0].ID, 10, 64)
-			if err != nil {
-				return err
-			}
-			t.ItunesArtistID = int32(artistID)
-		}
-	}
-
-	if (track.PreType == "playlists" || track.PreType == "stations") && !Config.UseSongInfoForPlaylist {
-		t.DiscNumber = 1
-		t.DiscTotal = 1
-		t.TrackNumber = int16(track.TaskNum)
-		t.TrackTotal = int16(track.TaskTotal)
-		t.Album = track.PlaylistData.Attributes.Name
-		t.AlbumArtist = track.PlaylistData.Attributes.ArtistName
-		if Config.TagSortOrder {
-			t.AlbumSort = track.PlaylistData.Attributes.Name
-			t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
-		}
-	} else if (track.PreType == "playlists" || track.PreType == "stations") && Config.UseSongInfoForPlaylist {
-		t.DiscTotal = int16(track.DiscTotal)
-		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
-		t.AlbumArtist = track.AlbumData.Attributes.ArtistName
-		t.Custom["UPC"] = track.AlbumData.Attributes.Upc
-		t.Custom["LABEL"] = track.AlbumData.Attributes.RecordLabel
-		t.Date = track.AlbumData.Attributes.ReleaseDate
-		t.Copyright = track.AlbumData.Attributes.Copyright
-		t.Publisher = track.AlbumData.Attributes.RecordLabel
-		if Config.TagSortOrder {
-			t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
-		}
-	} else {
-		t.DiscTotal = int16(track.DiscTotal)
-		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
-		t.AlbumArtist = track.AlbumData.Attributes.ArtistName
-		t.Custom["UPC"] = track.AlbumData.Attributes.Upc
-		t.Date = track.AlbumData.Attributes.ReleaseDate
-		t.Copyright = track.AlbumData.Attributes.Copyright
-		t.Publisher = track.AlbumData.Attributes.RecordLabel
-		if Config.TagSortOrder {
-			t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
-		}
-	}
-
-	if track.Resp.Attributes.ContentRating == "explicit" {
-		t.ItunesAdvisory = mp4tag.ItunesAdvisoryExplicit
-	} else if track.Resp.Attributes.ContentRating == "clean" {
-		t.ItunesAdvisory = mp4tag.ItunesAdvisoryClean
-	} else {
-		t.ItunesAdvisory = mp4tag.ItunesAdvisoryNone
-	}
-
-	if Config.EmbedCover {
-		coverPath := track.CoverPath
-		if coverPath == "" {
-			if p, err := resolveCoverPath(track); err == nil {
-				coverPath = p
-			}
-		}
-		if coverData, err := loadCoverBytes(coverPath); err == nil && len(coverData) > 0 {
-			if normalized, nerr := media.NormalizeCoverForApple(coverData); nerr == nil && len(normalized) > 0 {
-				coverData = normalized
-			}
-			t.Pictures = []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: coverData}}
-		}
-	}
-
-	mp4, err := mp4tag.Open(track.SavePath)
-	if err != nil {
-		return err
-	}
-	defer mp4.Close()
-	delStrings := []string{}
-	if len(t.Pictures) > 0 {
-		delStrings = []string{"allpictures"}
-	}
-	err = mp4.Write(t, delStrings)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func runCLIParsed(_ *Engine) {
 	token, err := ampapi.GetToken()
 	if err != nil {
@@ -2261,6 +2143,10 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 		return err
 	}
 	fmt.Printf("\rMV Remuxed.   \n")
+
+	if err := writeMVTrackTags(mvOutPath, track, MVInfo, covPath); err != nil {
+		fmt.Printf("Failed to normalize MV tags: %v\n", err)
+	}
 
 	// Append to AddedTracks
 	mvArtistName := MVInfo.Data[0].Attributes.ArtistName

@@ -33,6 +33,7 @@ Source: "..\dist\AuraAudioDownloader.exe"; DestDir: "{app}"; Flags: ignoreversio
 Source: "..\dist\aura.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\amd.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\config.yaml.example"; DestDir: "{userappdata}\AuraAudioDownloader"; DestName: "config.yaml.example"; Flags: ignoreversion onlyifdoesntexist
 Source: "..\README-WINDOWS.md"; DestDir: "{app}"; Flags: ignoreversion
 

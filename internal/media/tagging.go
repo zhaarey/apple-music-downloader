@@ -205,62 +205,7 @@ func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4
 }
 
 func buildMP4Tags(tags TrackTags) (*mp4tag.MP4Tags, error) {
-	title := strings.TrimSpace(tags.Title)
-	artist := strings.TrimSpace(tags.Artist)
-	album := strings.TrimSpace(tags.Album)
-	if title == "" {
-		title = "Unknown Title"
-	}
-	if artist == "" {
-		artist = "Unknown Artist"
-	}
-	if album == "" {
-		album = title
-	}
-	albumArtist := strings.TrimSpace(tags.AlbumArtist)
-	if albumArtist == "" {
-		albumArtist = artist
-	}
-	trackNum := tags.TrackNumber
-	if trackNum <= 0 {
-		trackNum = 1
-	}
-	discNum := tags.DiscNumber
-	if discNum <= 0 {
-		discNum = 1
-	}
-	trackTotal := tags.TrackTotal
-	if trackTotal <= 0 {
-		trackTotal = trackNum
-	}
-	discTotal := tags.DiscTotal
-	if discTotal <= 0 {
-		discTotal = 1
-	}
-
-	t := &mp4tag.MP4Tags{
-		Title:       title,
-		Artist:      artist,
-		Album:       album,
-		AlbumArtist: albumArtist,
-		CustomGenre: strings.TrimSpace(tags.Genre),
-		TrackNumber: trackNum,
-		TrackTotal:  trackTotal,
-		DiscNumber:  discNum,
-		DiscTotal:   discTotal,
-		Date:        strings.TrimSpace(tags.Year),
-		Custom: map[string]string{
-			"PERFORMER": artist,
-		},
-		Pictures: nil,
-	}
-	if tags.SortTags {
-		t.TitleSort = title
-		t.ArtistSort = artist
-		t.AlbumSort = album
-		t.AlbumArtistSort = albumArtist
-	}
-	return t, nil
+	return BuildAppleMusicTags(tags)
 }
 
 func writeMP4Tags(path string, t *mp4tag.MP4Tags, pictures []*mp4tag.MP4Picture) error {
@@ -279,21 +224,31 @@ func writeMP4Tags(path string, t *mp4tag.MP4Tags, pictures []*mp4tag.MP4Picture)
 
 // TrackTags holds Apple Music–friendly metadata for an M4A file.
 type TrackTags struct {
-	Title       string
-	Artist      string
-	Album       string
-	AlbumArtist string
-	Genre       string
-	Year        string
-	TrackNumber int16
-	TrackTotal  int16
-	DiscNumber  int16
-	DiscTotal   int16
-	SortTags    bool
-	CoverPath   string
-	CoverURL    string
-	CoverData   []byte
-	CoverMIME   string
+	Title          string
+	Artist         string
+	Album          string
+	AlbumArtist    string
+	Genre          string
+	Year           string
+	TrackNumber    int16
+	TrackTotal     int16
+	DiscNumber     int16
+	DiscTotal      int16
+	SortTags       bool
+	IsCompilation  bool
+	Lyrics         string
+	ContentRating  string
+	Copyright      string
+	Publisher      string
+	Composer       string
+	ItunesAlbumID  int32
+	ItunesArtistID int32
+	CustomMeta     map[string]string
+	CoverPath      string
+	CoverURL       string
+	CoverData      []byte
+	CoverMIME      string
+	RequireCover   bool
 }
 
 // WriteTrackTags applies metadata to an existing audio or video file.
@@ -308,6 +263,9 @@ func WriteTrackTags(path string, tags TrackTags) error {
 	pictures, err := resolveWritePictures(tags, existing)
 	if err != nil {
 		return err
+	}
+	if tags.RequireCover && len(pictures) == 0 {
+		return fmt.Errorf("artwork required but no cover could be embedded")
 	}
 	t, err := buildMP4Tags(tags)
 	if err != nil {

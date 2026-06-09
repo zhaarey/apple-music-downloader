@@ -40,6 +40,7 @@ type Event struct {
 	Error   int       `json:"error,omitempty"`
 	Total_  int       `json:"total_count,omitempty"`
 	MasterPath string        `json:"master_path,omitempty"`
+	OutputPath string        `json:"output_path,omitempty"`
 	Handoff    *SpliceHandoff `json:"handoff,omitempty"`
 }
 

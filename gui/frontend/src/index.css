@@ -11,6 +11,10 @@ body {
   height: 100vh;
 }
 
+.tag-editor-drop-target {
+  --wails-drop-target: drop;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
 }

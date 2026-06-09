@@ -2,6 +2,8 @@ package media
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -9,10 +11,19 @@ import (
 	_ "image/png"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/zhaarey/go-mp4tag"
 )
 
 // MaxCoverEdgePx is the longest side Apple devices reliably show after iCloud Music Library sync.
 const MaxCoverEdgePx = 3000
+
+// TargetCoverEdgePx is the preferred longest side when normalizing for Apple Music import.
+const TargetCoverEdgePx = 1200
+
+var albumCoverNames = []string{"cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "Folder.jpg", "Folder.png"}
 
 const coverJPEGQuality = 90
 
@@ -33,8 +44,11 @@ func NormalizeCoverForApple(data []byte) ([]byte, error) {
 
 	scale := 1.0
 	maxEdge := math.Max(float64(w), float64(h))
+	target := float64(TargetCoverEdgePx)
 	if maxEdge > MaxCoverEdgePx {
 		scale = MaxCoverEdgePx / maxEdge
+	} else if maxEdge > target {
+		scale = target / maxEdge
 	}
 
 	var out image.Image = img
@@ -101,4 +115,100 @@ func PrepareCoverFile(tags TrackTags) (path string, cleanup func(), err error) {
 		return "", nil, err
 	}
 	return coverPath, func() { os.Remove(coverPath) }, nil
+}
+
+// CoverHash returns a short SHA256 prefix for comparing embedded artwork across tracks.
+func CoverHash(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
+}
+
+// FindAlbumCoverFile returns a sidecar cover path in dir if present.
+func FindAlbumCoverFile(dir string) string {
+	for _, name := range albumCoverNames {
+		p := filepath.Join(dir, name)
+		if info, err := os.Stat(p); err == nil && !info.IsDir() && info.Size() > 0 {
+			return p
+		}
+	}
+	return ""
+}
+
+// ReadNormalizedEmbeddedCover returns normalized JPEG bytes from a track's primary embedded cover.
+func ReadNormalizedEmbeddedCover(path string) ([]byte, error) {
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer mp4.Close()
+	tags, err := mp4.Read()
+	if err != nil || tags == nil || len(tags.Pictures) == 0 {
+		return nil, os.ErrNotExist
+	}
+	pic := tags.Pictures[0]
+	if len(tags.Pictures) > 1 {
+		pic = tags.Pictures[len(tags.Pictures)-1]
+	}
+	return NormalizeCoverForApple(pic.Data)
+}
+
+// TrackArtworkAlreadyPrepared reports whether the file already has the target cover as a single JPEG.
+func TrackArtworkAlreadyPrepared(path string, targetCover []byte) bool {
+	if len(targetCover) == 0 {
+		return false
+	}
+	targetHash := CoverHash(targetCover)
+	info, err := ReadAudioTags(path)
+	if err != nil {
+		return false
+	}
+	if info.ArtworkCount != 1 {
+		return false
+	}
+	mime := strings.ToLower(info.ArtworkMime)
+	if mime != "image/jpeg" && mime != "image/jpg" {
+		return false
+	}
+	h, err := EmbeddedCoverHash(path)
+	if err != nil {
+		return false
+	}
+	return h == targetHash
+}
+
+// WriteTrackArtworkOnly replaces embedded cover with normalized JPEG and leaves text tags unchanged.
+func WriteTrackArtworkOnly(path string, coverData []byte) error {
+	if len(coverData) == 0 {
+		return fmt.Errorf("no cover data")
+	}
+	norm, err := NormalizeCoverForApple(coverData)
+	if err != nil {
+		return err
+	}
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return err
+	}
+	defer mp4.Close()
+	existing, err := mp4.Read()
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		existing = &mp4tag.MP4Tags{}
+	}
+	existing.Pictures = []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: norm}}
+	return mp4.Write(existing, []string{"allpictures"})
+}
+
+// EmbeddedCoverHash reads normalized cover bytes from an M4A for album consistency checks.
+func EmbeddedCoverHash(path string) (string, error) {
+	norm, err := ReadNormalizedEmbeddedCover(path)
+	if err != nil {
+		return "", err
+	}
+	return CoverHash(norm), nil
 }

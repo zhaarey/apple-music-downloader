@@ -8,12 +8,15 @@ import {
   PickFolder,
   GetWizardComplete,
   SetWizardComplete,
+  GetSetupComplete,
+  SetSetupComplete,
   GetPlatform,
   EventsOn,
   IsDownloading,
   SpliceIsExporting,
 } from './wailsjs/go/main/App'
 import Wizard from './components/Wizard'
+import SetupChecklist from './components/SetupChecklist'
 import DownloadTab from './components/DownloadTab'
 import QueueTab from './components/QueueTab'
 import SettingsTab from './components/SettingsTab'
@@ -122,6 +125,7 @@ export default function App() {
 
   const [tab, setTab] = useState('apple')
   const [showWizard, setShowWizard] = useState(false)
+  const [showSetupChecklist, setShowSetupChecklist] = useState(false)
   const [settings, setSettings] = useState(null)
   const [deps, setDeps] = useState([])
   const [logs, setLogs] = useState([])
@@ -150,6 +154,11 @@ export default function App() {
       const p = goos || 'windows'
       setPlatform(p)
       const f = featuresForPlatform(p)
+      if (f.showSetupChecklist) {
+        GetSetupComplete().then((done) => setShowSetupChecklist(!done))
+      } else {
+        setShowSetupChecklist(false)
+      }
       if (f.showWizard) {
         GetWizardComplete().then((done) => setShowWizard(!done))
       } else {
@@ -202,6 +211,14 @@ export default function App() {
     setSettings(cfg)
     await SetWizardComplete(true)
     setShowWizard(false)
+    refreshDeps()
+  }
+
+  const handleSetupChecklistDone = async (cfg) => {
+    await SaveSettings(cfg)
+    setSettings(cfg)
+    await SetSetupComplete(true)
+    setShowSetupChecklist(false)
     refreshDeps()
   }
 
@@ -277,6 +294,18 @@ export default function App() {
 
   const tabDisabled = (tabId) =>
     downloading && !canSwitchTabWhileDownloading(tabId, downloadJob, features.multitaskTabs)
+
+  if (showSetupChecklist && features.showSetupChecklist) {
+    return (
+      <SetupChecklist
+        settings={settings}
+        deps={deps}
+        onComplete={handleSetupChecklistDone}
+        onRefreshDeps={refreshDeps}
+        onPickFolder={PickFolder}
+      />
+    )
+  }
 
   if (showWizard && features.showWizard) {
     return <Wizard settings={settings} deps={deps} onComplete={handleWizardDone} onRefreshDeps={refreshDeps} />
@@ -381,6 +410,7 @@ export default function App() {
             settings={settings}
             deps={deps}
             platform={platform}
+            activityLogs={features.showActivityLogInSettings ? logs : []}
             onSave={async (cfg) => {
               await SaveSettings(cfg)
               setSettings(cfg)
@@ -389,6 +419,7 @@ export default function App() {
             onPickFolder={PickFolder}
             onRefreshDeps={refreshDeps}
             onShowWizard={features.showWizard ? () => setShowWizard(true) : undefined}
+            onShowSetupChecklist={features.showSetupChecklist ? () => setShowSetupChecklist(true) : undefined}
           />
         )}
       </main>

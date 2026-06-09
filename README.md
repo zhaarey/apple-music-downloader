@@ -31,14 +31,19 @@ Config and logs:
 
 ## Quick start (macOS)
 
-See [README-macOS.md](./README-macOS.md) for Apple Silicon build, unsigned DMG install, and Homebrew tool setup.
+Full guide: **[README-macOS.md](./README-macOS.md)** — install, first launch, daily use, and build.
+
+**Build and open (Apple Silicon):**
 
 ```bash
+chmod +x scripts/build-macos.sh installer/macos/create-dmg.sh
 ./scripts/build-macos.sh
 open dist/AuraAudioDownloader.app
 ```
 
-Config and logs on macOS:
+**Install for everyday use:** open `dist/AuraAudioDownloader-arm64.dmg`, drag the app to **Applications**, then right-click → **Open** once if Gatekeeper blocks it. See [README-macOS.md](./README-macOS.md#install-and-open-the-app) for details.
+
+Config and logs:
 
 ```
 ~/Library/Application Support/AuraAudioDownloader/config.yaml

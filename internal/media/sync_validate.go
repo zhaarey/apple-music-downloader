@@ -50,9 +50,9 @@ func ValidateIPhoneSync(ffmpegConfigured, path string) (SyncValidationResult, er
 	}
 
 	out.Checks = append(out.Checks, check("album_artist", "Album artist", strings.TrimSpace(tags.AlbumArtist) != "",
-		albumArtistDetail(tags), warnIfEmpty(tags.AlbumArtist)))
+		albumArtistDetail(tags), "fail"))
 
-	out.Checks = append(out.Checks, artworkChecks(tags)...)
+	out.Checks = append(out.Checks, artworkChecks(path, tags)...)
 
 	if probe, err := ProbeSource(ffmpegConfigured, path); err == nil {
 		detail := fmt.Sprintf("%dkHz · %d channel(s)", probe.SampleRate/1000, probe.Channels)
@@ -65,6 +65,13 @@ func ValidateIPhoneSync(ffmpegConfigured, path string) (SyncValidationResult, er
 		out.Checks = append(out.Checks, check("aac_codec", "AAC-LC codec", false, err.Error(), "warn"))
 	} else {
 		out.Checks = append(out.Checks, check("aac_codec", "AAC-LC codec", true, "AAC stereo suitable for Apple Music", "pass"))
+	}
+
+	if tags.TrackNumber <= 0 {
+		out.Checks = append(out.Checks, check("track_number", "Track number", false, "Set track number for album ordering", "warn"))
+	}
+	if tags.TrackTotal <= 0 {
+		out.Checks = append(out.Checks, check("track_total", "Track total", false, "Set track total to match album size", "warn"))
 	}
 
 	out.Ready = true
@@ -105,8 +112,13 @@ func warnIfEmpty(value string) string {
 	return "fail"
 }
 
-func artworkChecks(tags AudioTagInfo) []SyncCheck {
+func artworkChecks(path string, tags AudioTagInfo) []SyncCheck {
 	checks := []SyncCheck{}
+	dir := filepath.Dir(path)
+	if sidecar := FindAlbumCoverFile(dir); sidecar != "" && !tags.HasArtwork {
+		checks = append(checks, check("sidecar_only", "Embedded vs folder art", false,
+			"Folder has "+filepath.Base(sidecar)+" but file has no embedded cover — Apple Music sync needs covr in each track", "fail"))
+	}
 	if !tags.HasArtwork {
 		checks = append(checks, check("embedded_art", "Embedded artwork", false,
 			"No cover in file — PC Apple Music may still show folder art", "fail"))
@@ -118,7 +130,7 @@ func artworkChecks(tags AudioTagInfo) []SyncCheck {
 	if mime == "image/jpeg" || mime == "image/jpg" {
 		checks = append(checks, check("art_format", "Artwork format", true, "JPEG (recommended for iOS)", "pass"))
 	} else if mime == "image/png" {
-		checks = append(checks, check("art_format", "Artwork format", false, "PNG — save tags to convert to JPEG", "warn"))
+		checks = append(checks, check("art_format", "Artwork format", false, "PNG — save tags to convert to JPEG", "fail"))
 	} else if mime != "" {
 		checks = append(checks, check("art_format", "Artwork format", false, mime+" — save tags to normalize", "warn"))
 	} else {
@@ -185,57 +197,7 @@ func validateAACForIPhone(ffmpegConfigured, path string) error {
 	return fmt.Errorf("no audio stream found")
 }
 
-// ValidateIPhoneSyncFolder validates every .m4a in a folder (non-recursive).
+// ValidateIPhoneSyncFolder validates .m4a files directly in a folder (same scope as Prepare from Tag Editor).
 func ValidateIPhoneSyncFolder(ffmpegConfigured, folder string) (FolderSyncValidationResult, error) {
-	out := FolderSyncValidationResult{Folder: folder, Files: []SyncValidationResult{}}
-	if folder == "" {
-		return out, fmt.Errorf("no folder selected")
-	}
-	info, err := os.Stat(folder)
-	if err != nil {
-		return out, err
-	}
-	if !info.IsDir() {
-		return out, fmt.Errorf("path is not a folder")
-	}
-	entries, err := os.ReadDir(folder)
-	if err != nil {
-		return out, err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		ext := strings.ToLower(filepath.Ext(entry.Name()))
-		if ext != ".m4a" && ext != ".m4b" {
-			continue
-		}
-		filePath := filepath.Join(folder, entry.Name())
-		res, err := ValidateIPhoneSync(ffmpegConfigured, filePath)
-		if err != nil {
-			res = SyncValidationResult{
-				Path:    filePath,
-				Ready:   false,
-				Summary: err.Error(),
-				Checks:  []SyncCheck{check("read", "Read file", false, err.Error(), "fail")},
-			}
-		}
-		out.Files = append(out.Files, res)
-	}
-	out.Total = len(out.Files)
-	for _, f := range out.Files {
-		if f.Ready {
-			out.ReadyCount++
-		}
-	}
-	out.Ready = out.Total > 0 && out.ReadyCount == out.Total
-	switch {
-	case out.Total == 0:
-		out.Summary = "No .m4a files found in this folder."
-	case out.Ready:
-		out.Summary = fmt.Sprintf("All %d track(s) look ready for iPhone sync.", out.Total)
-	default:
-		out.Summary = fmt.Sprintf("%d of %d track(s) ready — expand files below for details.", out.ReadyCount, out.Total)
-	}
-	return out, nil
+	return ValidateAlbumSync(ffmpegConfigured, folder, false)
 }

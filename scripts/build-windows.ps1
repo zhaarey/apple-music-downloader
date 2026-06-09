@@ -11,10 +11,13 @@
 
   Place third-party binaries in dist\tools\ before packaging:
     MP4Box.exe, ffmpeg.exe, ffprobe.exe, mp4decrypt.exe, yt-dlp.exe
+
+  Use -BundleTools to require MP4Box, ffmpeg, ffprobe, and yt-dlp in dist\tools\ before packaging.
 #>
 param(
     [switch]$SkipFrontend,
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$BundleTools
 )
 
 $ErrorActionPreference = "Stop"
@@ -83,8 +86,29 @@ if ($builtGui) {
 Pop-Location
 if ($LASTEXITCODE -ne 0) { throw "Wails build failed" }
 
+$ScriptsSrc = Join-Path $Root "scripts"
+$ScriptsDst = Join-Path $Dist "scripts"
+if (Test-Path $ScriptsSrc) {
+    New-Item -ItemType Directory -Force -Path $ScriptsDst | Out-Null
+    Copy-Item (Join-Path $ScriptsSrc "sync-repair-windows.ps1") $ScriptsDst -Force -ErrorAction SilentlyContinue
+}
+
 $requiredTools = @("MP4Box.exe")
 $optionalTools = @("ffmpeg.exe", "ffprobe.exe", "mp4decrypt.exe", "yt-dlp.exe")
+$bundledToolNames = @("MP4Box.exe", "ffmpeg.exe", "ffprobe.exe", "yt-dlp.exe")
+
+if ($BundleTools) {
+    $missing = @()
+    foreach ($t in $bundledToolNames) {
+        if (-not (Test-Path (Join-Path $Tools $t))) {
+            $missing += $t
+        }
+    }
+    if ($missing.Count -gt 0) {
+        throw "-BundleTools requires these files in dist\tools\: $($missing -join ', ')"
+    }
+}
+
 foreach ($t in $requiredTools) {
     if (-not (Test-Path (Join-Path $Tools $t))) {
         Write-Warning "Missing dist\tools\$t - download from GPAC and copy before creating installer."

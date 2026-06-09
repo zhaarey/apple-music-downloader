@@ -12,3 +12,11 @@ export function EventsOff(eventName, ...args) {
 export function EventsEmit(eventName, ...args) {
   window.runtime?.EventsEmit?.(eventName, ...args)
 }
+
+export function OnFileDrop(callback, useDropTarget) {
+  return window.runtime?.OnFileDrop?.(callback, useDropTarget)
+}
+
+export function OnFileDropOff() {
+  return window.runtime?.OnFileDropOff?.()
+}

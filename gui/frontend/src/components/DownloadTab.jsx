@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder } from '../wailsjs/go/main/App'
+import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder, RevealInFolder, PreflightDownloadJob } from '../wailsjs/go/main/App'
 import { parseJobResult, parseTrackRows, parseYouTubeProgress, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
 import { FetchPreviewSkeleton, FetchStatusBanner, YouTubeProgressPanel } from './YouTubeUI'
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
@@ -52,16 +52,22 @@ function outputFolderForQuality(settings, quality, youtubeMode) {
   return settings?.['aac-save-folder'] || ''
 }
 
-function JobStatusBanner({ jobResult, onOpenFolder, onOpenLog, onSplitIntoTracks }) {
+function JobStatusBanner({ jobResult, onRevealFile, onOpenFolder, onOpenLog, onSplitIntoTracks }) {
   if (!jobResult) return null
   const meta = jobStatusMeta(jobResult.phase)
   const canSplit = Boolean(jobResult.handoff?.master_path || jobResult.masterPath)
+  const revealPath = jobResult.outputPath || jobResult.masterPath || jobResult.handoff?.master_path || ''
   return (
     <div className={`rounded-xl border px-4 py-3 ${meta.className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-semibold">{meta.label}</p>
           <p className="mt-1 text-sm opacity-90">{jobResult.message}</p>
+          {revealPath && (
+            <p className="mt-1 truncate text-xs opacity-70" title={revealPath}>
+              {revealPath}
+            </p>
+          )}
           {jobResult.total > 0 && (
             <p className="mt-2 text-xs opacity-80">
               {jobResult.success} succeeded · {jobResult.failed} failed/unavailable · {jobResult.total} attempted
@@ -81,9 +87,15 @@ function JobStatusBanner({ jobResult, onOpenFolder, onOpenLog, onSplitIntoTracks
               Split into tracks
             </button>
           )}
-          <button type="button" onClick={onOpenFolder} className="rounded-lg bg-black/20 px-3 py-1.5 text-xs hover:bg-black/30">
-            Open folder
-          </button>
+          {revealPath ? (
+            <button type="button" onClick={() => onRevealFile?.(revealPath)} className="rounded-lg bg-black/20 px-3 py-1.5 text-xs hover:bg-black/30">
+              Reveal file
+            </button>
+          ) : (
+            <button type="button" onClick={onOpenFolder} className="rounded-lg bg-black/20 px-3 py-1.5 text-xs hover:bg-black/30">
+              Open folder
+            </button>
+          )}
           {(jobResult.phase === 'failed' || jobResult.phase === 'partial') && (
             <button type="button" onClick={onOpenLog} className="rounded-lg bg-black/20 px-3 py-1.5 text-xs hover:bg-black/30">
               View log
@@ -125,6 +137,7 @@ export default function DownloadTab({
   const [fetchStep, setFetchStep] = useState(0)
   const [fetchStatus, setFetchStatus] = useState('')
   const [metaByTrack, setMetaByTrack] = useState({})
+  const [preflight, setPreflight] = useState(null)
 
   const youtubeMode = sourceMode ? sourceMode === 'youtube' : Boolean(settings?.['youtube-mode'])
   const showSourceToggle = !sourceMode
@@ -211,6 +224,7 @@ export default function DownloadTab({
     setFetchStatus('')
     setJobStarted(false)
     setMetaByTrack({})
+    setPreflight(null)
     if (clearPipeline) {
       onResetPipeline?.()
     } else {
@@ -299,14 +313,6 @@ export default function DownloadTab({
       setFetchError(mismatch)
       return
     }
-    if (!youtubeMode && quality === 'aac' && !hasToken) {
-      setFetchError(APPLE_SUBSCRIPTION_MSG)
-      return
-    }
-    if (youtubeMode && (!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok))) {
-      setFetchError('YouTube mode requires yt-dlp, ffmpeg, and ffprobe in the same folder — check Requirements tab')
-      return
-    }
 
     const isArtist = preview.type === 'Artist'
     let selectedTrackNums = []
@@ -327,6 +333,23 @@ export default function DownloadTab({
     }
 
     setFetchError('')
+    setPreflight(null)
+
+    const sourceMode = youtubeMode ? 'youtube' : 'apple'
+    try {
+      const check = await PreflightDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, saveVideo, sourceMode)
+      if (!check?.ready) {
+        setPreflight(check)
+        const failed = (check.checks || []).filter((c) => !c.ok && c.blocking).map((c) => c.detail || c.label)
+        setFetchError(failed[0] || check.summary || 'Fix the issues below before downloading.')
+        return
+      }
+    } catch (e) {
+      reportFrontendError('DownloadTab.preflight', e)
+      setFetchError(formatActionError(e, 'Pre-flight check'))
+      return
+    }
+
     setJobStarted(true)
     onDownloadStart?.()
     try {
@@ -493,6 +516,7 @@ export default function DownloadTab({
 
           <JobStatusBanner
             jobResult={jobResult || jobSession}
+            onRevealFile={(path) => RevealInFolder(path)}
             onOpenFolder={() => OpenFolder('')}
             onOpenLog={() => OpenLogFile()}
             onSplitIntoTracks={() => {
@@ -706,6 +730,18 @@ export default function DownloadTab({
 
           {fetchError && (
             <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{fetchError}</p>
+          )}
+
+          {preflight && !preflight.ready && (
+            <ul className="space-y-1 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-100">
+              {(preflight.checks || [])
+                .filter((c) => !c.ok)
+                .map((c) => (
+                  <li key={c.id}>
+                    <span className="font-medium">{c.label}:</span> {c.detail || 'Not ready'}
+                  </li>
+                ))}
+            </ul>
           )}
 
           {jobResult && !downloading ? (

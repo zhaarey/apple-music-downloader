@@ -12,19 +12,27 @@ func AppleMusicArtworkCachePaths() []string {
 	switch runtime.GOOS {
 	case "windows":
 		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			return nil
+		home, _ := os.UserHomeDir()
+		paths := []string{}
+		if localAppData != "" {
+			root := filepath.Join(localAppData, "Apple Computer")
+			paths = append(paths,
+				filepath.Join(root, "iTunes", "Artwork"),
+				filepath.Join(root, "iTunes", "Artwork", "Cache"),
+				filepath.Join(root, "Media", "Artwork"),
+				filepath.Join(root, "Apple Music", "Artwork"),
+				filepath.Join(root, "Apple Music", "Artwork", "Cache"),
+			)
 		}
-		root := filepath.Join(localAppData, "Apple Computer")
-		return []string{
-			filepath.Join(root, "iTunes", "Artwork"),
-			filepath.Join(root, "Media", "Artwork"),
-			filepath.Join(root, "Apple Music", "Artwork"),
+		if home != "" {
+			paths = append(paths, filepath.Join(home, "Music", "iTunes", "Album Artwork", "Cache"))
 		}
+		return paths
 	case "darwin":
 		home := homeDir()
 		paths := []string{
 			filepath.Join(home, "Library", "Caches", "com.apple.Music"),
+			filepath.Join(home, "Library", "Caches", "com.apple.Music", "Artwork"),
 			filepath.Join(home, "Library", "Caches", "com.apple.iTunes"),
 		}
 		groupRoot := filepath.Join(home, "Library", "Group Containers")

@@ -6,6 +6,7 @@ import {structs} from '../models';
 import {apple} from '../models';
 import {splice} from '../models';
 import {youtube} from '../models';
+import {main} from '../models';
 
 export function CancelDownload():Promise<void>;
 
@@ -29,27 +30,53 @@ export function GetLogPath():Promise<string>;
 
 export function GetPlatform():Promise<string>;
 
+export function GetRecentFiles():Promise<Array<string>>;
+
 export function GetSettings():Promise<structs.ConfigSet>;
 
+export function GetSetupComplete():Promise<boolean>;
+
+export function GetSyncRepairPreparePreview():Promise<media.SyncRepairPreparePreview>;
+
 export function GetWizardComplete():Promise<boolean>;
+
+export function IsAppleMusicRunning():Promise<boolean>;
 
 export function IsDownloading():Promise<boolean>;
 
 export function LogFrontendError(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function OpenConfigFolder():Promise<void>;
+
 export function OpenFolder(arg1:string):Promise<void>;
 
 export function OpenLogFile():Promise<void>;
 
+export function OpenSyncRepairLog():Promise<void>;
+
 export function PickFolder():Promise<string>;
+
+export function PreflightDownloadJob(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<engine.PreflightResult>;
+
+export function PrepareAlbumForSync(arg1:string):Promise<media.AlbumPrepareResult>;
+
+export function PrepareLibraryForSync():Promise<Array<media.AlbumPrepareResult>>;
+
+export function PreviewPrepareAlbumForSync(arg1:string):Promise<media.AlbumPreparePreview>;
 
 export function PreviewURL(arg1:string):Promise<apple.PreviewResult>;
 
 export function RevealInFolder(arg1:string):Promise<void>;
 
+export function RunSyncRepair(arg1:media.SyncRepairOptions):Promise<media.SyncRepairResult>;
+
+export function RunSyncRepairElevated():Promise<media.SyncRepairResult>;
+
 export function SaveSettings(arg1:structs.ConfigSet):Promise<void>;
 
 export function Search(arg1:string,arg2:string,arg3:number):Promise<{[key: string]: any}>;
+
+export function SetSetupComplete(arg1:boolean):Promise<void>;
 
 export function SetWizardComplete(arg1:boolean):Promise<void>;
 
@@ -95,7 +122,13 @@ export function TagPickArtworkFile():Promise<string>;
 
 export function TagPickAudioFile():Promise<string>;
 
+export function TagReadAlbumFolder(arg1:string):Promise<Array<media.AudioTagInfo>>;
+
 export function TagReadFile(arg1:string):Promise<media.AudioTagInfo>;
+
+export function TagResolveDrop(arg1:Array<string>):Promise<main.TagDropResolve>;
+
+export function TagWriteAlbumBatch(arg1:media.TagAlbumBatchInput):Promise<media.TagAlbumBatchResult>;
 
 export function TagWriteFile(arg1:media.WriteAudioTagsInput):Promise<media.AudioTagInfo>;
 

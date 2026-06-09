@@ -401,6 +401,7 @@ func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 
 	counter = structs.Counter{}
 	AddedTracks = nil
+	lastYouTubeOutput = ""
 	okDict = make(map[string][]int)
 
 	e.emit(events.Event{
@@ -415,12 +416,13 @@ func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 		case <-e.ctx.Done():
 			e.log("Download cancelled.")
 			e.emit(events.Event{
-				Type:    events.EventJobComplete,
-				Message: fmt.Sprintf("Cancelled — %d completed before stop", counter.Success),
-				Phase:   "cancelled",
-				Success: counter.Success,
-				Error:   counter.Error + counter.Unavailable,
-				Total_:  counter.Total,
+				Type:       events.EventJobComplete,
+				Message:    fmt.Sprintf("Cancelled — %d completed before stop", counter.Success),
+				Phase:      "cancelled",
+				Success:    counter.Success,
+				Error:      counter.Error + counter.Unavailable,
+				Total_:     counter.Total,
+				OutputPath: lastJobOutputPath(""),
 			})
 			return
 		default:
@@ -475,6 +477,7 @@ func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 		Success: counter.Success,
 		Error:   counter.Error + counter.Unavailable,
 		Total_:  counter.Total,
+		OutputPath: lastJobOutputPath(""),
 	})
 
 	if opts.PrintJSON {

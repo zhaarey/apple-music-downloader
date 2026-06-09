@@ -117,11 +117,126 @@ export namespace engine {
 	        this.required = source["required"];
 	    }
 	}
+	export class PreflightCheck {
+	    id: string;
+	    label: string;
+	    ok: boolean;
+	    detail: string;
+	    blocking: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PreflightCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.ok = source["ok"];
+	        this.detail = source["detail"];
+	        this.blocking = source["blocking"];
+	    }
+	}
+	export class PreflightResult {
+	    ready: boolean;
+	    summary: string;
+	    checks: PreflightCheck[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PreflightResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ready = source["ready"];
+	        this.summary = source["summary"];
+	        this.checks = this.convertValues(source["checks"], PreflightCheck);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace main {
+	
+	export class TagDropResolve {
+	    mode: string;
+	    path: string;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TagDropResolve(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.path = source["path"];
+	        this.message = source["message"];
+	    }
+	}
 
 }
 
 export namespace media {
 	
+	export class AlbumPreparePreview {
+	    folder: string;
+	    track_count: number;
+	    cover_source: string;
+	    recursive: boolean;
+	    warning: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AlbumPreparePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.folder = source["folder"];
+	        this.track_count = source["track_count"];
+	        this.cover_source = source["cover_source"];
+	        this.recursive = source["recursive"];
+	        this.warning = source["warning"];
+	    }
+	}
+	export class AlbumPrepareResult {
+	    folder: string;
+	    prepared: number;
+	    skipped: number;
+	    errors: string[];
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AlbumPrepareResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.folder = source["folder"];
+	        this.prepared = source["prepared"];
+	        this.skipped = source["skipped"];
+	        this.errors = source["errors"];
+	        this.summary = source["summary"];
+	    }
+	}
 	export class AppleMusicCacheInfo {
 	    paths: string[];
 	    platform: string;
@@ -297,6 +412,188 @@ export namespace media {
 		}
 	}
 	
+	export class SyncRepairOptions {
+	    prepare_folders: string[];
+	    skip_prepare: boolean;
+	    force_if_music_running: boolean;
+	    cache_only: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncRepairOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.prepare_folders = source["prepare_folders"];
+	        this.skip_prepare = source["skip_prepare"];
+	        this.force_if_music_running = source["force_if_music_running"];
+	        this.cache_only = source["cache_only"];
+	    }
+	}
+	export class SyncRepairPreparePreview {
+	    folders: string[];
+	    track_count: number;
+	    warning: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncRepairPreparePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.folders = source["folders"];
+	        this.track_count = source["track_count"];
+	        this.warning = source["warning"];
+	    }
+	}
+	export class SyncRepairStep {
+	    id: string;
+	    label: string;
+	    ok: boolean;
+	    detail: string;
+	    skipped: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncRepairStep(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.ok = source["ok"];
+	        this.detail = source["detail"];
+	        this.skipped = source["skipped"];
+	    }
+	}
+	export class SyncRepairResult {
+	    ok: boolean;
+	    summary: string;
+	    steps: SyncRepairStep[];
+	    need_elevated: boolean;
+	    log_path: string;
+	    manual_steps: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncRepairResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.summary = source["summary"];
+	        this.steps = this.convertValues(source["steps"], SyncRepairStep);
+	        this.need_elevated = source["need_elevated"];
+	        this.log_path = source["log_path"];
+	        this.manual_steps = source["manual_steps"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class TagAlbumTrackInput {
+	    path: string;
+	    title: string;
+	    artist: string;
+	    track_number: number;
+	    disc_number: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TagAlbumTrackInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	        this.artist = source["artist"];
+	        this.track_number = source["track_number"];
+	        this.disc_number = source["disc_number"];
+	    }
+	}
+	export class TagAlbumBatchInput {
+	    folder: string;
+	    album: string;
+	    album_artist: string;
+	    genre: string;
+	    year: string;
+	    track_total: number;
+	    disc_total: number;
+	    cover_path: string;
+	    clear_artwork: boolean;
+	    sort_tags: boolean;
+	    tracks: TagAlbumTrackInput[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TagAlbumBatchInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.folder = source["folder"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.track_total = source["track_total"];
+	        this.disc_total = source["disc_total"];
+	        this.cover_path = source["cover_path"];
+	        this.clear_artwork = source["clear_artwork"];
+	        this.sort_tags = source["sort_tags"];
+	        this.tracks = this.convertValues(source["tracks"], TagAlbumTrackInput);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TagAlbumBatchResult {
+	    saved: number;
+	    errors: string[];
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TagAlbumBatchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.saved = source["saved"];
+	        this.errors = source["errors"];
+	        this.summary = source["summary"];
+	    }
+	}
 	
 	export class WriteAudioTagsInput {
 	    path: string;

@@ -42,3 +42,55 @@ type AppleMusicCacheInfo struct {
 	Platform string   `json:"platform"`
 	Note     string   `json:"note"`
 }
+
+// AlbumPrepareResult reports batch tag normalization for a folder tree.
+type AlbumPrepareResult struct {
+	Folder   string   `json:"folder"`
+	Prepared int      `json:"prepared"`
+	Skipped  int      `json:"skipped"`
+	Errors   []string `json:"errors"`
+	Summary  string   `json:"summary"`
+}
+
+// AlbumPreparePreview describes what PrepareAlbumForSync would change (no writes).
+type AlbumPreparePreview struct {
+	Folder      string `json:"folder"`
+	TrackCount  int    `json:"track_count"`
+	CoverSource string `json:"cover_source"`
+	Recursive   bool   `json:"recursive"`
+	Warning     string `json:"warning"`
+}
+
+// SyncRepairPreparePreview summarizes library-wide prepare during repair.
+type SyncRepairPreparePreview struct {
+	Folders     []string `json:"folders"`
+	TrackCount  int      `json:"track_count"`
+	Warning     string   `json:"warning"`
+}
+
+// SyncRepairStep is one step in the repair workflow.
+type SyncRepairStep struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	OK      bool   `json:"ok"`
+	Detail  string `json:"detail"`
+	Skipped bool   `json:"skipped"`
+}
+
+// SyncRepairResult summarizes a full sync repair run.
+type SyncRepairResult struct {
+	OK           bool             `json:"ok"`
+	Summary      string           `json:"summary"`
+	Steps        []SyncRepairStep `json:"steps"`
+	NeedElevated bool             `json:"need_elevated"`
+	LogPath      string           `json:"log_path"`
+	ManualSteps  []string         `json:"manual_steps"`
+}
+
+// SyncRepairOptions configures RunSyncRepair.
+type SyncRepairOptions struct {
+	PrepareFolders       []string `json:"prepare_folders"`
+	SkipPrepare          bool     `json:"skip_prepare"`
+	ForceIfMusicRunning  bool     `json:"force_if_music_running"`
+	CacheOnly            bool     `json:"cache_only"`
+}

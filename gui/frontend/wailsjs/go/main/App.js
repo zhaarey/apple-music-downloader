@@ -46,12 +46,28 @@ export function GetPlatform() {
   return window['go']['main']['App']['GetPlatform']();
 }
 
+export function GetRecentFiles() {
+  return window['go']['main']['App']['GetRecentFiles']();
+}
+
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetSetupComplete() {
+  return window['go']['main']['App']['GetSetupComplete']();
+}
+
+export function GetSyncRepairPreparePreview() {
+  return window['go']['main']['App']['GetSyncRepairPreparePreview']();
+}
+
 export function GetWizardComplete() {
   return window['go']['main']['App']['GetWizardComplete']();
+}
+
+export function IsAppleMusicRunning() {
+  return window['go']['main']['App']['IsAppleMusicRunning']();
 }
 
 export function IsDownloading() {
@@ -62,6 +78,10 @@ export function LogFrontendError(arg1, arg2, arg3) {
   return window['go']['main']['App']['LogFrontendError'](arg1, arg2, arg3);
 }
 
+export function OpenConfigFolder() {
+  return window['go']['main']['App']['OpenConfigFolder']();
+}
+
 export function OpenFolder(arg1) {
   return window['go']['main']['App']['OpenFolder'](arg1);
 }
@@ -70,8 +90,28 @@ export function OpenLogFile() {
   return window['go']['main']['App']['OpenLogFile']();
 }
 
+export function OpenSyncRepairLog() {
+  return window['go']['main']['App']['OpenSyncRepairLog']();
+}
+
 export function PickFolder() {
   return window['go']['main']['App']['PickFolder']();
+}
+
+export function PreflightDownloadJob(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PreflightDownloadJob'](arg1, arg2, arg3, arg4);
+}
+
+export function PrepareAlbumForSync(arg1) {
+  return window['go']['main']['App']['PrepareAlbumForSync'](arg1);
+}
+
+export function PrepareLibraryForSync() {
+  return window['go']['main']['App']['PrepareLibraryForSync']();
+}
+
+export function PreviewPrepareAlbumForSync(arg1) {
+  return window['go']['main']['App']['PreviewPrepareAlbumForSync'](arg1);
 }
 
 export function PreviewURL(arg1) {
@@ -82,12 +122,24 @@ export function RevealInFolder(arg1) {
   return window['go']['main']['App']['RevealInFolder'](arg1);
 }
 
+export function RunSyncRepair(arg1) {
+  return window['go']['main']['App']['RunSyncRepair'](arg1);
+}
+
+export function RunSyncRepairElevated() {
+  return window['go']['main']['App']['RunSyncRepairElevated']();
+}
+
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
 }
 
 export function Search(arg1, arg2, arg3) {
   return window['go']['main']['App']['Search'](arg1, arg2, arg3);
+}
+
+export function SetSetupComplete(arg1) {
+  return window['go']['main']['App']['SetSetupComplete'](arg1);
 }
 
 export function SetWizardComplete(arg1) {
@@ -178,8 +230,20 @@ export function TagPickAudioFile() {
   return window['go']['main']['App']['TagPickAudioFile']();
 }
 
+export function TagReadAlbumFolder(arg1) {
+  return window['go']['main']['App']['TagReadAlbumFolder'](arg1);
+}
+
 export function TagReadFile(arg1) {
   return window['go']['main']['App']['TagReadFile'](arg1);
+}
+
+export function TagResolveDrop(arg1) {
+  return window['go']['main']['App']['TagResolveDrop'](arg1);
+}
+
+export function TagWriteAlbumBatch(arg1) {
+  return window['go']['main']['App']['TagWriteAlbumBatch'](arg1);
 }
 
 export function TagWriteFile(arg1) {

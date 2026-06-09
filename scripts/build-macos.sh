@@ -4,6 +4,8 @@
 #
 # Optional tools in dist/tools/ before packaging:
 #   MP4Box, ffmpeg, ffprobe, yt-dlp
+#
+# Use --bundle-tools to require all tools in dist/tools/ (fail build if any are missing).
 
 set -euo pipefail
 
@@ -13,11 +15,13 @@ TOOLS="$DIST/tools"
 GUI="$ROOT/gui"
 SKIP_FRONTEND=0
 SKIP_DMG=0
+BUNDLE_TOOLS=0
 
 for arg in "$@"; do
   case "$arg" in
     --skip-frontend) SKIP_FRONTEND=1 ;;
     --skip-dmg) SKIP_DMG=1 ;;
+    --bundle-tools) BUNDLE_TOOLS=1 ;;
   esac
 done
 
@@ -80,6 +84,19 @@ cp -R "$APP_SRC" "$APP_DST"
 MACOS_BIN="$APP_DST/Contents/MacOS"
 TOOLS_DST="$MACOS_BIN/tools"
 mkdir -p "$TOOLS_DST"
+
+if [[ "$BUNDLE_TOOLS" -eq 1 ]]; then
+  missing=()
+  for tool in MP4Box ffmpeg ffprobe yt-dlp; do
+    if [[ ! -f "$TOOLS/$tool" ]]; then
+      missing+=("$tool")
+    fi
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Error: --bundle-tools requires these files in dist/tools/: ${missing[*]}" >&2
+    exit 1
+  fi
+fi
 
 for tool in MP4Box ffmpeg ffprobe yt-dlp; do
   if [[ -f "$TOOLS/$tool" ]]; then

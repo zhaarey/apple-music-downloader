@@ -37,6 +37,7 @@ export function parseJobResult(engineEvents) {
     recentErrors,
     handoff: lastJob.handoff || null,
     masterPath: lastJob.master_path || lastJob.handoff?.master_path || '',
+    outputPath: lastJob.output_path || lastJob.master_path || lastJob.handoff?.master_path || '',
   }
 }
 

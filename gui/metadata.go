@@ -6,11 +6,90 @@ import (
 	"path/filepath"
 	"strings"
 
+	"main/internal/appstate"
 	"main/internal/logging"
 	"main/internal/media"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// TagDropResolve tells the Tag Editor how to open a drag-and-drop payload.
+type TagDropResolve struct {
+	Mode    string `json:"mode"` // "single" or "album"
+	Path    string `json:"path"`
+	Message string `json:"message,omitempty"`
+}
+
+func isTagAudioExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".m4a", ".mp4", ".m4b":
+		return true
+	default:
+		return false
+	}
+}
+
+// TagResolveDrop classifies OS file-drop paths into single-file or album-folder mode.
+func (a *App) TagResolveDrop(paths []string) (TagDropResolve, error) {
+	var dirs []string
+	var audios []string
+
+	for _, raw := range paths {
+		p := strings.TrimSpace(raw)
+		if p == "" {
+			continue
+		}
+		stat, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if stat.IsDir() {
+			dirs = append(dirs, p)
+			continue
+		}
+		if isTagAudioExt(filepath.Ext(p)) {
+			audios = append(audios, p)
+		}
+	}
+
+	if len(dirs) == 0 && len(audios) == 0 {
+		return TagDropResolve{}, fmt.Errorf("drop an .m4a file or an album folder")
+	}
+
+	if len(dirs) > 0 {
+		msg := ""
+		if len(dirs) > 1 {
+			msg = fmt.Sprintf("Using first folder (%d dropped).", len(dirs))
+		}
+		return TagDropResolve{Mode: "album", Path: dirs[0], Message: msg}, nil
+	}
+
+	if len(audios) == 1 {
+		return TagDropResolve{Mode: "single", Path: audios[0]}, nil
+	}
+
+	parent := filepath.Dir(audios[0])
+	sameFolder := true
+	for _, p := range audios[1:] {
+		if filepath.Dir(p) != parent {
+			sameFolder = false
+			break
+		}
+	}
+	if sameFolder {
+		return TagDropResolve{
+			Mode:    "album",
+			Path:    parent,
+			Message: fmt.Sprintf("Opened album folder from %d dropped tracks.", len(audios)),
+		}, nil
+	}
+
+	return TagDropResolve{
+		Mode:    "single",
+		Path:    audios[0],
+		Message: "Tracks are from different folders — opened the first file. Drop one folder for album bulk.",
+	}, nil
+}
 
 func (a *App) TagPickAudioFile() (string, error) {
 	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
@@ -39,18 +118,23 @@ func (a *App) TagReadFile(path string) (media.AudioTagInfo, error) {
 	if path == "" {
 		return media.AudioTagInfo{}, fmt.Errorf("no file selected")
 	}
-	info, err := os.Stat(path)
+	stat, err := os.Stat(path)
 	if err != nil {
 		return media.AudioTagInfo{}, err
 	}
-	if info.IsDir() {
+	if stat.IsDir() {
 		return media.AudioTagInfo{}, fmt.Errorf("path is a folder, not a file")
 	}
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != ".m4a" && ext != ".mp4" && ext != ".m4b" {
 		return media.AudioTagInfo{}, fmt.Errorf("unsupported file type %s (use .m4a)", ext)
 	}
-	return media.ReadAudioTags(path)
+	tags, err := media.ReadAudioTags(path)
+	if err != nil {
+		return media.AudioTagInfo{}, err
+	}
+	appstate.RememberRecentFile(path)
+	return tags, nil
 }
 
 func (a *App) TagWriteFile(input media.WriteAudioTagsInput) (media.AudioTagInfo, error) {
@@ -69,7 +153,49 @@ func (a *App) TagWriteFile(input media.WriteAudioTagsInput) (media.AudioTagInfo,
 		return media.AudioTagInfo{}, err
 	}
 	logging.Info("TagWriteFile updated %s", input.Path)
+	appstate.RememberRecentFile(input.Path)
 	return media.ReadAudioTags(input.Path)
+}
+
+func (a *App) TagReadAlbumFolder(folder string) ([]media.AudioTagInfo, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("TagReadAlbumFolder", r)
+		}
+	}()
+	if strings.TrimSpace(folder) == "" {
+		return nil, fmt.Errorf("no folder selected")
+	}
+	infos, err := media.ReadAlbumTags(folder)
+	if err != nil {
+		return nil, err
+	}
+	for _, info := range infos {
+		appstate.RememberRecentFile(info.Path)
+	}
+	return infos, nil
+}
+
+func (a *App) TagWriteAlbumBatch(input media.TagAlbumBatchInput) (media.TagAlbumBatchResult, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("TagWriteAlbumBatch", r)
+		}
+	}()
+	if len(input.Tracks) == 0 {
+		return media.TagAlbumBatchResult{}, fmt.Errorf("no tracks to save")
+	}
+	res := media.WriteAlbumBatch(input)
+	for _, tr := range input.Tracks {
+		if tr.Path != "" && res.Saved > 0 {
+			appstate.RememberRecentFile(tr.Path)
+		}
+	}
+	if res.Saved == 0 && len(res.Errors) > 0 {
+		return res, fmt.Errorf("%s", res.Summary)
+	}
+	logging.Info("TagWriteAlbumBatch folder=%s saved=%d errors=%d", input.Folder, res.Saved, len(res.Errors))
+	return res, nil
 }
 
 // TagLocalFileURL returns a webview-safe URL for local file preview (audio or images).

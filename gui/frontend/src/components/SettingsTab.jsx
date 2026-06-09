@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
-import { OpenLogFile } from '../wailsjs/go/main/App'
+import { OpenLogFile, OpenConfigFolder } from '../wailsjs/go/main/App'
 
-export default function SettingsTab({ settings, deps, platform = 'windows', onSave, onPickFolder, onRefreshDeps, onShowWizard }) {
+export default function SettingsTab({
+  settings,
+  deps,
+  platform = 'windows',
+  activityLogs = [],
+  onSave,
+  onPickFolder,
+  onRefreshDeps,
+  onShowWizard,
+  onShowSetupChecklist,
+}) {
   const [cfg, setCfg] = useState(settings || {})
   const [saved, setSaved] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -32,6 +42,13 @@ export default function SettingsTab({ settings, deps, platform = 'windows', onSa
     <div className="mx-auto h-full max-w-2xl overflow-y-auto">
       <h2 className="text-xl font-semibold">Settings</h2>
       <p className="mt-1 text-sm text-white/50">{configDirHint}</p>
+      <button
+        type="button"
+        onClick={() => OpenConfigFolder()}
+        className="mt-2 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+      >
+        Open config folder
+      </button>
 
       <section className="mt-6 space-y-4 rounded-xl border border-white/10 bg-surface-raised p-4">
         <h3 className="font-medium">Account</h3>
@@ -260,10 +277,32 @@ export default function SettingsTab({ settings, deps, platform = 'windows', onSa
         </button>
       </section>
 
+      {activityLogs.length > 0 && (
+        <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+          <h3 className="font-medium">Recent activity</h3>
+          <p className="mt-1 text-xs text-white/50">Latest download and engine messages from this session.</p>
+          <ul className="mt-3 max-h-48 space-y-1 overflow-y-auto font-mono text-xs text-white/60">
+            {activityLogs
+              .slice(-40)
+              .reverse()
+              .map((entry, i) => (
+                <li key={`${entry.time}-${i}`} className="truncate">
+                  <span className="text-white/35">{entry.time}</span> {entry.msg}
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
       <div className="mt-6 flex gap-3 pb-8">
         <button onClick={save} className="rounded-xl bg-accent px-6 py-2 font-medium">
           {saved ? 'Saved!' : 'Save settings'}
         </button>
+        {onShowSetupChecklist && (
+          <button onClick={onShowSetupChecklist} className="rounded-xl border border-white/20 px-4 py-2 text-sm">
+            Re-run setup checklist
+          </button>
+        )}
         {onShowWizard && (
           <button onClick={onShowWizard} className="rounded-xl border border-white/20 px-4 py-2 text-sm">
             Re-run setup wizard
