@@ -1911,7 +1911,11 @@ func writeMP4Tags(track *task.Track, lrc string) error {
 		return err
 	}
 	defer mp4.Close()
-	err = mp4.Write(t, []string{})
+	delStrings := []string{}
+	if len(t.Pictures) > 0 {
+		delStrings = []string{"allpictures"}
+	}
+	err = mp4.Write(t, delStrings)
 	if err != nil {
 		return err
 	}

@@ -25,7 +25,7 @@ func firstGenre(names []string) string {
 }
 
 func (e *Engine) validateDownload(opts RunOptions) error {
-	if Config.YouTubeMode {
+	if useYouTubePipeline(opts) {
 		return e.validateYouTubeDownload(opts)
 	}
 	if len(opts.URLs) == 0 {

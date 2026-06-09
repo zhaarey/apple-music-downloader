@@ -25,8 +25,9 @@ type AudioTagInfo struct {
 	TrackTotal  int16  `json:"track_total"`
 	DiscNumber  int16  `json:"disc_number"`
 	DiscTotal   int16  `json:"disc_total"`
-	HasArtwork  bool   `json:"has_artwork"`
-	ArtworkMime string `json:"artwork_mime,omitempty"`
+	HasArtwork   bool   `json:"has_artwork"`
+	ArtworkCount int    `json:"artwork_count"`
+	ArtworkMime  string `json:"artwork_mime,omitempty"`
 	ArtworkB64  string `json:"artwork_b64,omitempty"`
 	Summary     string `json:"summary"`
 }
@@ -63,9 +64,14 @@ func ReadAudioTags(path string) (AudioTagInfo, error) {
 	out.DiscTotal = tags.DiscTotal
 
 	if len(tags.Pictures) > 0 && len(tags.Pictures[0].Data) > 0 {
+		out.ArtworkCount = len(tags.Pictures)
+		idx := 0
+		if len(tags.Pictures) > 1 {
+			idx = len(tags.Pictures) - 1
+		}
 		out.HasArtwork = true
-		out.ArtworkMime = pictureMIME(tags.Pictures[0].Format)
-		out.ArtworkB64 = base64.StdEncoding.EncodeToString(tags.Pictures[0].Data)
+		out.ArtworkMime = pictureMIME(tags.Pictures[idx].Format)
+		out.ArtworkB64 = base64.StdEncoding.EncodeToString(tags.Pictures[idx].Data)
 	}
 
 	title := out.Title
@@ -133,6 +139,69 @@ func WriteAudioTags(input WriteAudioTagsInput) error {
 }
 
 func writeTrackTagsClearArt(path string, tags TrackTags) error {
+	t, err := buildMP4Tags(tags)
+	if err != nil {
+		return err
+	}
+	return writeMP4Tags(path, t, nil)
+}
+
+func clonePicture(p *mp4tag.MP4Picture) *mp4tag.MP4Picture {
+	if p == nil {
+		return nil
+	}
+	data := append([]byte(nil), p.Data...)
+	return &mp4tag.MP4Picture{Format: p.Format, Data: data}
+}
+
+func readExistingPictures(path string) ([]*mp4tag.MP4Picture, error) {
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer mp4.Close()
+	existing, err := mp4.Read()
+	if err != nil || existing == nil {
+		return nil, err
+	}
+	out := make([]*mp4tag.MP4Picture, 0, len(existing.Pictures))
+	for _, p := range existing.Pictures {
+		if p != nil && len(p.Data) > 0 {
+			out = append(out, clonePicture(p))
+		}
+	}
+	return out, nil
+}
+
+func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4tag.MP4Picture, error) {
+	wantNew := tags.CoverPath != "" || len(tags.CoverData) > 0 || tags.CoverURL != ""
+	if wantNew {
+		coverData, coverMIME, err := resolveCover(tags)
+		if err != nil || len(coverData) == 0 {
+			if err == nil {
+				err = os.ErrNotExist
+			}
+			return nil, fmt.Errorf("artwork: %w", err)
+		}
+		format := mp4tag.ImageTypeJPEG
+		if strings.Contains(coverMIME, "png") ||
+			strings.HasSuffix(strings.ToLower(tags.CoverPath), ".png") ||
+			strings.HasSuffix(strings.ToLower(tags.CoverURL), ".png") {
+			format = mp4tag.ImageTypePNG
+		}
+		return []*mp4tag.MP4Picture{{Format: format, Data: coverData}}, nil
+	}
+	if len(existing) == 0 {
+		return nil, nil
+	}
+	pic := existing[0]
+	if len(existing) > 1 {
+		pic = existing[len(existing)-1]
+	}
+	return []*mp4tag.MP4Picture{clonePicture(pic)}, nil
+}
+
+func buildMP4Tags(tags TrackTags) (*mp4tag.MP4Tags, error) {
 	title := strings.TrimSpace(tags.Title)
 	artist := strings.TrimSpace(tags.Artist)
 	album := strings.TrimSpace(tags.Album)
@@ -188,7 +257,11 @@ func writeTrackTagsClearArt(path string, tags TrackTags) error {
 		t.AlbumSort = album
 		t.AlbumArtistSort = albumArtist
 	}
+	return t, nil
+}
 
+func writeMP4Tags(path string, t *mp4tag.MP4Tags, pictures []*mp4tag.MP4Picture) error {
+	t.Pictures = pictures
 	mp4, err := mp4tag.Open(path)
 	if err != nil {
 		return err
@@ -218,86 +291,19 @@ type TrackTags struct {
 
 // WriteTrackTags applies metadata to an existing M4A file.
 func WriteTrackTags(path string, tags TrackTags) error {
-	title := strings.TrimSpace(tags.Title)
-	artist := strings.TrimSpace(tags.Artist)
-	album := strings.TrimSpace(tags.Album)
-	if title == "" {
-		title = "Unknown Title"
-	}
-	if artist == "" {
-		artist = "Unknown Artist"
-	}
-	if album == "" {
-		album = title
-	}
-	albumArtist := strings.TrimSpace(tags.AlbumArtist)
-	if albumArtist == "" {
-		albumArtist = artist
-	}
-	trackNum := tags.TrackNumber
-	if trackNum <= 0 {
-		trackNum = 1
-	}
-	discNum := tags.DiscNumber
-	if discNum <= 0 {
-		discNum = 1
-	}
-	trackTotal := tags.TrackTotal
-	if trackTotal <= 0 {
-		trackTotal = trackNum
-	}
-	discTotal := tags.DiscTotal
-	if discTotal <= 0 {
-		discTotal = 1
-	}
-
-	t := &mp4tag.MP4Tags{
-		Title:       title,
-		Artist:      artist,
-		Album:       album,
-		AlbumArtist: albumArtist,
-		CustomGenre: strings.TrimSpace(tags.Genre),
-		TrackNumber: trackNum,
-		TrackTotal:  trackTotal,
-		DiscNumber:  discNum,
-		DiscTotal:   discTotal,
-		Date:        strings.TrimSpace(tags.Year),
-		Custom: map[string]string{
-			"PERFORMER": artist,
-		},
-	}
-	if tags.SortTags {
-		t.TitleSort = title
-		t.ArtistSort = artist
-		t.AlbumSort = album
-		t.AlbumArtistSort = albumArtist
-	}
-	coverData, coverMIME, err := resolveCover(tags)
-	delStrings := []string{}
-	wantCover := tags.CoverPath != "" || len(tags.CoverData) > 0 || tags.CoverURL != ""
-	if wantCover {
-		if err != nil || len(coverData) == 0 {
-			if err == nil {
-				err = os.ErrNotExist
-			}
-			return fmt.Errorf("artwork: %w", err)
-		}
-		format := mp4tag.ImageTypeJPEG
-		if strings.Contains(coverMIME, "png") ||
-			strings.HasSuffix(strings.ToLower(tags.CoverPath), ".png") ||
-			strings.HasSuffix(strings.ToLower(tags.CoverURL), ".png") {
-			format = mp4tag.ImageTypePNG
-		}
-		t.Pictures = []*mp4tag.MP4Picture{{Format: format, Data: coverData}}
-		delStrings = []string{"allpictures"}
-	}
-
-	mp4, err := mp4tag.Open(path)
+	existing, err := readExistingPictures(path)
 	if err != nil {
 		return err
 	}
-	defer mp4.Close()
-	return mp4.Write(t, delStrings)
+	pictures, err := resolveWritePictures(tags, existing)
+	if err != nil {
+		return err
+	}
+	t, err := buildMP4Tags(tags)
+	if err != nil {
+		return err
+	}
+	return writeMP4Tags(path, t, pictures)
 }
 
 func resolveCover(tags TrackTags) ([]byte, string, error) {

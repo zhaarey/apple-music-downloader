@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 
 const VARIANTS = {
   success: 'border-green-400/25 bg-green-500/15 text-green-100',
+  info: 'border-white/20 bg-white/10 text-white/85',
   error: 'border-red-400/30 bg-red-500/12 text-red-200',
 }
 

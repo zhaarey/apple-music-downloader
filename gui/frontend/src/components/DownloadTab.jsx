@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder } from '../wailsjs/go/main/App'
 import { parseJobResult, parseTrackRows, parseYouTubeProgress, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
-import { YouTubeFetchSkeleton, YouTubeProgressPanel } from './YouTubeUI'
+import { FetchPreviewSkeleton, FetchStatusBanner, YouTubeProgressPanel } from './YouTubeUI'
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
 import SearchTab from './SearchTab'
+import { reportFrontendError } from '../lib/errorReporting'
+import { formatActionError } from '../features/splice/projectUtils'
 
 const QUALITIES = [
   { id: 'aac', label: 'AAC', desc: 'Works immediately', needsWrapper: false },
   { id: 'alac', label: 'Lossless', desc: 'Requires wrapper', needsWrapper: true },
   { id: 'atmos', label: 'Dolby Atmos', desc: 'Requires wrapper', needsWrapper: true },
 ]
+
+function isYouTubeURL(raw) {
+  return /(?:youtube\.com|youtu\.be)/i.test(String(raw || '').trim())
+}
 
 function outputFolderForQuality(settings, quality, youtubeMode) {
   if (youtubeMode) {
@@ -89,6 +95,7 @@ export default function DownloadTab({
   const [jobStarted, setJobStarted] = useState(false)
   const [saveVideo, setSaveVideo] = useState(false)
   const [fetchStep, setFetchStep] = useState(0)
+  const [fetchStatus, setFetchStatus] = useState('')
   const [metaByTrack, setMetaByTrack] = useState({})
 
   const youtubeMode = sourceMode ? sourceMode === 'youtube' : Boolean(settings?.['youtube-mode'])
@@ -127,15 +134,20 @@ export default function DownloadTab({
   }, [prefillUrl, onPrefillConsumed, youtubeMode])
 
   useEffect(() => {
-    if (url.length > 12) {
-      DetectURLType(url).then(setUrlType)
-    } else {
+    const trimmed = url.trim()
+    if (trimmed.length <= 12) {
       setUrlType('')
+      return
     }
+    if (youtubeMode || isYouTubeURL(trimmed)) {
+      setUrlType(trimmed.includes('list=') ? 'YouTube Playlist' : 'YouTube Video')
+      return
+    }
+    DetectURLType(trimmed).then(setUrlType)
   }, [url, youtubeMode])
 
   useEffect(() => {
-    if (!fetching || !youtubeMode) {
+    if (!fetching) {
       setFetchStep(0)
       return undefined
     }
@@ -145,7 +157,7 @@ export default function DownloadTab({
       setFetchStep(step)
     }, 1400)
     return () => clearInterval(timer)
-  }, [fetching, youtubeMode])
+  }, [fetching])
 
   useEffect(() => {
     if (!downloading && jobStarted) {
@@ -157,6 +169,7 @@ export default function DownloadTab({
     setPreview(null)
     setSelected(new Set())
     setFetchError('')
+    setFetchStatus('')
     setJobStarted(false)
     setMetaByTrack({})
     if (clearPipeline) {
@@ -175,23 +188,44 @@ export default function DownloadTab({
 
   const fetchPreview = async (forcedUrl) => {
     const trimmed = (forcedUrl ?? url).trim()
-    if (!trimmed) return
+    if (!trimmed) {
+      setFetchError(youtubeMode ? 'Paste a YouTube video or playlist link first.' : 'Paste an Apple Music link first.')
+      setFetchStatus('')
+      return
+    }
     if (forcedUrl) setUrl(trimmed)
+    const fetchingYouTube = youtubeMode || isYouTubeURL(trimmed)
     setFetching(true)
     setFetchError('')
+    setFetchStatus(
+      fetchingYouTube
+        ? 'Fetching video info from YouTube — this may take a moment…'
+        : 'Loading preview from Apple Music…',
+    )
     setPreview(null)
     setSelected(new Set())
     setJobStarted(false)
     onResetPipeline?.()
     try {
       const res = await PreviewURL(trimmed)
-      if (res.error) {
+      if (res?.error) {
         setFetchError(res.error)
+        setFetchStatus('')
+        return
+      }
+      if (!res?.title && !(res?.tracks?.length > 0)) {
+        setFetchError('Preview returned no metadata. Check the link and try again.')
+        setFetchStatus('')
         return
       }
       setPreview(res)
       setSelected(new Set(res.tracks?.map((t) => t.num) || [1]))
       setMetaByTrack(buildMetaFromPreview(res))
+      setFetchStatus('')
+    } catch (e) {
+      reportFrontendError('DownloadTab.fetchPreview', e)
+      setFetchError(formatActionError(e, 'Fetch preview'))
+      setFetchStatus('')
     } finally {
       setFetching(false)
     }
@@ -337,19 +371,28 @@ export default function DownloadTab({
             </div>
             <button
               type="button"
-              onClick={fetchPreview}
+              onClick={() => fetchPreview()}
               disabled={!url.trim() || fetching || urlUnknown}
-              className="rounded-xl bg-accent px-5 py-3 font-medium hover:bg-accent-muted disabled:opacity-40"
+              aria-busy={fetching}
+              className="min-w-[6.5rem] rounded-xl bg-accent px-5 py-3 font-medium transition-opacity hover:bg-accent-muted disabled:opacity-40"
             >
               {fetching ? 'Fetching…' : 'Fetch'}
             </button>
           </div>
 
-          {fetchError && <p className="text-sm text-red-400">{fetchError}</p>}
+          {fetching && (
+            <FetchStatusBanner message={fetchStatus} variant="info" />
+          )}
 
-          {fetching && youtubeMode && <YouTubeFetchSkeleton step={fetchStep} />}
+          {fetching && (
+            <FetchPreviewSkeleton step={fetchStep} youtubeMode={youtubeMode || isYouTubeURL(url)} />
+          )}
 
-          {!fetching && youtubeMode ? (
+          {!fetching && fetchError && (
+            <FetchStatusBanner message={fetchError} variant="error" />
+          )}
+
+          {!fetching && !fetchError && youtubeMode ? (
             <div className="space-y-2">
               {(!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok)) && (
                 <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">

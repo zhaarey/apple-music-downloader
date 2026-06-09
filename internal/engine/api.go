@@ -238,7 +238,7 @@ func (e *Engine) Search(queryType, query string, limit, offset int) ([]SearchHit
 }
 
 func (e *Engine) DetectURLType(raw string) string {
-	if Config.YouTubeMode && IsYouTubeURL(raw) {
+	if IsYouTubeURL(raw) {
 		if strings.Contains(raw, "list=") {
 			return "YouTube Playlist"
 		}
@@ -292,7 +292,7 @@ func (e *Engine) StartDownload(opts RunOptions) (err error) {
 	if err := e.validateDownload(opts); err != nil {
 		return err
 	}
-	if Config.YouTubeMode {
+	if useYouTubePipeline(opts) {
 		e.runYouTubeDownload(opts)
 		return nil
 	}
@@ -351,6 +351,8 @@ func (e *Engine) applyOptions(opts RunOptions) error {
 	Config.AacType = aacVal
 
 	switch opts.Quality {
+	case "youtube":
+		// YouTube tab / quality — pipeline selected via useYouTubePipeline.
 	case "atmos":
 		dl_atmos = true
 	case "aac":

@@ -113,7 +113,11 @@ export default function MetadataTab() {
       const info = await TagReadFile(path)
       setFileInfo(info)
       setTags(tagsFromInfo(info, path))
-      showToast(info.summary ? `Loaded ${info.summary}` : 'Loaded file metadata')
+      if (info.artwork_count > 1) {
+        showToast(`Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`, 'info')
+      } else {
+        showToast(info.summary ? `Loaded ${info.summary}` : 'Loaded file metadata')
+      }
     } catch (e) {
       reportFrontendError('MetadataTab.loadFile', e)
       showToast(formatActionError(e, 'Read tags'), 'error')

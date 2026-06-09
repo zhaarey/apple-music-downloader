@@ -51,6 +51,26 @@ func IsYouTubeURL(raw string) bool {
 	return youtube.IsURL(raw)
 }
 
+func useYouTubePipeline(opts RunOptions) bool {
+	if opts.Quality == "youtube" {
+		return true
+	}
+	if Config.YouTubeMode {
+		return true
+	}
+	for _, raw := range opts.URLs {
+		if IsYouTubeURL(strings.TrimSpace(raw)) {
+			return true
+		}
+	}
+	for _, raw := range opts.ChildURLs {
+		if IsYouTubeURL(strings.TrimSpace(raw)) {
+			return true
+		}
+	}
+	return false
+}
+
 func ytDlpPath() string {
 	return appconfig.YtDlpPath(Config.YtDlpPath)
 }

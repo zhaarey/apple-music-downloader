@@ -13,7 +13,7 @@ import (
 
 func (e *Engine) PreviewURL(raw string) PreviewResult {
 	raw = strings.TrimSpace(raw)
-	if Config.YouTubeMode {
+	if IsYouTubeURL(raw) {
 		return e.previewYouTube(raw)
 	}
 	out := PreviewResult{
