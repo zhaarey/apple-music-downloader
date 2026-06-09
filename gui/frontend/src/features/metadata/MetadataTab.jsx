@@ -8,7 +8,7 @@ import {
   OpenFolder,
 } from '../../wailsjs/go/main/App'
 
-import ArtworkPreview from '../../components/ArtworkPreview'
+import ArtworkEditor from '../../components/ArtworkEditor'
 import StatusToast from '../../components/StatusToast'
 import { resolveMediaURL } from '../splice/useMasterAudio'
 import { formatActionError } from '../splice/projectUtils'
@@ -243,36 +243,17 @@ export default function MetadataTab() {
             saving ? 'pointer-events-none opacity-70' : 'opacity-100'
           }`}
         >
-          <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
-            <h3 className="text-sm font-medium">Artwork</h3>
-            <ArtworkPreview
-              src={artworkPreview}
-              className="mt-3 flex aspect-square items-center justify-center rounded-lg bg-black/30"
-            />
-            <div className="mt-3 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={pickArtwork}
-                disabled={saving}
-                className="rounded-lg border border-white/15 px-3 py-2 text-xs transition-colors duration-200 ease-apple hover:bg-white/5 disabled:opacity-50"
-              >
-                Replace artwork
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => {
-                  setClearArtwork(true)
-                  setCoverPath('')
-                  setCoverPreviewURL('')
-                  setSaved(false)
-                }}
-                className="rounded-lg border border-white/15 px-3 py-2 text-xs text-white/70 transition-colors duration-200 ease-apple hover:bg-white/5 disabled:opacity-50"
-              >
-                Remove artwork
-              </button>
-            </div>
-          </section>
+          <ArtworkEditor
+            previewSrc={artworkPreview}
+            onReplace={pickArtwork}
+            onRemove={() => {
+              setClearArtwork(true)
+              setCoverPath('')
+              setCoverPreviewURL('')
+              setSaved(false)
+            }}
+            disabled={saving}
+          />
 
           <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
             <h3 className="text-sm font-medium">Metadata</h3>

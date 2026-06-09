@@ -14,11 +14,14 @@ import {
   SplicePickOutputDir,
   SpliceSaveProject,
   SpliceMasterAudioURL,
+  TagLocalFileURL,
   OpenFolder,
   EventsOn,
 } from '../../wailsjs/go/main/App'
+import ArtworkEditor from '../../components/ArtworkEditor'
 import WaveformEditor from './WaveformEditor'
 import TrackPreview from './TrackPreview'
+import { resolveMediaURL } from './useMasterAudio'
 import { computeTrackSegment, formatMsPrecise, parseTimeInput } from './spliceTime'
 import { formatActionError, normalizeProject } from './projectUtils'
 import { reportFrontendError } from '../../lib/errorReporting'
@@ -108,6 +111,7 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   const [masterAudioURL, setMasterAudioURL] = useState('')
   const [albumDefaultsApplied, setAlbumDefaultsApplied] = useState(false)
   const [importingTracklist, setImportingTracklist] = useState(false)
+  const [artworkPreviewURL, setArtworkPreviewURL] = useState('')
   const albumDefaultsTimerRef = useRef(null)
 
   useEffect(() => {
@@ -144,6 +148,28 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
     loadMaster(handoff.master_path, next)
     onHandoffConsumed?.()
   }, [handoff])
+
+  useEffect(() => {
+    const path = project.album?.artwork_path
+    if (!path) {
+      setArtworkPreviewURL('')
+      return undefined
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const url = await Promise.resolve(TagLocalFileURL(path))
+        if (!cancelled) {
+          setArtworkPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
+        }
+      } catch {
+        if (!cancelled) setArtworkPreviewURL('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [project.album?.artwork_path])
 
   useEffect(() => {
     const off = EventsOn('splice:event', (ev) => {
@@ -216,6 +242,16 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
 
   const updateAlbum = (key, value) => {
     setProject((p) => ({ ...p, album: { ...p.album, [key]: value } }))
+  }
+
+  const pickArtwork = async () => {
+    const path = await SplicePickArtwork()
+    if (path) updateAlbum('artwork_path', path)
+  }
+
+  const removeArtwork = () => {
+    updateAlbum('artwork_path', null)
+    setArtworkPreviewURL('')
   }
 
   const updateTrack = (idx, key, value) => {
@@ -485,63 +521,66 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-surface-raised p-4">
-          <h3 className="font-medium">Album metadata (mass apply)</h3>
-          <div className="mt-3 grid gap-2 text-sm">
-            {['album', 'album_artist', 'artist', 'year', 'genre', 'total_tracks'].map((key) => (
-              <div key={key}>
-                <label className="text-xs capitalize text-white/50">{key.replace('_', ' ')}</label>
-                <input
-                  type={key === 'total_tracks' ? 'number' : 'text'}
-                  min={key === 'total_tracks' ? 1 : undefined}
-                  value={project.album?.[key] ?? ''}
-                  onChange={(e) => {
-                    if (key === 'total_tracks') {
-                      const n = Number(e.target.value)
-                      updateAlbum(key, Number.isFinite(n) && n > 0 ? n : null)
-                      return
-                    }
-                    updateAlbum(key, e.target.value)
-                  }}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2"
-                />
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={async () => {
-                const path = await SplicePickArtwork()
-                if (path) updateAlbum('artwork_path', path)
-              }}
-              className="mt-1 rounded-lg border border-white/15 px-3 py-2 text-left text-xs"
-            >
-              Artwork: {project.album?.artwork_path || 'None selected'}
-            </button>
-            <button
-              type="button"
-              onClick={applyAlbumDefaultsToTracks}
-              disabled={!project.tracks.length}
-              title={project.tracks.length ? 'Copy album metadata to every track' : 'Add tracks first'}
-              className={`mt-2 w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                albumDefaultsApplied
-                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
-                  : 'bg-accent text-white hover:bg-accent-muted disabled:cursor-not-allowed disabled:opacity-40'
-              }`}
-            >
-              {albumDefaultsApplied ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span aria-hidden className="text-base">✓</span>
-                  Applied to {project.tracks.length} track{project.tracks.length === 1 ? '' : 's'}
-                </span>
-              ) : (
-                'Apply album defaults to all tracks'
+        <div className="space-y-4">
+          <ArtworkEditor
+            previewSrc={artworkPreviewURL}
+            onReplace={pickArtwork}
+            onRemove={removeArtwork}
+            disabled={exporting}
+          />
+          <div className="rounded-xl border border-white/10 bg-surface-raised p-4">
+            <h3 className="font-medium">Album metadata (mass apply)</h3>
+            <div className="mt-3 grid gap-2 text-sm">
+              {['album', 'album_artist', 'artist', 'year', 'genre', 'total_tracks'].map((key) => (
+                <div key={key}>
+                  <label className="text-xs capitalize text-white/50">{key.replace('_', ' ')}</label>
+                  <input
+                    type={key === 'total_tracks' ? 'number' : 'text'}
+                    min={key === 'total_tracks' ? 1 : undefined}
+                    value={project.album?.[key] ?? ''}
+                    onChange={(e) => {
+                      if (key === 'total_tracks') {
+                        const n = Number(e.target.value)
+                        updateAlbum(key, Number.isFinite(n) && n > 0 ? n : null)
+                        return
+                      }
+                      updateAlbum(key, e.target.value)
+                    }}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                  />
+                </div>
+              ))}
+              {project.album?.artwork_path && (
+                <p className="truncate text-xs text-white/40" title={project.album.artwork_path}>
+                  {project.album.artwork_path}
+                </p>
               )}
-            </button>
-            {albumDefaultsApplied && (
-              <p className="mt-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                Album, album artist, genre, year, and track numbers updated on every track.
-              </p>
-            )}
+              <button
+                type="button"
+                onClick={applyAlbumDefaultsToTracks}
+                disabled={!project.tracks.length}
+                title={project.tracks.length ? 'Copy album metadata to every track' : 'Add tracks first'}
+                className={`mt-2 w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                  albumDefaultsApplied
+                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
+                    : 'bg-accent text-white hover:bg-accent-muted disabled:cursor-not-allowed disabled:opacity-40'
+                }`}
+              >
+                {albumDefaultsApplied ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span aria-hidden className="text-base">✓</span>
+                    Applied to {project.tracks.length} track{project.tracks.length === 1 ? '' : 's'}
+                  </span>
+                ) : (
+                  'Apply album defaults to all tracks'
+                )}
+              </button>
+              {albumDefaultsApplied && (
+                <p className="mt-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                  Album, album artist, genre, year, and track numbers updated on every track.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

@@ -17,6 +17,32 @@ function isYouTubeURL(raw) {
   return /(?:youtube\.com|youtu\.be)/i.test(String(raw || '').trim())
 }
 
+function isAppleMusicURL(raw) {
+  return /music\.apple\.com/i.test(String(raw || '').trim())
+}
+
+function urlTabMismatch(trimmed, youtubeMode) {
+  if (!trimmed) return ''
+  if (youtubeMode && isAppleMusicURL(trimmed)) {
+    return 'This is an Apple Music link — switch to the Apple Music tab to fetch and download it.'
+  }
+  if (!youtubeMode && isYouTubeURL(trimmed)) {
+    return 'This is a YouTube link — switch to the YouTube tab to fetch and download it.'
+  }
+  return ''
+}
+
+const APPLE_SUBSCRIPTION_MSG =
+  'Apple Music downloads require an active subscription. Add your media-user-token in Settings (music.apple.com → DevTools → Application → Cookies).'
+
+function formatAppleAuthError(message) {
+  const msg = String(message || '')
+  if (/media-user-token|active apple music subscription|authorization-token/i.test(msg)) {
+    return APPLE_SUBSCRIPTION_MSG
+  }
+  return msg
+}
+
 function outputFolderForQuality(settings, quality, youtubeMode) {
   if (youtubeMode) {
     return settings?.['youtube-save-folder'] || settings?.['aac-save-folder'] || ''
@@ -139,8 +165,18 @@ export default function DownloadTab({
       setUrlType('')
       return
     }
-    if (youtubeMode || isYouTubeURL(trimmed)) {
-      setUrlType(trimmed.includes('list=') ? 'YouTube Playlist' : 'YouTube Video')
+    if (youtubeMode) {
+      if (isYouTubeURL(trimmed)) {
+        setUrlType(trimmed.includes('list=') ? 'YouTube Playlist' : 'YouTube Video')
+      } else if (isAppleMusicURL(trimmed)) {
+        setUrlType('Apple Music')
+      } else {
+        setUrlType('')
+      }
+      return
+    }
+    if (isYouTubeURL(trimmed)) {
+      setUrlType('YouTube Video')
       return
     }
     DetectURLType(trimmed).then(setUrlType)
@@ -179,6 +215,13 @@ export default function DownloadTab({
     }
   }
 
+  const startAnotherDownload = () => {
+    setUrl('')
+    setUrlType('')
+    setSaveVideo(false)
+    resetPreview({ clearPipeline: true })
+  }
+
   const setMode = async (nextYouTube) => {
     resetPreview({ clearPipeline: true })
     setUrl('')
@@ -190,6 +233,12 @@ export default function DownloadTab({
     const trimmed = (forcedUrl ?? url).trim()
     if (!trimmed) {
       setFetchError(youtubeMode ? 'Paste a YouTube video or playlist link first.' : 'Paste an Apple Music link first.')
+      setFetchStatus('')
+      return
+    }
+    const mismatch = urlTabMismatch(trimmed, youtubeMode)
+    if (mismatch) {
+      setFetchError(mismatch)
       setFetchStatus('')
       return
     }
@@ -209,7 +258,7 @@ export default function DownloadTab({
     try {
       const res = await PreviewURL(trimmed)
       if (res?.error) {
-        setFetchError(res.error)
+        setFetchError(formatAppleAuthError(res.error))
         setFetchStatus('')
         return
       }
@@ -242,8 +291,13 @@ export default function DownloadTab({
 
   const startDownload = async () => {
     if (!preview || downloading) return
+    const mismatch = urlTabMismatch(preview.url || url, youtubeMode)
+    if (mismatch) {
+      setFetchError(mismatch)
+      return
+    }
     if (!youtubeMode && quality === 'aac' && !hasToken) {
-      setFetchError('AAC downloads require media-user-token in Settings')
+      setFetchError(APPLE_SUBSCRIPTION_MSG)
       return
     }
     if (youtubeMode && (!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok))) {
@@ -278,7 +332,7 @@ export default function DownloadTab({
     } catch (err) {
       setJobStarted(false)
       const msg = typeof err === 'string' ? err : err?.message || String(err)
-      setFetchError(msg)
+      setFetchError(formatAppleAuthError(msg))
       onDownloadEnd?.(null)
     }
   }
@@ -404,11 +458,16 @@ export default function DownloadTab({
               </p>
             </div>
           ) : (
-            !hasToken && (
-              <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
-                Add your Apple Music <code className="text-accent">media-user-token</code> in Settings before downloading AAC.
+            <div className="space-y-2">
+              {!hasToken && (
+                <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                  {APPLE_SUBSCRIPTION_MSG}
+                </p>
+              )}
+              <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
+                Paste a link from <strong className="text-white/80">music.apple.com</strong> — songs, albums, playlists, artists, or music videos.
               </p>
-            )
+            </div>
           )}
         </>
       )}
@@ -636,28 +695,52 @@ export default function DownloadTab({
             {outputFolderForQuality(settings, quality, youtubeMode) || preview.output_folder || 'Default downloads folder'}
           </p>
 
+          {!youtubeMode && quality === 'aac' && !hasToken && (
+            <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+              {APPLE_SUBSCRIPTION_MSG}
+            </p>
+          )}
+
           {fetchError && (
             <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{fetchError}</p>
           )}
 
-          <button
-            type="button"
-            onClick={startDownload}
-            disabled={downloading || selectedCount === 0}
-            className="rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
-          >
-            {downloading
-              ? saveVideo
-                ? 'Downloading audio + video…'
-                : 'Downloading…'
-              : jobResult
-                ? 'Download again'
+          {jobResult && !downloading ? (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={startDownload}
+                disabled={selectedCount === 0}
+                className="flex-1 rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+              >
+                Download again
+              </button>
+              <button
+                type="button"
+                onClick={startAnotherDownload}
+                className="flex-1 rounded-xl border border-white/15 bg-white/[0.04] py-3 font-semibold text-white/90 hover:bg-white/[0.08]"
+              >
+                {youtubeMode ? 'Download another video' : 'Download another song'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startDownload}
+              disabled={downloading || selectedCount === 0}
+              className="rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+            >
+              {downloading
+                ? saveVideo
+                  ? 'Downloading audio + video…'
+                  : 'Downloading…'
                 : youtubeMode
                   ? saveVideo
                     ? `Download audio + MP4 (${selectedCount})`
                     : `Download audio (${selectedCount})`
                   : `Download ${selectedCount} selected`}
-          </button>
+            </button>
+          )}
         </>
       )}
     </div>

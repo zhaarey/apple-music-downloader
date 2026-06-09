@@ -289,8 +289,11 @@ type TrackTags struct {
 	CoverMIME   string
 }
 
-// WriteTrackTags applies metadata to an existing M4A file.
+// WriteTrackTags applies metadata to an existing audio or video file.
 func WriteTrackTags(path string, tags TrackTags) error {
+	if strings.EqualFold(filepath.Ext(path), ".mp4") {
+		return WriteVideoTrackTags("", path, tags)
+	}
 	existing, err := readExistingPictures(path)
 	if err != nil {
 		return err

@@ -24,8 +24,12 @@ func (e *Engine) PreviewURL(raw string) PreviewResult {
 		out.Error = "Enter an Apple Music URL"
 		return out
 	}
+	if !IsAppleMusicURL(raw) {
+		out.Error = "Apple Music preview requires a music.apple.com link — use the YouTube tab for YouTube URLs"
+		return out
+	}
 	if out.Type == "Unknown" {
-		out.Error = "Unrecognized URL — use a song, album, playlist, artist, or music video link"
+		out.Error = "Unrecognized Apple Music URL — use a song, album, playlist, artist, or music video link"
 		return out
 	}
 

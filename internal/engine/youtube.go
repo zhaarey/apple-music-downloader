@@ -55,9 +55,6 @@ func useYouTubePipeline(opts RunOptions) bool {
 	if opts.Quality == "youtube" {
 		return true
 	}
-	if Config.YouTubeMode {
-		return true
-	}
 	for _, raw := range opts.URLs {
 		if IsYouTubeURL(strings.TrimSpace(raw)) {
 			return true
@@ -295,8 +292,11 @@ func (e *Engine) validateYouTubeDownload(opts RunOptions) error {
 		if raw == "" {
 			return fmt.Errorf("download URL is empty")
 		}
+		if IsAppleMusicURL(raw) {
+			return fmt.Errorf("this is an Apple Music link — use the Apple Music tab to download it (got %q)", raw)
+		}
 		if !IsYouTubeURL(raw) {
-			return fmt.Errorf("YouTube mode requires a YouTube link (got %q)", raw)
+			return fmt.Errorf("YouTube downloads require a youtube.com or youtu.be link (got %q)", raw)
 		}
 	}
 	return nil
@@ -639,9 +639,12 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			})
 			outPath, err := youtube.FinalizeVideo(Config, src, meta, multiTrack)
 			if err != nil {
-				counter.Error++
-				e.emitTrackFailed(meta.Title, int64(num), int64(len(videos)), err.Error())
-				return handoff, err
+				e.logError(fmt.Sprintf("Video save failed (audio already saved): %v", err))
+				e.emit(events.Event{
+					Type:    events.EventLog,
+					Message: fmt.Sprintf("Video copy failed for %s: %v", meta.Title, err),
+				})
+				continue
 			}
 			e.log(fmt.Sprintf("Saved video: %s", outPath))
 		}

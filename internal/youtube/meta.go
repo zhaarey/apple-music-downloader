@@ -107,7 +107,7 @@ func FinalizeVideo(cfg structs.ConfigSet, srcPath string, meta DownloadMeta, mul
 		return "", err
 	}
 	tags := MetaFromDownload(meta, cfg)
-	if err := media.WriteTrackTags(dst, tags); err != nil {
+	if err := media.WriteVideoTrackTags(cfg.FFmpegPath, dst, tags); err != nil {
 		return dst, fmt.Errorf("tagging failed: %w", err)
 	}
 	return dst, nil

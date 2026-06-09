@@ -36,8 +36,11 @@ func (e *Engine) validateDownload(opts RunOptions) error {
 		if raw == "" {
 			return fmt.Errorf("download URL is empty")
 		}
-		if !strings.Contains(raw, "music.apple.com") && !strings.Contains(raw, "classical.music.apple.com") {
-			return fmt.Errorf("invalid URL: must be an Apple Music link (got %q)", raw)
+		if IsYouTubeURL(raw) {
+			return fmt.Errorf("this is a YouTube link — use the YouTube tab to download it (got %q)", raw)
+		}
+		if !IsAppleMusicURL(raw) {
+			return fmt.Errorf("Apple Music downloads require a music.apple.com link (got %q)", raw)
 		}
 		if e.DetectURLType(raw) == "Unknown" {
 			return fmt.Errorf("unsupported URL type: %q (expected album, song, playlist, artist, station, or music-video link)", raw)
@@ -75,7 +78,7 @@ func (e *Engine) validateDownload(opts RunOptions) error {
 
 	if opts.Quality == "aac" && effectiveAacType() == "aac-lc" {
 		if len(strings.TrimSpace(Config.MediaUserToken)) <= 50 {
-			return fmt.Errorf("AAC downloads require a valid media-user-token in Settings (copy it from music.apple.com cookies in DevTools)")
+			return fmt.Errorf("AAC downloads require an active Apple Music subscription and media-user-token in Settings — open music.apple.com while signed in, then copy the media-user-token cookie from DevTools → Application")
 		}
 	}
 
@@ -103,7 +106,7 @@ func formatTokenError(err error) error {
 		return nil
 	}
 	if Config.AuthorizationToken != "" && Config.AuthorizationToken != "your-authorization-token" {
-		return fmt.Errorf("failed to get Apple Music API token: %w (fallback authorization-token also failed)", err)
+		return fmt.Errorf("could not reach Apple Music catalog: %w (fallback authorization-token also failed). Check your internet connection", err)
 	}
-	return fmt.Errorf("failed to get Apple Music API token: %w. Check internet access or set authorization-token in Settings", err)
+	return fmt.Errorf("could not reach Apple Music catalog: %w. Check internet access or set authorization-token in Settings", err)
 }

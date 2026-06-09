@@ -237,6 +237,12 @@ func (e *Engine) Search(queryType, query string, limit, offset int) ([]SearchHit
 	return hits, hasNext, nil
 }
 
+// IsAppleMusicURL reports whether raw is an Apple Music catalog link.
+func IsAppleMusicURL(raw string) bool {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	return strings.Contains(raw, "music.apple.com") || strings.Contains(raw, "classical.music.apple.com")
+}
+
 func (e *Engine) DetectURLType(raw string) string {
 	if IsYouTubeURL(raw) {
 		if strings.Contains(raw, "list=") {

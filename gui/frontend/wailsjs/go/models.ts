@@ -135,6 +135,7 @@ export namespace media {
 	    disc_number: number;
 	    disc_total: number;
 	    has_artwork: boolean;
+	    artwork_count: number;
 	    artwork_mime?: string;
 	    artwork_b64?: string;
 	    summary: string;
@@ -157,6 +158,7 @@ export namespace media {
 	        this.disc_number = source["disc_number"];
 	        this.disc_total = source["disc_total"];
 	        this.has_artwork = source["has_artwork"];
+	        this.artwork_count = source["artwork_count"];
 	        this.artwork_mime = source["artwork_mime"];
 	        this.artwork_b64 = source["artwork_b64"];
 	        this.summary = source["summary"];
