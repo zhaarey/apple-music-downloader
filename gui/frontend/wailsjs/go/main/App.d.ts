@@ -51,6 +51,8 @@ export function LogFrontendError(arg1:string,arg2:string,arg3:string):Promise<vo
 
 export function OpenApplePurgeLog():Promise<void>;
 
+export function OpenAppleSyncResetLog():Promise<void>;
+
 export function OpenAppleSyncUnlockLog():Promise<void>;
 
 export function OpenConfigFolder():Promise<void>;
@@ -73,7 +75,9 @@ export function PreviewPrepareAlbumForSync(arg1:string):Promise<media.AlbumPrepa
 
 export function PreviewURL(arg1:string):Promise<apple.PreviewResult>;
 
-export function ReleaseAppleSyncLock(arg1:boolean,arg2:boolean):Promise<media.AppleSyncUnlockResult>;
+export function ReleaseAppleSyncLock(arg1:boolean,arg2:boolean):Promise<media.AppleSyncResetResult>;
+
+export function ResetAppleSyncStack(arg1:boolean):Promise<media.AppleSyncResetResult>;
 
 export function ResolveSpotifyLink(arg1:string):Promise<engine.SpotifyResolveResult>;
 

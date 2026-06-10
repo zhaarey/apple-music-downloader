@@ -10,32 +10,29 @@ import (
 	"main/internal/platform"
 )
 
-// RunAppleSyncUnlock stops stuck Apple Devices sync agents on Windows (AMPDevicesAgent, etc.).
-// restartService requests Apple Mobile Device Service restart (may need elevation).
-func RunAppleSyncUnlock(restartService, elevated bool) (ok bool, logTail string, needElevated bool, err error) {
+// RunAppleSyncReset stops Apple Music and sync agents, then restarts Apple Mobile Device Service.
+// Does not delete artwork caches or library files.
+func RunAppleSyncReset(elevated bool) (ok bool, logTail string, needElevated bool, err error) {
 	if runtime.GOOS != "windows" {
-		return false, "", false, fmt.Errorf("sync unlock is only supported on Windows")
+		return false, "", false, fmt.Errorf("sync reset is only supported on Windows")
 	}
-	logPath := platform.AppleSyncUnlockLogPath()
+	logPath := platform.AppleSyncResetLogPath()
 	_ = os.WriteFile(logPath, nil, 0644)
 
-	script, err := findRepairScript("apple-sync-unlock-windows.ps1")
-	if err != nil {
-		ok, logTail, err = runAppleSyncUnlockNative(logPath, restartService)
-		return ok, logTail, false, err
+	script, scriptErr := findRepairScript("apple-sync-reset-windows.ps1")
+	if scriptErr != nil {
+		ok, logTail, needElevated, err = runAppleSyncResetNative(logPath)
+		return ok, logTail, needElevated, err
 	}
 	if _, err := os.Stat(script); err != nil {
-		ok, logTail, err = runAppleSyncUnlockNative(logPath, restartService)
-		return ok, logTail, false, err
+		ok, logTail, needElevated, err = runAppleSyncResetNative(logPath)
+		return ok, logTail, needElevated, err
 	}
 
 	args := []string{
 		"-NoProfile", "-ExecutionPolicy", "Bypass",
 		"-File", script,
 		"-LogPath", logPath,
-	}
-	if restartService {
-		args = append(args, "-RestartService")
 	}
 
 	if elevated {
@@ -63,19 +60,22 @@ func RunAppleSyncUnlock(restartService, elevated bool) (ok bool, logTail string,
 	tail := readLogTail(logPath)
 	if strings.Contains(strings.ToLower(tail), "service restart failed") ||
 		strings.Contains(strings.ToLower(tail), "needs administrator") {
-		return true, tail, restartService, nil
+		return true, tail, true, nil
 	}
 	return true, tail, false, nil
 }
 
-func runAppleSyncUnlockNative(logPath string, restartService bool) (bool, string, error) {
+func runAppleSyncResetNative(logPath string) (bool, string, bool, error) {
 	var lines []string
 	appendLog := func(msg string) {
 		lines = append(lines, msg)
 		_ = os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0644)
 	}
 
-	names := []string{"AMPDevicesAgent.exe", "AMPDeviceDiscoveryAgent.exe", "AppleMobileDeviceHelper.exe"}
+	names := []string{
+		"AppleMusic.exe", "iTunes.exe", "iTunesHelper.exe", "distnoted.exe",
+		"AMPDevicesAgent.exe", "AMPDeviceDiscoveryAgent.exe", "AppleMobileDeviceHelper.exe",
+	}
 	killed := 0
 	for _, name := range names {
 		out, err := exec.Command("taskkill", "/F", "/IM", name, "/T").CombinedOutput()
@@ -87,25 +87,20 @@ func runAppleSyncUnlockNative(logPath string, restartService bool) (bool, string
 			appendLog(fmt.Sprintf("taskkill %s: %s", name, text))
 		}
 	}
-
 	if killed == 0 {
-		appendLog("No Apple sync agent processes were running (already idle).")
+		appendLog("No Apple sync processes were running (already idle).")
 	} else {
-		appendLog(fmt.Sprintf("Released %d process tree(s).", killed))
-	}
-
-	if !restartService {
-		appendLog("Sync unlock finished.")
-		return true, readLogTail(logPath), nil
+		appendLog(fmt.Sprintf("Stopped %d process tree(s).", killed))
 	}
 
 	svc := exec.Command("powershell", "-NoProfile", "-Command",
 		`Restart-Service -Name 'Apple Mobile Device Service' -Force -ErrorAction Stop`)
 	if out, err := svc.CombinedOutput(); err != nil {
 		appendLog("Service restart failed: " + strings.TrimSpace(string(out)))
-		return true, readLogTail(logPath), nil
+		appendLog("Sync reset finished with warnings.")
+		return true, readLogTail(logPath), true, nil
 	}
 	appendLog("Apple Mobile Device Service restarted.")
-	appendLog("Sync unlock finished.")
-	return true, readLogTail(logPath), nil
+	appendLog("Sync reset finished.")
+	return true, readLogTail(logPath), false, nil
 }

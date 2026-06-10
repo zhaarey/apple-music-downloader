@@ -31,7 +31,7 @@ func (a *App) GetSyncRepairPreparePreview() (media.SyncRepairPreparePreview, err
 	folders := librarySyncFolders(a.eng.GetConfig())
 	out := media.SyncRepairPreparePreview{
 		Folders: folders,
-		Warning: "Updates embedded artwork only — titles and track numbers are preserved. Skips tracks that already match. Then clears PC artwork caches (not iPhone).",
+		Warning: "Updates embedded artwork only — titles and track numbers are preserved. Skips tracks that already match.",
 	}
 	for _, folder := range folders {
 		paths, err := media.CollectAlbumTracks(folder)
@@ -146,12 +146,20 @@ func (a *App) RunAppleMusicDeepPurge(elevated bool) media.ApplePurgeResult {
 	return media.RunAppleMusicDeepPurge(elevated)
 }
 
-func (a *App) ReleaseAppleSyncLock(restartService, elevated bool) media.AppleSyncUnlockResult {
-	return media.ReleaseAppleSyncLock(restartService, elevated)
+func (a *App) ResetAppleSyncStack(elevated bool) media.AppleSyncResetResult {
+	return media.ResetAppleSyncStack(elevated)
+}
+
+func (a *App) ReleaseAppleSyncLock(_, elevated bool) media.AppleSyncResetResult {
+	return media.ResetAppleSyncStack(elevated)
+}
+
+func (a *App) OpenAppleSyncResetLog() error {
+	return osutil.RevealInFileManager(platform.AppleSyncResetLogPath())
 }
 
 func (a *App) OpenAppleSyncUnlockLog() error {
-	return osutil.RevealInFileManager(platform.AppleSyncUnlockLogPath())
+	return a.OpenAppleSyncResetLog()
 }
 
 func (a *App) OpenApplePurgeLog() error {

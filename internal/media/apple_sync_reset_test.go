@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestReleaseAppleSyncLock_nonWindows(t *testing.T) {
+func TestResetAppleSyncStack_nonWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("windows-only negative path")
 	}
-	res := ReleaseAppleSyncLock(false, false)
+	res := ResetAppleSyncStack(false)
 	if res.OK {
 		t.Fatal("expected not ok on non-windows")
 	}

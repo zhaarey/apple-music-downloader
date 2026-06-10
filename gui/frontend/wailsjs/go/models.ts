@@ -601,17 +601,17 @@ export namespace media {
 		    return a;
 		}
 	}
-	export class AppleSyncUnlockResult {
+	export class AppleSyncResetResult {
 	    ok: boolean;
 	    summary: string;
 	    message: string;
 	    log_path: string;
 	    need_elevated: boolean;
 	    manual_steps: string[];
-	    killed_hint?: string;
+	    stopped_hint?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new AppleSyncUnlockResult(source);
+	        return new AppleSyncResetResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -622,7 +622,7 @@ export namespace media {
 	        this.log_path = source["log_path"];
 	        this.need_elevated = source["need_elevated"];
 	        this.manual_steps = source["manual_steps"];
-	        this.killed_hint = source["killed_hint"];
+	        this.stopped_hint = source["stopped_hint"];
 	    }
 	}
 	export class ArtworkAccentAnalysis {

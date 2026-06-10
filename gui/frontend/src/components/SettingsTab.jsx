@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { OpenLogFile, OpenConfigFolder } from '../wailsjs/go/main/App'
 import PageShell from './PageShell'
 import YouTubeOutputLocationSwitch from './YouTubeOutputLocationSwitch'
-import AppleSyncUnlockPanel from './AppleSyncUnlockPanel'
+import AppleSyncResetPanel from './AppleSyncResetPanel'
 import { youtubeOutputLocation } from '../lib/youtubeOutput'
 
 const sectionClass = 'rounded-xl border border-white/10 bg-surface-raised p-5'
@@ -329,11 +329,11 @@ export default function SettingsTab({
 
         {!isMac && (
           <SettingsSection
-            title="iPhone sync unlock"
-            description="If new tracks sync but artwork stays wrong until you restart Windows, release the stuck Apple Devices agent here."
+            title="Reset Apple sync"
+            description="If iPhone artwork only updates after rebooting Windows, run this after syncing — same as canceling a restart, without deleting caches."
             className="xl:col-span-2"
           >
-            <AppleSyncUnlockPanel />
+            <AppleSyncResetPanel />
           </SettingsSection>
         )}
 

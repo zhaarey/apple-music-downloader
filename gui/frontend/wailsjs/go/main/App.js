@@ -86,6 +86,10 @@ export function OpenApplePurgeLog() {
   return window['go']['main']['App']['OpenApplePurgeLog']();
 }
 
+export function OpenAppleSyncResetLog() {
+  return window['go']['main']['App']['OpenAppleSyncResetLog']();
+}
+
 export function OpenAppleSyncUnlockLog() {
   return window['go']['main']['App']['OpenAppleSyncUnlockLog']();
 }
@@ -132,6 +136,10 @@ export function PreviewURL(arg1) {
 
 export function ReleaseAppleSyncLock(arg1, arg2) {
   return window['go']['main']['App']['ReleaseAppleSyncLock'](arg1, arg2);
+}
+
+export function ResetAppleSyncStack(arg1) {
+  return window['go']['main']['App']['ResetAppleSyncStack'](arg1);
 }
 
 export function ResolveSpotifyLink(arg1) {

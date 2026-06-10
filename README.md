@@ -1,345 +1,307 @@
 # Aura Audio Downloader
 
-Download Apple Music (AAC / ALAC / Dolby Atmos), YouTube audio, and split long DJ sets into tagged tracks for your library.
+Download Apple Music, pull YouTube DJ sets, trim dead space, split long recordings into tracks, and fix tags — all in one **desktop** app (Windows and macOS) built for syncing to Apple Music on iPhone and Mac. A native **iPhone app is in design** — not shipped yet; see [iPhone app (Aura iOS)](#iphone-app-aura-ios).
 
-## Quick start (Windows)
+---
 
-Build with:
+## Install and run
+
+### Windows
+
+1. Run `AuraAudioDownloader-Setup.exe`, or build from source (see [Build from source](#build-from-source)).
+2. Launch **Aura Audio Downloader** from the Start Menu.
+3. Complete the first-run wizard: storefront, `media-user-token`, and download folder.
 
 ```powershell
+# Build from source (project root)
 .\scripts\build-windows.ps1 -SkipInstaller
-```
 
-Run:
-
-```powershell
+# Run
 .\dist\AuraAudioDownloader.exe
 ```
 
-CLI (legacy alias `amd.exe` also shipped):
+Windows-specific troubleshooting (artwork sync, bundled tools): **[README-WINDOWS.md](./README-WINDOWS.md)**
+
+### macOS
+
+```bash
+chmod +x scripts/build-macos.sh
+./scripts/build-macos.sh
+open dist/AuraAudioDownloader.app
+```
+
+On macOS the app includes **Apple Music**, **YouTube**, **Trim**, and **Tag Editor** tabs. Split mix is Windows-only today.
+
+### Config and logs
+
+| Platform | Config | Logs |
+|----------|--------|------|
+| Windows | `%APPDATA%\AuraAudioDownloader\config.yaml` | `%APPDATA%\AuraAudioDownloader\logs\app.log` |
+| macOS | `~/Library/Application Support/AuraAudioDownloader/config.yaml` | `~/Library/Application Support/AuraAudioDownloader/logs/app.log` |
+
+Settings from the older **Apple Music Downloader** folder are migrated automatically on first launch.
+
+---
+
+## First-time setup
+
+On first launch, the wizard walks you through:
+
+1. **Storefront** — your Apple Music region (e.g. `us`, `gb`, `jp`).
+2. **`media-user-token`** — required for Apple Music AAC downloads, lyrics, and some metadata.  
+   Open [music.apple.com](https://music.apple.com) while logged in → DevTools (F12) → **Application → Cookies** → copy `media-user-token` → paste in Settings or the wizard.
+3. **Output folder** — where AAC and other downloads are saved.
+4. **Dependencies** — MP4Box, ffmpeg, yt-dlp, etc. The installer bundles most tools; use the **Requirements** tab to verify.
+
+You can reopen setup anytime from **Settings**.
+
+---
+
+## App overview
+
+Aura is organized around a few workflows. While a download runs, you can switch to **Trim**, **Tag Editor**, **Split mix**, or **Settings** without stopping the job.
+
+| Tab | What it does |
+|-----|----------------|
+| **Apple Music** | Download albums, songs, and playlists from Apple Music URLs |
+| **YouTube** | Download DJ sets and mixes as tagged AAC (and optional MP4 video) |
+| **Split mix** *(Windows)* | Cut one long recording into many tagged tracks using a tracklist and waveform |
+| **Trim** | Remove dead space at the start or end of a single `.m4a` or `.mp4` |
+| **Tag Editor** | Edit metadata and artwork on local files; bulk-edit an album folder |
+| **Activity** | Job progress, failed tracks, and log access |
+| **Requirements** | Live tool detection and feature availability |
+| **Settings** | Token, folders, YouTube options, sync repair helpers |
+
+---
+
+## Key features and how to use them
+
+### Apple Music downloads
+
+1. Open the **Apple Music** tab.
+2. Paste an album, song, or playlist URL from [music.apple.com](https://music.apple.com).
+3. Choose quality:
+   - **AAC** — works out of the box with your subscription and token.
+   - **Lossless (ALAC)** / **Dolby Atmos** — require the wrapper decrypt service (see **Requirements** and [README-WINDOWS.md](./README-WINDOWS.md)).
+4. Click **Fetch**, review the track list, then **Start download**.
+
+**Bulk queue:** search the catalog, paste multiple URLs, or add tracks from search results. For Apple Music **playlists**, you can expand the preview and pick individual tracks before queuing.
+
+**Output:** tagged `.m4a` files (AAC 256 kbps by default), with optional embedded lyrics and cover art when enabled in Settings.
+
+### Spotify track → Apple Music
+
+Paste a **single Spotify track link** (`open.spotify.com/track/…`) in the lookup panel on the Apple Music tab. Aura finds the best Apple Music match so you can queue it — no Spotify API keys needed.
+
+Playlists and albums are not supported for matching; use individual track links only.
+
+### YouTube downloads
+
+1. Open the **YouTube** tab.
+2. Paste a video or playlist URL.
+3. Choose delivery mode:
+   - **Audio only** — AAC 256 kbps, tagged for Apple Music.
+   - **Audio + video** — AAC plus an H.264 `.mp4` that plays in the iPhone Music app.
+   - **Video only** — H.264 `.mp4` with embedded AAC stereo.
+4. Edit title, artist, album, and artwork in the metadata panel if needed.
+5. Start the download.
+
+Requires **yt-dlp** and **ffmpeg** (bundled in `tools/` or on PATH). No Apple account needed for YouTube mode.
+
+**After a download finishes**, the completion banner offers:
+
+- **Split into tracks** — opens **Split mix** with the file ready (Windows).
+- **Trim dead space** — opens **Trim** with the file loaded.
+
+### Split mix *(Windows)*
+
+Use this for long DJ sets where you need **many tracks**, not a single cut.
+
+1. Download a YouTube set, or open **Split mix** and pick an existing `.m4a`.
+2. Paste a timestamped tracklist (`0:00 Artist - Title` per line), or add tracks manually.
+3. Drag cut lines on the waveform; preview each segment.
+4. Use **Fit durations to master** if timings drift slightly.
+5. Set album metadata and artwork, then **Export tracks**.
+
+Each export is a separate AAC file with track numbers and tags, ready to import into Apple Music.
+
+### Trim
+
+Use this to remove intro/outro silence from **one file** — common after YouTube downloads.
+
+1. Open **Trim**, or use **Trim dead space** / **Open in Trim** from a download or the Tag Editor.
+2. Preview audio (`.m4a`) or video (`.mp4`); drag **start** and **end** handles on the waveform.
+3. Fine-tune with time fields or ±1 s / ±100 ms nudges (minimum selection: 1 second).
+4. **Save as new** — pick a destination path.
+5. **Save** — replaces the original after creating a one-time `.bak` backup.
+
+Tags can be copied from the source on export. Supports `.m4a` and `.mp4` only in v1.
+
+### Tag Editor
+
+Open any local `.m4a`, `.mp4`, or other supported audio file:
+
+- Edit title, artist, album, track numbers, genre, year.
+- Replace or optimize artwork for Apple Music / iPhone sync.
+- **Album bulk** — edit every track in the same folder at once.
+- **Open in Trim** — jump to Trim with the current file.
+- **Sync repair tools** — fix missing iPhone artwork when PC tiles look fine (see [README-WINDOWS.md](./README-WINDOWS.md)).
+
+Drag and drop files onto the tab to open them quickly.
+
+### Activity and Requirements
+
+- **Activity** — current and recent jobs, per-track failures, cancel in-progress downloads, open output folder or log file.
+- **Requirements** — see which tools are detected, what each feature needs, and AAC troubleshooting tips.
+
+---
+
+## Typical workflows
+
+### YouTube DJ set → library-ready tracks
+
+```
+YouTube tab → download set → Split into tracks → adjust cuts → Export tracks → import to Apple Music
+```
+
+### Quick cleanup after YouTube download
+
+```
+YouTube tab → download → Trim dead space → adjust in/out → Save or Save as new
+```
+
+### Fix tags before syncing to iPhone
+
+```
+Tag Editor → open file or folder → edit tags/artwork → Save tags → Sync repair if art missing on phone
+```
+
+### Find an Apple Music version of a Spotify song
+
+```
+Apple Music tab → paste Spotify track URL → pick match → add to queue → download
+```
+
+---
+
+## What you need
+
+| Feature | Requirements |
+|---------|----------------|
+| Apple Music AAC | Active subscription + `media-user-token` |
+| Lyrics (LRC) | Valid `media-user-token` |
+| YouTube audio / video | yt-dlp + ffmpeg |
+| Split mix | ffmpeg + ffprobe |
+| Trim | ffmpeg |
+| Tag editor | MP4Box recommended for embed operations |
+| ALAC / Dolby Atmos | Wrapper decrypt service + subscription |
+| Spotify track match | Internet only (single track links) |
+
+Check the **Requirements** tab inside the app for live status.
+
+---
+
+## CLI
+
+The same engine ships as a command-line tool:
 
 ```powershell
 .\dist\aura.exe --help
 ```
 
-Config and logs:
+Legacy name `amd.exe` is also included on Windows. Useful for scripts and headless use; the GUI is the recommended experience for tagging, trim, and split workflows.
 
+Example:
+
+```powershell
+.\dist\aura.exe --aac "https://music.apple.com/us/album/..."
 ```
-%APPDATA%\AuraAudioDownloader\config.yaml
-%APPDATA%\AuraAudioDownloader\logs\app.log
-```
-
-## Quick start (macOS)
-
-Full guide: **[README-macOS.md](./README-macOS.md)** — install, first launch, daily use, and build.
-
-**Build and open (Apple Silicon):**
-
-```bash
-chmod +x scripts/build-macos.sh installer/macos/create-dmg.sh
-./scripts/build-macos.sh
-open dist/AuraAudioDownloader.app
-```
-
-**Install for everyday use:** open `dist/AuraAudioDownloader-arm64.dmg`, drag the app to **Applications**, then right-click → **Open** once if Gatekeeper blocks it. See [README-macOS.md](./README-macOS.md#install-and-open-the-app) for details.
-
-Config and logs:
-
-```
-~/Library/Application Support/AuraAudioDownloader/config.yaml
-~/Library/Application Support/AuraAudioDownloader/logs/app.log
-```
-
-## Suites
-
-| Tab | Purpose |
-|-----|---------|
-| **Download** | Apple Music or YouTube audio |
-| **Split mix** | Slice a long recording into AAC tracks with album tags |
-| **Search** | Apple Music catalog search |
-
-After a YouTube DJ set download, use **Split into tracks** on the completion banner to open the splicer with the master file prefilled.
 
 ---
 
-# Apple Music ALAC / Dolby Atmos Downloader (legacy README section)
+## iPhone app (Aura iOS)
 
-[English](./README.md) | [简体中文](./README-CN.md)
+There is **no installable IPA in this repo yet**. Aura on iPhone is **designed but not built** — specs and shared export rules live in **[docs/ios/](./docs/ios/)**. The desktop app (Windows/macOS) is what you use today; iPhone is the playback target after sync, or the future on-device download source.
 
-> **Original script by Sorrow.** Modified with fixes and improvements.
+### What works today (without the IPA)
+
+| Goal | How |
+|------|-----|
+| Listen offline in the Music app | Download on **PC** → import into Apple Music → sync to iPhone |
+| Fix tags / trim / split | **Tag Editor**, **Trim**, and **Split mix** on desktop only |
+| Music videos (`.mp4`) on iPhone | YouTube **Audio + video** on desktop → import/sync, or edit with desktop Tag Editor |
+
+See [README-WINDOWS.md](./README-WINDOWS.md) for iPhone artwork sync troubleshooting.
+
+### What the IPA is planned to do
+
+On-device downloads with the **same file layout** as desktop (`01. Title.m4a`, `cover.jpg`, `01. Title [video].mp4`) so copies picked up on a PC open in **Tag Editor** and **Trim** without re-encoding. Spec: [cross-device-export.md](./docs/ios/cross-device-export.md).
+
+| Feature | Planned | Notes |
+|---------|---------|--------|
+| **YouTube download** | Yes (Phase A) | AAC 256k, optional H.264 music-video MP4; metadata + artwork before download |
+| **YouTube delivery modes** | Yes | Audio only · Audio + video · Video only (same as desktop) |
+| **Add to Music library** | Guided manual import | No silent auto-import — iOS has no public API; in-app steps for **Music → Add from Files** |
+| **Keep files for PC** | Yes | `Documents/Downloads/{Album}/` visible in Files app; optional iCloud export |
+| **Pre-import validation** | Yes | Same checks as desktop **Validate iPhone sync** before import |
+| **Apple Music download** | Later (Phase D) | Requires mobile token UX + on-device decrypt; likely sideload/TestFlight first |
+| **Tag Editor** | PC preferred | Light pre-download metadata on phone; bulk edit stays on desktop |
+| **Trim / Split mix** | Desktop only | Copy downloads to PC for these workflows |
+| **Share extension** | Phase C | Send YouTube / Apple Music URLs from Safari into Aura |
+
+### Planned iOS app structure
+
+Four tabs (see [ui-navigation.md](./docs/ios/ui-navigation.md)):
+
+- **Apple** — paste URL, preview, download (when Apple mode is enabled)
+- **YouTube** — URL, metadata/artwork editor, delivery mode, download
+- **Downloads** — progress, history, **Add to Music**, **Show in Files**, import status
+- **Settings** — token, storage, iCloud export, onboarding
+
+PC-only UI (sync repair, cache purge, Requirements tool scan) will **not** appear on iOS.
+
+### Rollout phases
+
+| Phase | Delivers |
+|-------|----------|
+| **A** | YouTube download + tagged album folders + PC pickup |
+| **B** | Guided Music import + pre-import validation + import state tracking |
+| **C** | Share extension, background downloads, notifications |
+| **D** | Apple Music AAC download on device |
+
+### Distribution (expected)
+
+- **App Store** — may limit YouTube download and Apple Music decrypt; details in [apple-music-ios-spike.md](./docs/ios/apple-music-ios-spike.md)
+- **TestFlight / sideload** — target for full feature parity during development
+
+### For developers
+
+| Resource | Purpose |
+|----------|---------|
+| [docs/ios/](./docs/ios/) | Full design pack (pipeline, import UX, UI map) |
+| [export-contract.json](./docs/ios/export-contract.json) | Machine-readable album layout v1 |
+| [internal/crossdevice/contract.go](./internal/crossdevice/contract.go) | Shared naming/encoding constants |
+
+**Status:** specification complete, **native iOS project not started** in this repository.
 
 ---
 
-## Quick start — Windows GUI (`.exe`)
+## Build from source
 
-This is the fastest way to build and run the desktop app on Windows.
-
-### 1. Prerequisites
-
-| Requirement | Purpose | Notes |
-|-------------|---------|-------|
-| [Go 1.23+](https://go.dev/dl/) | Build backend | Add `go` to PATH |
-| [Node.js 18+](https://nodejs.org/) | Build React UI | Used by Wails frontend |
-| [Wails CLI v2](https://wails.io/docs/gettingstarted/installation) | Package GUI | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
-| [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/) | Tagging & flattening | On PATH, or bundled in `dist/tools/` |
-| Apple Music subscription | Downloads | Required for all formats |
-| `media-user-token` | Lyrics, MV, AAC-LC | Paste in Settings (see below) |
-
-**Optional**
-
-- [Inno Setup 6](https://jrsoftware.org/isinfo.php) — builds `AppleMusicDownloader-Setup.exe`
-- [wrapper](https://github.com/WorldObservationLog/wrapper) — **only** for ALAC / Dolby Atmos (see [README-WINDOWS.md](./README-WINDOWS.md))
-- [mp4decrypt](https://www.bento4.com/downloads/) — music video decryption
-
-> **AAC downloads do not require wrapper.** The GUI uses in-process Widevine for AAC-LC.
-
-### 2. Build the executables
-
-From the project root in PowerShell:
+**Windows**
 
 ```powershell
 .\scripts\build-windows.ps1 -SkipInstaller
 ```
 
-This produces:
+Outputs: `dist\AuraAudioDownloader.exe`, `dist\aura.exe`, optional `dist\AuraAudioDownloader-Setup.exe` if Inno Setup is installed.
 
-| Output | Description |
-|--------|-------------|
-| `dist\AppleMusicDownloader.exe` | Desktop GUI |
-| `dist\amd.exe` | CLI (same engine) |
+Place optional tools in `dist\tools\` before packaging: `MP4Box.exe`, `ffmpeg.exe`, `ffprobe.exe`, `yt-dlp.exe`, `mp4decrypt.exe`.
 
-To also build the installer (requires Inno Setup):
-
-```powershell
-.\scripts\build-windows.ps1
-```
-
-Place optional tools in `dist\tools\` before packaging: `MP4Box.exe`, `ffmpeg.exe`, `mp4decrypt.exe`.
-
-### 3. Run the app
-
-```powershell
-.\dist\AppleMusicDownloader.exe
-```
-
-On first launch, complete the setup wizard:
-
-1. Choose your **storefront** (e.g. `us`)
-2. Paste your **`media-user-token`** (recommended — required for AAC, lyrics, and MV)
-3. Set your **download folder**
-
-Config is saved to:
-
-```
-%APPDATA%\AppleMusicDownloader\config.yaml
-```
-
-Logs:
-
-```
-%APPDATA%\AppleMusicDownloader\logs\app.log
-```
-
-### 4. Download music
-
-1. Open the **Download** tab
-2. Paste an Apple Music album, song, or playlist URL
-3. Select **AAC** quality (works without wrapper)
-4. Click **Start download**
-
-Use **Settings → Requirements** to verify MP4Box and token status. For ALAC / Atmos, see **[README-WINDOWS.md](./README-WINDOWS.md)**.
-
-### 5. CLI alternative
-
-The same build also outputs a command-line binary:
-
-```powershell
-.\dist\amd.exe --aac "https://music.apple.com/us/album/..."
-```
+**Prerequisites:** Go 1.23+, Node.js 18+, [Wails CLI v2](https://wails.io/docs/gettingstarted/installation).
 
 ---
 
-## ⚠️ Prerequisites (CLI / Docker)
+## Credits
 
-For **CLI-only** or **Docker** usage (non-GUI):
-
-- **[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)** — tagging
-- **[wrapper](https://github.com/WorldObservationLog/wrapper)** — required for ALAC / Atmos / most CLI flows
-- **`media-user-token`** — required for AAC-LC, lyrics, and MV
-
----
-
-## ✨ Features
-
-1. **Inline Covers & LRC Lyrics** - Requires `media-user-token` (see instructions below)
-2. **Word-by-word & Out-of-sync Lyrics** support
-3. **Artist Album Download** - Automatically download all albums from an artist
-   ```bash
-   go run main.go https://music.apple.com/us/artist/taylor-swift/159260351 --all-album
-   ```
-4. **Stream Decryption** - Uses Sendy McSenderson's code for download-and-decrypt streaming, solving memory issues with large files
-5. **MV Download** - Requires mp4decrypt installation
-6. **Interactive Search** - Arrow-key navigation for search results
-   ```bash
-   go run main.go --search [song/album/artist] "search_term"
-   ```
-7. **Windows GUI** - Paste URLs, queue downloads, manage settings (see Quick start above)
-
----
-
-## 🎵 Supported Audio Formats
-
-| Format | Description | Requires Subscription |
-|--------|-------------|----------------------|
-| `alac` | audio-alac-stereo | ✅ |
-| `ec3` | audio-atmos / audio-ec3 | ✅ |
-| `aac` | audio-stereo | ✅ |
-| `aac-lc` | audio-stereo | ✅ |
-| `aac-binaural` | audio-stereo-binaural | ✅ |
-| `aac-downmix` | audio-stereo-downmix | ✅ |
-| `MV` | Music Video | ✅ |
-
-> **Note:** For `aac-lc`, `MV`, and `lyrics`, you must provide a valid `media-user-token` from an active subscription.
-
-| Format | Wrapper required? |
-|--------|-------------------|
-| AAC / AAC-LC (GUI) | No |
-| ALAC / Atmos | Yes |
-| MV | No (needs `mp4decrypt`) |
-
----
-
-## Windows GUI details
-
-See **[README-WINDOWS.md](./README-WINDOWS.md)** for installer usage, bundled tools, wrapper/WSL setup for ALAC/Atmos, and advanced build options.
-
----
-
-## 🚀 Usage
-
-### Running with Docker
-
-1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running
-
-2. Start the downloader:
-
-```bash
-# Show help
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --help
-
-# Download albums
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/ru/album/children-of-forever/1443732441
-
-# Download single song
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
-
-# Interactive selection
-docker run -it --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --select https://music.apple.com/ru/album/children-of-forever/1443732441
-
-# Download playlists
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-
-# Dolby Atmos
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-# AAC format
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-# Debug/View quality
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --debug https://music.apple.com/ru/album/miles-smiles/209407331
-```
-
-**Custom Configuration:**
-
-Mount your own `config.yaml`:
-
-```bash
-docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config.yaml ghcr.io/zhaarey/apple-music-downloader [args]
-```
-
-> **Note:** Ensure `config.yaml` exists in your current directory before running. If it doesn't exist, Docker will create an empty directory instead of a file, causing the container to fail.
-
----
-
-### Running Locally (Go)
-
-1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running (ALAC/Atmos only; AAC-LC works without it)
-
-2. **Download albums:**
-   ```bash
-   go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
-   ```
-
-3. **Download single song:**
-   ```bash
-   go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512
-   # or
-   go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520
-   ```
-
-4. **Interactive selection:**
-   ```bash
-   go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
-   ```
-   Enter track numbers separated by spaces.
-
-5. **Download playlists:**
-   ```bash
-   go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-   # or
-   go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N
-   ```
-
-6. **Dolby Atmos:**
-   ```bash
-   go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
-
-7. **AAC format:**
-   ```bash
-   go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
-
-8. **View quality info:**
-   ```bash
-   go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
-
-📖 [Chinese Tutorial (Method 3)](https://telegra.ph/Apple-Music-Alac%E9%AB%98%E8%A7%A3%E6%9E%90%E5%BA%A6%E6%97%A0%E6%8D%9F%E9%9F%B3%E4%B9%90%E4%B8%8B%E8%BD%BD%E6%95%99%E7%A8%8B-04-02-2)
-
----
-
-## 📝 Getting media-user-token (For Lyrics)
-
-1. Open [Apple Music](https://music.apple.com) and log in
-2. Open Developer Tools (F12)
-3. Navigate to `Application → Storage → Cookies → https://music.apple.com`
-4. Find the cookie named `media-user-token` and copy its value
-5. Paste the value into `config.yaml` under the `media-user-token` setting
-6. Save the file and start the script
-
----
-
-## 🌐 Getting Translation & Pronunciation Lyrics (Beta)
-
-> **Note:** These features are currently in beta.
-
-1. Open [Apple Music Beta](https://beta.music.apple.com) and log in
-2. Open Developer Tools (F12) and switch to the **Network** tab
-3. Search for a song that supports translation/pronunciation lyrics (K-Pop songs recommended)
-4. Press **Ctrl+R** to refresh and let DevTools capture network traffic
-5. Play the song and click the lyrics button - look for a request named `syllable-lyrics`
-6. Stop recording (click the red circle button), then select the **Fetch/XHR** tab
-7. Click on the `syllable-lyrics` request to view details
-8. Find the URL containing: `.../syllable-lyrics?l=<language_code>&extend=ttmlLocalizations`
-9. Copy the language value and paste it into `config.yaml`
-10. **Optional:** To disable pronunciation, remove the corresponding value in config.yaml: `...%5D=<remove_this_value>&extend...`
-11. Save and run the script as usual
-
----
-
-## 👏 Special Thanks
-
-- **chocomint** - Created `agent-arm64.js`
-
----
+Based on work by **Sorrow**, with fixes and improvements by contributors. See [README-CN.md](./README-CN.md) for the Chinese readme.

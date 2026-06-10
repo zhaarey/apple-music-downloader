@@ -114,6 +114,8 @@ export const ClearAllSyncCaches = () => window.go?.main?.App?.ClearAllSyncCaches
 
 export const PrepareAlbumForSync = (folder) =>
   window.go?.main?.App?.PrepareAlbumForSync?.(folder) ?? Promise.resolve({ folder, prepared: 0, skipped: 0, errors: [], summary: 'Unavailable' })
+export const PrepareLibraryForSync = () =>
+  window.go?.main?.App?.PrepareLibraryForSync?.() ?? Promise.resolve([])
 export const PreviewPrepareAlbumForSync = (folder) =>
   window.go?.main?.App?.PreviewPrepareAlbumForSync?.(folder) ??
   Promise.resolve({ folder, track_count: 0, cover_source: '', recursive: false, warning: '' })
@@ -129,10 +131,12 @@ export const OpenSyncRepairLog = () => window.go?.main?.App?.OpenSyncRepairLog?.
 export const RunAppleMusicDeepPurge = (elevated) =>
   window.go?.main?.App?.RunAppleMusicDeepPurge?.(elevated) ??
   Promise.resolve({ ok: false, summary: 'Unavailable', steps: [], manual_steps: [] })
-export const ReleaseAppleSyncLock = (restartService, elevated) =>
-  window.go?.main?.App?.ReleaseAppleSyncLock?.(restartService, elevated) ??
+export const ResetAppleSyncStack = (elevated) =>
+  window.go?.main?.App?.ResetAppleSyncStack?.(elevated) ??
   Promise.resolve({ ok: false, summary: 'Unavailable', manual_steps: [] })
-export const OpenAppleSyncUnlockLog = () => window.go?.main?.App?.OpenAppleSyncUnlockLog?.() ?? Promise.resolve()
+export const ReleaseAppleSyncLock = (_, elevated) => ResetAppleSyncStack(elevated)
+export const OpenAppleSyncResetLog = () => window.go?.main?.App?.OpenAppleSyncResetLog?.() ?? Promise.resolve()
+export const OpenAppleSyncUnlockLog = () => OpenAppleSyncResetLog()
 export const OpenApplePurgeLog = () => window.go?.main?.App?.OpenApplePurgeLog?.() ?? Promise.resolve()
 
 export const EventsOn = (eventName, callback) => {

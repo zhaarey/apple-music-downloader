@@ -3,7 +3,7 @@ import { useState } from 'react'
 const PC_STEPS = [
   'Quit Apple Music completely (check Task Manager for AppleMusic.exe).',
   'In Apple Music: select all affected albums → right-click → Delete from Library → Keep Files. This removes broken library index entries but keeps your .m4a downloads on disk.',
-  'Tag Editor → Sync repair tools → Clear Apple Music art cache (quit Apple Music first), then Update album artwork on each album folder (embeds one normalized JPEG per track).',
+  'Tag Editor → Sync repair tools → Update album artwork on each album folder (embeds one normalized JPEG per track).',
   'Re-import albums: File → Import, or drag each album folder into Apple Music. Confirm Get Info shows artwork on PC before syncing.',
 ]
 
@@ -27,7 +27,7 @@ const WHY_BULLETS = [
   },
   {
     title: 'Repair attempts can worsen drift',
-    body: 'Clearing PC caches without removing library entries leaves Apple Music pointing at deleted thumbnail files. Syncing to iPhone then copies that broken index — both sides show no art while files on disk remain correct.',
+    body: 'Deleting PC artwork caches without removing library entries leaves Apple Music pointing at deleted thumbnails. Prefer Reset Apple sync (Settings) after a stuck sync — it does not delete caches.',
   },
   {
     title: 'Format and count matter',

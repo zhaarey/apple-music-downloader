@@ -1,7 +1,6 @@
 #Requires -Version 5.1
 param(
-    [Parameter(Mandatory = $true)][string]$LogPath,
-    [switch]$RestartService
+    [Parameter(Mandatory = $true)][string]$LogPath
 )
 
 $ErrorActionPreference = "Continue"
@@ -13,20 +12,19 @@ function Write-Log([string]$Message) {
 }
 
 function Stop-NamedProcesses([string[]]$Names, [string]$Reason) {
-    $killed = @()
+    $count = 0
     foreach ($name in $Names) {
         Get-Process -Name $name -ErrorAction SilentlyContinue | ForEach-Object {
             try {
                 Stop-Process -Id $_.Id -Force -ErrorAction Stop
-                $msg = "Stopped $Reason process: $($_.ProcessName) (pid $($_.Id))"
-                Write-Log $msg
-                $killed += $msg
+                Write-Log "Stopped $Reason process: $($_.ProcessName) (pid $($_.Id))"
+                $count++
             } catch {
                 Write-Log "Could not stop $($_.ProcessName): $($_.Exception.Message)"
             }
         }
     }
-    return $killed
+    return $count
 }
 
 function Restart-MobileDeviceService {
@@ -49,47 +47,47 @@ function Restart-MobileDeviceService {
     }
 }
 
-"Aura Apple sync unlock started $(Get-Date -Format o)" | Out-File -FilePath $LogPath -Encoding utf8
+"Aura Apple sync reset started $(Get-Date -Format o)" | Out-File -FilePath $LogPath -Encoding utf8
+Write-Log 'Emulating cancel-restart: stopping Apple Music and sync agents (no cache deletion)…'
 
-# Primary stuck-sync agents (Apple Devices app background workers).
-$syncAgents = @(
-    'AMPDevicesAgent'
-    'AMPDeviceDiscoveryAgent'
-    'AppleMobileDeviceHelper'
-)
-$killed = Stop-NamedProcesses -Names $syncAgents -Reason 'sync'
+# Same broad termination as a shutdown interrupt — Apple Music + device sync stack.
+$musicApps = @('AppleMusic', 'iTunes', 'iTunesHelper', 'distnoted')
+$syncAgents = @('AMPDevicesAgent', 'AMPDeviceDiscoveryAgent', 'AppleMobileDeviceHelper')
 
-# Catch store/UWP variants that sometimes register under longer names.
+$stopped = 0
+$stopped += Stop-NamedProcesses -Names $musicApps -Reason 'music'
+Start-Sleep -Seconds 1
+$stopped += Stop-NamedProcesses -Names $syncAgents -Reason 'sync'
+
 Get-Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.ProcessName -like 'AMPDevice*' -or $_.ProcessName -like 'AppleMobileDevice*' } |
+    Where-Object {
+        $_.ProcessName -like 'AMPDevice*' -or
+        $_.ProcessName -like 'AppleMobileDevice*'
+    } |
     ForEach-Object {
-        if ($syncAgents -contains $_.ProcessName) { return }
         try {
             Stop-Process -Id $_.Id -Force -ErrorAction Stop
-            $msg = "Stopped related process: $($_.ProcessName) (pid $($_.Id))"
-            Write-Log $msg
-            $killed += $msg
+            Write-Log "Stopped related process: $($_.ProcessName) (pid $($_.Id))"
+            $stopped++
         } catch {
             Write-Log "Could not stop $($_.ProcessName): $($_.Exception.Message)"
         }
     }
 
-if ($killed.Count -eq 0) {
-    Write-Log 'No Apple sync agent processes were running (already idle).'
+if ($stopped -eq 0) {
+    Write-Log 'No Apple sync processes were running (already idle).'
 } else {
-    Write-Log ("Released {0} process(es)." -f $killed.Count)
+    Write-Log ("Stopped {0} process(es)." -f $stopped)
 }
 
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 2
 
-if ($RestartService) {
-    Write-Log 'Restarting Apple Mobile Device Service…'
-    $serviceOk = Restart-MobileDeviceService
-    if (-not $serviceOk) {
-        Write-Log 'EXIT 2: service restart needs administrator'
-        exit 2
-    }
+Write-Log 'Restarting Apple Mobile Device Service…'
+$serviceOk = Restart-MobileDeviceService
+if (-not $serviceOk) {
+    Write-Log 'EXIT 2: service restart needs administrator'
+    exit 2
 }
 
-Write-Log 'Sync unlock finished — open Apple Devices and sync again (one album first if artwork was stale).'
+Write-Log 'Sync reset finished — reopen Apple Music / Apple Devices and sync one album first.'
 exit 0

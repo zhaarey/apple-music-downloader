@@ -1,22 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
   ValidateIPhoneSyncFolder,
-  GetAppleMusicCacheInfo,
-  ClearAppleMusicArtworkCache,
-  ClearAppTempCache,
-  ClearAllSyncCaches,
   PickFolder,
-  RunSyncRepair,
-  RunSyncRepairElevated,
   PreviewPrepareAlbumForSync,
   PrepareAlbumForSync,
+  PrepareLibraryForSync,
   GetSyncRepairPreparePreview,
-  OpenSyncRepairLog,
   IsAppleMusicRunning,
 } from '../../wailsjs/go/main/App'
 import { useConfirm } from '../../hooks/useConfirm'
 import { confirmAndPrepareAlbum, syncRepairConfirmDetails } from '../../lib/prepareAlbumConfirm'
-import AppleSyncUnlockPanel from '../../components/AppleSyncUnlockPanel'
+import AppleSyncResetPanel from '../../components/AppleSyncResetPanel'
 
 const MIN_ACTION_MS = 450
 
@@ -97,42 +91,6 @@ function actionButtonClass({ busy, done, disabled, danger }) {
   if (disabled) return `${base} border border-white/10 opacity-50`
   if (danger) return `${base} border border-red-500/35 bg-red-500/10 text-red-100 hover:bg-red-500/20`
   return `${base} border border-white/15 hover:bg-white/5`
-}
-
-function RepairStepsPanel({ result }) {
-  if (!result?.steps?.length) return null
-  return (
-    <div className="mt-3 space-y-1.5">
-      <p className="text-xs font-medium uppercase tracking-wide text-white/45">Repair progress</p>
-      <ul className="space-y-1 text-sm">
-        {result.steps.map((step) => (
-          <li key={step.id} className={`flex gap-2 rounded-lg px-2 py-1.5 ${step.ok ? 'bg-green-500/10' : step.skipped ? 'bg-white/5' : 'bg-red-500/10'}`}>
-            <span className={step.ok ? 'text-green-400' : step.skipped ? 'text-white/40' : 'text-red-300'}>
-              {step.ok ? '✓' : step.skipped ? '–' : '✕'}
-            </span>
-            <div className="min-w-0">
-              <p className="font-medium text-white/90">{step.label}</p>
-              {step.detail ? <p className="text-xs text-white/55">{step.detail}</p> : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function ManualStepsChecklist({ steps }) {
-  if (!steps?.length) return null
-  return (
-    <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-white/45">Next on your iPhone</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-white/70">
-        {steps.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
-    </div>
-  )
 }
 
 function SectionLabel({ step, children }) {
@@ -222,25 +180,19 @@ export function SyncTroubleshootingPanel({
   onStatus,
   folderResult,
   onFolderResult,
-  platform: _platform = 'windows',
+  platform = 'windows',
   hintAlbumFolder = '',
 }) {
   const { requestConfirm, ConfirmDialogSlot } = useConfirm()
-  const [cacheInfo, setCacheInfo] = useState(null)
   const [busy, setBusy] = useState('')
   const [doneKey, setDoneKey] = useState('')
   const [actionFeedback, setActionFeedback] = useState(null)
-  const [repairResult, setRepairResult] = useState(null)
   const [musicRunning, setMusicRunning] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
-
-  const refreshCacheInfo = () => {
-    GetAppleMusicCacheInfo().then(setCacheInfo).catch(() => {})
-    IsAppleMusicRunning().then(setMusicRunning).catch(() => setMusicRunning(false))
-  }
+  const isWindows = platform !== 'darwin'
 
   useEffect(() => {
-    refreshCacheInfo()
+    IsAppleMusicRunning().then(setMusicRunning).catch(() => setMusicRunning(false))
   }, [])
 
   const markDone = (key) => {
@@ -340,20 +292,20 @@ export function SyncTroubleshootingPanel({
     if (folder) await prepareFolderAt(folder)
   }
 
-  const runRepair = async () => {
+  const runLibraryPrepare = async () => {
     setActionFeedback(null)
     setDoneKey('')
     try {
       const preview = await GetSyncRepairPreparePreview()
       const confirmed = await requestConfirm({
-        title: 'Run full library artwork repair?',
+        title: 'Update artwork for entire library?',
         message:
-          'Updates embedded artwork on tracks under your download folders (recursive), then clears PC caches. Text metadata is preserved; matching tracks are skipped. Does not reset iPhone — delete affected albums on the device before re-syncing.',
+          'Embeds artwork in tracks under your download folders (recursive). Text metadata is preserved; matching tracks are skipped. Does not reset iPhone — delete affected albums on the device before re-syncing.',
         details: syncRepairConfirmDetails(preview),
-        confirmLabel: preview?.track_count ? `Repair ${preview.track_count} track(s)` : 'Run full repair',
+        confirmLabel: preview?.track_count ? `Update ${preview.track_count} track(s)` : 'Update library',
       })
       if (!confirmed) {
-        onStatus?.('Sync repair cancelled.', 'info')
+        onStatus?.('Library update cancelled.', 'info')
         return
       }
     } catch (e) {
@@ -361,65 +313,29 @@ export function SyncTroubleshootingPanel({
       return
     }
 
-    setBusy('repair')
+    setBusy('library')
     try {
-      const res = await withMinDelay(
-        RunSyncRepair({ skip_prepare: false, cache_only: false, force_if_music_running: false }),
-      )
-      setRepairResult(res)
-      refreshCacheInfo()
-      const variant = res.ok ? 'success' : res.need_elevated ? 'info' : 'error'
-      showFeedback(variant, res.ok ? 'Full repair — done' : 'Full repair — review', res.summary)
-      onStatus?.(res.summary, variant)
-      if (res.ok) markDone('repair')
+      const results = await withMinDelay(PrepareLibraryForSync())
+      const errors = (results || []).flatMap((r) => r.errors || [])
+      const summary =
+        errors.length > 0
+          ? `Updated with ${errors.length} issue(s) — review album folders.`
+          : `Updated artwork across ${(results || []).length} folder(s). Re-import in Apple Music, then sync.`
+      showFeedback(errors.length ? 'error' : 'success', errors.length ? 'Library update — issues' : 'Library update — done', summary)
+      onStatus?.(summary, errors.length ? 'error' : 'success')
+      if (!errors.length) markDone('library')
     } catch (e) {
-      showFeedback('error', 'Full repair — failed', String(e?.message || e))
+      showFeedback('error', 'Library update — failed', String(e?.message || e))
       onStatus?.(String(e?.message || e), 'error')
     } finally {
       setBusy('')
     }
   }
 
-  const runClear = async (fn, key, label) => {
-    setActionFeedback(null)
-    setDoneKey('')
-    setBusy(key)
-    try {
-      const res = await withMinDelay(fn())
-      const variant = res.ok ? 'success' : 'error'
-      showFeedback(variant, res.ok ? `${label} — done` : `${label} — failed`, res.message)
-      onStatus?.(res.message || `${label} complete`, variant)
-      if (res.ok) {
-        markDone(key)
-        refreshCacheInfo()
-      }
-    } catch (e) {
-      showFeedback('error', `${label} — failed`, String(e?.message || e))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const runElevated = async () => {
-    setBusy('elevated')
-    try {
-      const res = await withMinDelay(RunSyncRepairElevated())
-      setRepairResult((prev) => ({ ...prev, ...res, steps: [...(prev?.steps || []), ...(res.steps || [])] }))
-      showFeedback(res.ok ? 'success' : 'error', res.ok ? 'Admin cache clear — done' : 'Admin cache clear — failed', res.summary)
-      if (res.ok) {
-        markDone('elevated')
-        refreshCacheInfo()
-      }
-    } finally {
-      setBusy('')
-    }
-  }
-
   const syncHint =
-    'Start at the top and work down only if needed. Wrong art on iPhone after a good PC import usually means stale entries on the device — delete the album on the phone, then re-sync that album only.'
+    'Check files first, reset Apple sync after a stuck sync, embed art if needed. Wrong art on iPhone usually means stale entries on the device — delete the album on the phone, then re-sync that album only.'
 
   const hintFolderName = hintAlbumFolder ? hintAlbumFolder.split(/[/\\]/).pop() : ''
-  const cacheBlocked = musicRunning || !!busy
   const fileChangeBlocked = musicRunning || !!busy
 
   return (
@@ -433,7 +349,7 @@ export function SyncTroubleshootingPanel({
         <div className="flex items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-medium text-white/90">Sync repair tools</h3>
-            <p className="mt-0.5 text-xs text-white/45">Safest actions first — checks, then PC caches, then file changes</p>
+            <p className="mt-0.5 text-xs text-white/45">Check files → reset sync stack → embed artwork if needed</p>
           </div>
           <span className="text-xs text-white/35">{panelOpen ? 'Hide' : 'Show'}</span>
         </div>
@@ -442,22 +358,16 @@ export function SyncTroubleshootingPanel({
       <div className="border-t border-white/[0.06] px-4 pb-4 pt-3">
         <p className="text-xs leading-relaxed text-white/50">{syncHint}</p>
 
-        <p className="mt-2 text-[11px] leading-relaxed text-white/35">
-          Nothing here touches your iPhone directly. Cache clears affect PC only. Prepare updates embedded cover art only — titles and track numbers stay put. Tracks already correct are skipped.
-        </p>
-
         {musicRunning && (
           <p className="mt-3 rounded-lg border border-yellow-500/25 bg-yellow-500/[0.07] px-3 py-2 text-xs text-yellow-100/90">
-            Quit Apple Music before clearing caches or rewriting artwork.
+            Quit Apple Music before rewriting embedded artwork.
           </p>
         )}
 
         <SectionDivider />
 
         <SectionLabel step="1">Check folder</SectionLabel>
-        <SectionHint>
-          Read-only. Scans .m4a files directly in the folder (not subfolders). Nothing is written to disk.
-        </SectionHint>
+        <SectionHint>Read-only scan of .m4a files in the folder (not subfolders).</SectionHint>
         <div className="mt-2 flex flex-wrap gap-2">
           {hintAlbumFolder && (
             <button
@@ -479,54 +389,23 @@ export function SyncTroubleshootingPanel({
           </button>
         </div>
 
-        <SectionDivider />
-
-        <SectionLabel step="2">Clear PC caches</SectionLabel>
-        <SectionHint>
-          Deletes Apple Music artwork cache folders on this PC only — never your music files or iPhone library. Quit Apple Music first. Re-import albums afterward so PC picks up fresh embedded art.
-        </SectionHint>
-        {cacheInfo?.note ? <p className="mt-1.5 text-[11px] text-white/35">{cacheInfo.note}</p> : null}
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={cacheBlocked}
-            onClick={() => runClear(ClearAllSyncCaches, 'all', 'Clear all caches')}
-            className={actionButtonClass({ busy: busy === 'all', done: doneKey === 'all', disabled: cacheBlocked && busy !== 'all' })}
-          >
-            {renderButtonLabel('all', 'Clear all sync caches')}
-          </button>
-          <button
-            type="button"
-            disabled={cacheBlocked}
-            onClick={() => runClear(ClearAppleMusicArtworkCache, 'apple', 'Clear Apple Music cache')}
-            className={actionButtonClass({ busy: busy === 'apple', done: doneKey === 'apple', disabled: cacheBlocked && busy !== 'apple' })}
-          >
-            {renderButtonLabel('apple', 'Apple Music art cache')}
-          </button>
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => runClear(ClearAppTempCache, 'app', 'Clear app temp')}
-            className={actionButtonClass({ busy: busy === 'app', done: doneKey === 'app', disabled: !!busy && busy !== 'app' })}
-          >
-            {renderButtonLabel('app', 'App temp files')}
-          </button>
-        </div>
+        {isWindows && (
+          <>
+            <SectionDivider />
+            <SectionLabel step="2">Reset Apple sync</SectionLabel>
+            <SectionHint>
+              After syncing in Apple Devices, if iPhone artwork still looks wrong until you restart Windows — run this
+              instead of rebooting.
+            </SectionHint>
+            <AppleSyncResetPanel compact className="mt-2" />
+          </>
+        )}
 
         <SectionDivider />
 
-        <SectionLabel step="2b">Release sync lock (Windows)</SectionLabel>
+        <SectionLabel step={isWindows ? '3' : '2'}>Update album artwork</SectionLabel>
         <SectionHint>
-          After Apple Devices finishes syncing, run this if iPhone artwork still looks wrong until you restart the PC.
-          Stops stuck AMPDevicesAgent — same effect as canceling a shutdown/restart.
-        </SectionHint>
-        <AppleSyncUnlockPanel compact className="mt-2" />
-
-        <SectionDivider />
-
-        <SectionLabel step="3">Update album artwork</SectionLabel>
-        <SectionHint>
-          Embeds one shared JPEG cover in each .m4a in the folder (direct files only). Title, artist, and track numbers are not changed. Tracks that already match are skipped. If every track already shares the same art, a folder cover.jpg is not used. Quit Apple Music before running.
+          Embeds one shared JPEG per track. Titles and track numbers unchanged. Quit Apple Music first.
         </SectionHint>
         <div className="mt-2 flex flex-wrap gap-2">
           {hintAlbumFolder && (
@@ -564,45 +443,25 @@ export function SyncTroubleshootingPanel({
         <details className="rounded-lg border border-white/10 bg-black/10 px-3 py-2.5">
           <summary className="cursor-pointer text-xs font-medium text-white/65 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex items-center gap-2">
-              <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white/35">4</span>
-              Heavy repair — entire library
+              <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white/35">
+                {isWindows ? '4' : '3'}
+              </span>
+              Update entire library
             </span>
           </summary>
           <SectionHint>
-            Last resort. Same as step 3 but across all configured download folders (including subfolders), then clears PC caches. Cannot fix iPhone stale art by itself — remove albums from Apple Music, re-import, delete on iPhone, sync selected albums first.
+            Same as folder update but across all configured download folders. Does not delete caches or reset iPhone.
           </SectionHint>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3">
             <button
               type="button"
               disabled={fileChangeBlocked}
-              onClick={runRepair}
-              className={`${actionButtonClass({ busy: busy === 'repair', done: doneKey === 'repair', disabled: fileChangeBlocked && busy !== 'repair', danger: true })} px-4 py-2.5 text-sm`}
+              onClick={runLibraryPrepare}
+              className={`${actionButtonClass({ busy: busy === 'library', done: doneKey === 'library', disabled: fileChangeBlocked && busy !== 'library', danger: true })} px-4 py-2.5 text-sm`}
             >
-              {renderButtonLabel('repair', 'Repair entire library')}
+              {renderButtonLabel('library', 'Update entire library')}
             </button>
-            {repairResult?.need_elevated && (
-              <button
-                type="button"
-                disabled={!!busy}
-                onClick={runElevated}
-                className={actionButtonClass({ busy: busy === 'elevated', done: doneKey === 'elevated', disabled: !!busy && busy !== 'elevated' })}
-              >
-                {renderButtonLabel('elevated', 'Run as administrator')}
-              </button>
-            )}
-            {repairResult?.log_path && (
-              <button
-                type="button"
-                disabled={!!busy}
-                onClick={() => OpenSyncRepairLog().catch(() => {})}
-                className={actionButtonClass({ busy: false, done: false, disabled: !!busy })}
-              >
-                Open repair log
-              </button>
-            )}
           </div>
-          <RepairStepsPanel result={repairResult} />
-          <ManualStepsChecklist steps={repairResult?.manual_steps} />
         </details>
 
         <ActionFeedbackBanner feedback={actionFeedback} onDismiss={() => setActionFeedback(null)} />

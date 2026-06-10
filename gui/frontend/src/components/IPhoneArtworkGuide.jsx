@@ -288,22 +288,19 @@ export default function IPhoneArtworkGuide({ platform = 'windows' }) {
           {step === 2 && (
             <div className="space-y-4">
               <p className="text-sm text-white/70">
-                Quit <strong className="text-white/90">{copy.musicApp}</strong> on this PC, then use Tag Editor sync
-                repair to clear the artwork cache and re-import the album so sync does not reuse a stale thumbnail index.
+                After re-importing on PC, use <strong className="text-white/90">Settings → Reset Apple sync</strong> if
+                iPhone art still looks wrong until you reboot — then delete the album on the phone and sync one album first.
               </p>
               {musicRunning && (
                 <p className="rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100/90">
-                  {copy.musicApp} is still running — quit it before clearing caches.
+                  {copy.musicApp} is still running — quit it before updating embedded artwork.
                 </p>
               )}
               <ol className="list-decimal space-y-2 pl-5 text-sm text-white/65">
                 <li>Quit {copy.musicApp} completely.</li>
-                <li>
-                  Open <strong className="text-white/80">Tag Editor</strong> → expand Sync repair tools →{' '}
-                  <strong className="text-white/80">Clear Apple Music art cache</strong> (safe for your .m4a files).
-                </li>
                 <li>{copy.removeHint}</li>
                 <li>{copy.importHint}</li>
+                <li>Tag Editor → Sync repair tools → Update album artwork if embedded covers need fixing.</li>
               </ol>
             </div>
           )}

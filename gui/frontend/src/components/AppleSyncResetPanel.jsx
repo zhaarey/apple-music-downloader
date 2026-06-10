@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ReleaseAppleSyncLock, OpenAppleSyncUnlockLog } from '../wailsjs/go/main/App'
+import { ResetAppleSyncStack, OpenAppleSyncResetLog } from '../wailsjs/go/main/App'
 
 const MIN_ACTION_MS = 450
 
@@ -8,45 +8,47 @@ async function withMinDelay(promise, ms = MIN_ACTION_MS) {
   return result
 }
 
-export default function AppleSyncUnlockPanel({ compact = false, className = '' }) {
-  const [busy, setBusy] = useState('')
+export default function AppleSyncResetPanel({ compact = false, className = '' }) {
+  const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
   const [feedback, setFeedback] = useState(null)
 
-  const runUnlock = async (restartService, elevated, key) => {
-    setBusy(key)
+  const runReset = async (elevated = false) => {
+    setBusy(true)
     setFeedback(null)
     try {
-      const res = await withMinDelay(ReleaseAppleSyncLock(restartService, elevated))
+      const res = await withMinDelay(ResetAppleSyncStack(elevated))
       setResult(res)
       if (res?.ok) {
         setFeedback({
           variant: res.need_elevated ? 'info' : 'success',
-          title: res.summary || 'Sync agents released',
-          detail: res.killed_hint || res.message,
+          title: res.summary || 'Sync stack reset',
+          detail: res.stopped_hint || res.message,
         })
       } else {
         setFeedback({
           variant: 'error',
-          title: res?.summary || 'Sync unlock failed',
+          title: res?.summary || 'Sync reset failed',
           detail: res?.message || 'Unknown error',
         })
       }
     } catch (err) {
       setFeedback({
         variant: 'error',
-        title: 'Sync unlock failed',
+        title: 'Sync reset failed',
         detail: String(err?.message || err),
       })
     } finally {
-      setBusy('')
+      setBusy(false)
     }
   }
 
-  const buttonClass = (active, disabled) =>
+  const buttonClass = (primary, disabled) =>
     `rounded-lg border px-3 py-2 text-sm transition ${
-      active
-        ? 'border-accent/40 bg-accent/10 text-white'
+      primary
+        ? disabled
+          ? 'border-accent/20 bg-accent/5 text-white/40'
+          : 'border-accent/40 bg-accent/10 text-white hover:bg-accent/15'
         : disabled
           ? 'border-white/5 text-white/30'
           : 'border-white/15 hover:bg-white/5'
@@ -57,12 +59,12 @@ export default function AppleSyncUnlockPanel({ compact = false, className = '' }
       {!compact && (
         <>
           <p className="text-xs leading-relaxed text-white/50">
-            After syncing in Apple Devices, artwork sometimes stays wrong until Windows releases a stuck background
-            agent (<code className="text-white/60">AMPDevicesAgent</code>). This does the same thing as canceling a
-            restart — without rebooting.
+            Stops Apple Music, Apple Devices sync agents, and restarts the USB device service — the same process-kill
+            effect as canceling a Windows restart. Does <strong className="font-medium text-white/70">not</strong> delete
+            artwork caches or change your .m4a files.
           </p>
           <p className="mt-2 text-[11px] text-white/35">
-            Run only when sync finished or is stuck. Does not change your .m4a files.
+            Run after a sync finishes or is stuck, not while files are still copying.
           </p>
         </>
       )}
@@ -70,38 +72,24 @@ export default function AppleSyncUnlockPanel({ compact = false, className = '' }
       <div className={`flex flex-wrap gap-2 ${compact ? '' : 'mt-3'}`}>
         <button
           type="button"
-          disabled={!!busy}
-          onClick={() => runUnlock(false, false, 'unlock')}
-          className={buttonClass(busy === 'unlock', !!busy && busy !== 'unlock')}
+          disabled={busy}
+          onClick={() => runReset(false)}
+          className={buttonClass(true, busy)}
         >
-          {busy === 'unlock' ? 'Releasing…' : 'Release sync lock'}
-        </button>
-        <button
-          type="button"
-          disabled={!!busy}
-          onClick={() => runUnlock(true, false, 'unlock-svc')}
-          className={buttonClass(busy === 'unlock-svc', !!busy && busy !== 'unlock-svc')}
-          title="Also restarts Apple Mobile Device Service (USB stack)"
-        >
-          {busy === 'unlock-svc' ? 'Releasing…' : 'Release + restart USB service'}
+          {busy ? 'Resetting…' : 'Reset Apple sync'}
         </button>
         {result?.need_elevated && (
           <button
             type="button"
-            disabled={!!busy}
-            onClick={() => runUnlock(true, true, 'unlock-admin')}
-            className={buttonClass(busy === 'unlock-admin', !!busy && busy !== 'unlock-admin')}
+            disabled={busy}
+            onClick={() => runReset(true)}
+            className={buttonClass(false, busy)}
           >
-            {busy === 'unlock-admin' ? 'Requesting…' : 'Run as administrator'}
+            Run as administrator
           </button>
         )}
         {result?.log_path && (
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => OpenAppleSyncUnlockLog().catch(() => {})}
-            className={buttonClass(false, !!busy)}
-          >
+          <button type="button" disabled={busy} onClick={() => OpenAppleSyncResetLog().catch(() => {})} className={buttonClass(false, busy)}>
             Open log
           </button>
         )}
