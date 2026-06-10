@@ -229,7 +229,7 @@ func WriteAlbumBatch(input TagAlbumBatchInput) TagAlbumBatchResult {
 		sortTags = true
 	}
 	coverPath := strings.TrimSpace(input.CoverPath)
-	optimize := boolOrDefault(input.OptimizeArtwork, true)
+	optimize := boolOrDefault(input.OptimizeArtwork, false)
 	writeSidecar := boolOrDefault(input.WriteCoverSidecar, true)
 
 	for _, tr := range input.Tracks {
@@ -280,11 +280,8 @@ func WriteAlbumBatch(input TagAlbumBatchInput) TagAlbumBatchResult {
 		}
 		if folder != "" {
 			if data, err := os.ReadFile(coverPath); err == nil {
-				opts := DefaultCoverNormalizeOptions()
-				if !optimize {
-					opts = LegacyCoverNormalizeOptions()
-				}
-				if norm, err := NormalizeCoverWithOptions(data, opts); err == nil {
+				tags := TrackTags{CoverData: data, CoverOptimize: &optimize}
+				if norm, _, err := PrepareCoverForEmbed(tags); err == nil {
 					_, _ = WriteCoverSidecarForDir(folder, norm)
 				}
 			}

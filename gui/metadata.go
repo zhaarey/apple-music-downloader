@@ -53,7 +53,7 @@ func (a *App) TagResolveDrop(paths []string) (TagDropResolve, error) {
 	}
 
 	if len(dirs) == 0 && len(audios) == 0 {
-		return TagDropResolve{}, fmt.Errorf("drop an .m4a file or an album folder")
+		return TagDropResolve{}, fmt.Errorf("drop an .m4a/.mp4 file or an album folder")
 	}
 
 	if len(dirs) > 0 {
@@ -93,9 +93,30 @@ func (a *App) TagResolveDrop(paths []string) (TagDropResolve, error) {
 
 func (a *App) TagPickAudioFile() (string, error) {
 	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select audio file",
+		Title: "Select audio or music video",
 		Filters: []runtime.FileFilter{
-			{DisplayName: "Audio", Pattern: "*.m4a;*.mp4;*.m4b"},
+			{DisplayName: "Apple Music media", Pattern: "*.m4a;*.mp4;*.m4b"},
+			{DisplayName: "Music video (MP4)", Pattern: "*.mp4"},
+			{DisplayName: "Audio (M4A)", Pattern: "*.m4a;*.m4b"},
+		},
+	})
+}
+
+func (a *App) TagPickSaveMediaFile(sourcePath string) (string, error) {
+	sourcePath = strings.TrimSpace(sourcePath)
+	if sourcePath == "" {
+		return "", fmt.Errorf("no source file")
+	}
+	ext := strings.ToLower(filepath.Ext(sourcePath))
+	if ext == "" {
+		ext = ".m4a"
+	}
+	base := strings.TrimSuffix(filepath.Base(sourcePath), filepath.Ext(sourcePath))
+	return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "Save tagged file as",
+		DefaultFilename: base + ext,
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Media file", Pattern: "*" + ext},
 		},
 	})
 }
@@ -164,6 +185,9 @@ func (a *App) TagReadFile(path string) (media.AudioTagInfo, error) {
 	if err != nil {
 		return media.AudioTagInfo{}, err
 	}
+	if strings.EqualFold(ext, ".mp4") {
+		tags = media.EnrichVideoTagInfo(a.eng.GetConfig().FFmpegPath, path, tags)
+	}
 	appstate.RememberRecentFile(path)
 	return tags, nil
 }
@@ -183,9 +207,20 @@ func (a *App) TagWriteFile(input media.WriteAudioTagsInput) (media.AudioTagInfo,
 	if err := media.WriteAudioTags(input); err != nil {
 		return media.AudioTagInfo{}, err
 	}
-	logging.Info("TagWriteFile updated %s", input.Path)
-	appstate.RememberRecentFile(input.Path)
-	return media.ReadAudioTags(input.Path)
+	outPath := strings.TrimSpace(input.OutputPath)
+	if outPath == "" {
+		outPath = input.Path
+	}
+	logging.Info("TagWriteFile updated %s", outPath)
+	appstate.RememberRecentFile(outPath)
+	tags, err := media.ReadAudioTags(outPath)
+	if err != nil {
+		return media.AudioTagInfo{}, err
+	}
+	if strings.EqualFold(filepath.Ext(outPath), ".mp4") {
+		tags = media.EnrichVideoTagInfo(a.eng.GetConfig().FFmpegPath, outPath, tags)
+	}
+	return tags, nil
 }
 
 func (a *App) TagReadAlbumFolder(folder string) (result media.AlbumFolderReadResult, err error) {

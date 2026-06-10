@@ -58,6 +58,8 @@ export const SpliceMasterAudioURL = (path) =>
   window.go?.main?.App?.SpliceMasterAudioURL?.(path) ?? Promise.resolve('')
 
 export const TagPickAudioFile = () => window.go?.main?.App?.TagPickAudioFile?.() ?? Promise.resolve('')
+export const TagPickSaveMediaFile = (sourcePath) =>
+  window.go?.main?.App?.TagPickSaveMediaFile?.(sourcePath) ?? Promise.resolve('')
 export const TagPickArtworkFile = () => window.go?.main?.App?.TagPickArtworkFile?.() ?? Promise.resolve('')
 export const TagFindAlbumCover = (folder) =>
   window.go?.main?.App?.TagFindAlbumCover?.(folder) ?? Promise.reject(new Error('TagFindAlbumCover unavailable'))

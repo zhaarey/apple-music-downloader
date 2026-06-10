@@ -11,10 +11,11 @@ export default function ArtworkAppleOptions({
   onUseFolderCover,
   showFolderCover = false,
   disabled = false,
-  optimizeArtwork = true,
+  optimizeArtwork = false,
   onOptimizeArtworkChange,
   mp4boxReembed = false,
   onMp4boxReembedChange,
+  showMp4boxReembed = true,
   analysis = null,
   className = '',
 }) {
@@ -80,26 +81,28 @@ export default function ArtworkAppleOptions({
           <span>
             <span className="font-medium text-white/85">Optimize for Apple Music album view</span>
             <span className="mt-0.5 block text-white/45">
-              Square crop, trim letterbox bars, mild saturation boost, baseline JPEG — improves iOS accent backgrounds.
+              Optional. Square crop and JPEG re-encode for iOS accent backgrounds — leaves artwork unchanged when off.
             </span>
           </span>
         </label>
 
-        <label className="flex cursor-pointer items-start gap-2 text-xs text-white/70">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={mp4boxReembed}
-            onChange={(e) => onMp4boxReembedChange?.(e.target.checked)}
-            disabled={disabled}
-          />
-          <span>
-            <span className="font-medium text-white/85">Re-embed via MP4Box after save</span>
-            <span className="mt-0.5 block text-white/45">
-              Optional. Helps stubborn Windows → iPhone sync; requires MP4Box on PATH or in tools folder.
+        {showMp4boxReembed && (
+          <label className="flex cursor-pointer items-start gap-2 text-xs text-white/70">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={mp4boxReembed}
+              onChange={(e) => onMp4boxReembedChange?.(e.target.checked)}
+              disabled={disabled}
+            />
+            <span>
+              <span className="font-medium text-white/85">Re-embed via MP4Box after save</span>
+              <span className="mt-0.5 block text-white/45">
+                Optional. Helps stubborn Windows → iPhone sync; requires MP4Box on PATH or in tools folder.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        )}
 
         {showFolderCover && onUseFolderCover && (
           <button

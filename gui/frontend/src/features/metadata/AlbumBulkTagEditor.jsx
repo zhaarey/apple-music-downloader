@@ -85,7 +85,7 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [albumDefaultsApplied, setAlbumDefaultsApplied] = useState(false)
-  const [optimizeArtwork, setOptimizeArtwork] = useState(true)
+  const [optimizeArtwork, setOptimizeArtwork] = useState(false)
   const [mp4boxReembed, setMp4boxReembed] = useState(false)
   const [artworkAnalysis, setArtworkAnalysis] = useState(null)
   const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')

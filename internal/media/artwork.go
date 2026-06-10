@@ -43,17 +43,36 @@ func resizeNearest(src image.Image, width, height int) *image.RGBA {
 	return dst
 }
 
-// PrepareCoverBytes loads, normalizes, and returns JPEG bytes for embedding in M4A/MP4.
-func PrepareCoverBytes(tags TrackTags) ([]byte, error) {
+// PrepareCoverForEmbed loads cover bytes and preserves or optimizes based on CoverOptimize.
+func PrepareCoverForEmbed(tags TrackTags) ([]byte, mp4tag.ImageType, error) {
 	raw, _, err := resolveCover(tags)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	opts := DefaultCoverNormalizeOptions()
-	if tags.CoverOptimize != nil && !*tags.CoverOptimize {
-		opts = LegacyCoverNormalizeOptions()
+	optimize := false
+	if tags.CoverOptimize != nil {
+		optimize = *tags.CoverOptimize
 	}
-	return NormalizeCoverWithOptions(raw, opts)
+	mime := DetectImageMIME(raw, 0)
+	format := mp4tag.ImageTypeJPEG
+	if mime == "image/png" {
+		format = mp4tag.ImageTypePNG
+	}
+	if !optimize {
+		if ok, err := coverWithinEdgeLimit(raw, MaxCoverEdgePx); err == nil && ok && (mime == "image/jpeg" || mime == "image/png") {
+			return raw, format, nil
+		}
+		out, err := NormalizeCoverWithOptions(raw, CoverDownscaleOnlyOptions())
+		return out, mp4tag.ImageTypeJPEG, err
+	}
+	out, err := NormalizeCoverWithOptions(raw, DefaultCoverNormalizeOptions())
+	return out, mp4tag.ImageTypeJPEG, err
+}
+
+// PrepareCoverBytes loads cover bytes for embedding (JPEG output for legacy callers).
+func PrepareCoverBytes(tags TrackTags) ([]byte, error) {
+	data, _, err := PrepareCoverForEmbed(tags)
+	return data, err
 }
 
 // WriteCoverSidecarForDir writes normalized cover.jpg beside album tracks.

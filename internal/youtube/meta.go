@@ -5,11 +5,18 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	appconfig "main/internal/config"
 	"main/internal/media"
 	"main/utils/structs"
+)
+
+const (
+	ArtSourceYouTube = "youtube"
+	ArtSourceCustom  = "custom"
+	ArtSourceNone    = "none"
 )
 
 // MetaFromDownload builds tagging metadata for a YouTube export row.
@@ -42,7 +49,7 @@ func MetaFromDownload(meta DownloadMeta, cfg structs.ConfigSet) media.TrackTags 
 	if trackTotal <= 0 {
 		trackTotal = trackNum
 	}
-	return media.TrackTags{
+	tags := media.TrackTags{
 		Title:       title,
 		Artist:      artist,
 		Album:       album,
@@ -54,7 +61,21 @@ func MetaFromDownload(meta DownloadMeta, cfg structs.ConfigSet) media.TrackTags 
 		DiscNumber:  discNum,
 		DiscTotal:   1,
 		SortTags:    cfg.TagSortOrder,
-		CoverURL:    meta.ArtURL,
+	}
+	coverPath, coverURL := resolveArtSource(meta)
+	tags.CoverPath = coverPath
+	tags.CoverURL = coverURL
+	return tags
+}
+
+func resolveArtSource(meta DownloadMeta) (coverPath, coverURL string) {
+	switch strings.ToLower(strings.TrimSpace(meta.ArtSource)) {
+	case ArtSourceCustom:
+		return strings.TrimSpace(meta.CoverPath), ""
+	case ArtSourceNone:
+		return "", ""
+	default:
+		return "", strings.TrimSpace(meta.ArtURL)
 	}
 }
 
@@ -110,6 +131,7 @@ func FinalizeVideo(cfg structs.ConfigSet, srcPath string, meta DownloadMeta, mul
 	if err := media.WriteVideoTrackTags(cfg.FFmpegPath, dst, tags); err != nil {
 		return dst, fmt.Errorf("tagging failed: %w", err)
 	}
+	writeCoverSidecar(filepath.Dir(dst), tags)
 	return dst, nil
 }
 
@@ -126,7 +148,14 @@ func FinalizeAudio(cfg structs.ConfigSet, saveDir string, srcPath string, meta D
 	if err := media.WriteTrackTags(dst, tags); err != nil {
 		return dst, fmt.Errorf("tagging failed: %w", err)
 	}
+	writeCoverSidecar(filepath.Dir(dst), tags)
 	return dst, nil
+}
+
+func writeCoverSidecar(dir string, tags media.TrackTags) {
+	if cover, err := media.PrepareCoverBytes(tags); err == nil && len(cover) > 0 {
+		_, _ = media.WriteCoverSidecarForDir(dir, cover)
+	}
 }
 
 func MetaByNum(metas []DownloadMeta) map[int]DownloadMeta {

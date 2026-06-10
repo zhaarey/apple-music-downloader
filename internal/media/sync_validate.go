@@ -38,8 +38,12 @@ func ValidateIPhoneSync(ffmpegConfigured, path string) (SyncValidationResult, er
 		return out, fmt.Errorf("path is a folder, not a file")
 	}
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".m4a" && ext != ".m4b" {
-		out.Checks = append(out.Checks, check("format", "Audio format", false, "Use .m4a AAC files for music sync", "fail"))
+	switch ext {
+	case ".mp4":
+		return validateIPhoneVideoSync(ffmpegConfigured, path)
+	case ".m4a", ".m4b":
+	default:
+		out.Checks = append(out.Checks, check("format", "Audio format", false, "Use .m4a or .mp4 files for Apple Music sync", "fail"))
 		out.Summary = "Unsupported file type for iPhone music sync."
 		return out, nil
 	}
@@ -74,6 +78,50 @@ func ValidateIPhoneSync(ffmpegConfigured, path string) (SyncValidationResult, er
 		out.Checks = append(out.Checks, check("track_total", "Track total", false, "Set track total to match album size", "warn"))
 	}
 
+	return finalizeSyncResult(out, "track")
+}
+
+func validateIPhoneVideoSync(ffmpegConfigured, path string) (SyncValidationResult, error) {
+	out := SyncValidationResult{Path: path, Checks: []SyncCheck{}}
+	tags, err := ReadAudioTags(path)
+	if err != nil {
+		return out, err
+	}
+	tags = EnrichVideoTagInfo(ffmpegConfigured, path, tags)
+
+	out.Checks = append(out.Checks, check("format", "Music video format", true, "MP4 music video", "pass"))
+	out.Checks = append(out.Checks, check("album_artist", "Album artist", strings.TrimSpace(tags.AlbumArtist) != "",
+		albumArtistDetail(tags), "fail"))
+	out.Checks = append(out.Checks, artworkChecks(path, tags)...)
+
+	if tags.AppleVideoReady {
+		detail := tags.AppleVideoDetail
+		if tags.VideoWidth > 0 && tags.VideoHeight > 0 {
+			detail = fmt.Sprintf("%s · %dx%d", detail, tags.VideoWidth, tags.VideoHeight)
+		}
+		if tags.DurationLabel != "" {
+			detail += " · " + tags.DurationLabel
+		}
+		out.Checks = append(out.Checks, check("video_stream", "H.264 + AAC stereo", true, detail, "pass"))
+	} else {
+		detail := tags.AppleVideoDetail
+		if detail == "" {
+			detail = "MP4 needs H.264 video and AAC stereo audio for iPhone Music"
+		}
+		out.Checks = append(out.Checks, check("video_stream", "H.264 + AAC stereo", false, detail, "fail"))
+	}
+
+	if strings.TrimSpace(tags.Title) == "" {
+		out.Checks = append(out.Checks, check("title", "Title", false, "Set title for library display", "warn"))
+	}
+	if tags.TrackNumber <= 0 {
+		out.Checks = append(out.Checks, check("track_number", "Track number", false, "Set track number for album ordering", "warn"))
+	}
+
+	return finalizeSyncResult(out, "music video")
+}
+
+func finalizeSyncResult(out SyncValidationResult, kind string) (SyncValidationResult, error) {
 	out.Ready = true
 	failures := 0
 	warnings := 0
@@ -89,11 +137,11 @@ func ValidateIPhoneSync(ffmpegConfigured, path string) (SyncValidationResult, er
 		out.Ready = false
 	}
 	if out.Ready && warnings > 0 {
-		out.Summary = fmt.Sprintf("Ready with %d warning(s) — iPhone sync should work after re-import.", warnings)
+		out.Summary = fmt.Sprintf("Ready with %d warning(s) — re-import the %s in Apple Music before syncing.", warnings, kind)
 	} else if out.Ready {
-		out.Summary = "Embedded JPEG artwork and metadata look good for iPhone sync."
+		out.Summary = fmt.Sprintf("Embedded artwork and metadata look good for iPhone %s sync.", kind)
 	} else {
-		out.Summary = fmt.Sprintf("%d issue(s) found — fix in Tag Editor, save tags, then re-import in Apple Music.", failures)
+		out.Summary = fmt.Sprintf("%d issue(s) found — fix in Tag Editor, save, then re-import in Apple Music.", failures)
 	}
 	return out, nil
 }

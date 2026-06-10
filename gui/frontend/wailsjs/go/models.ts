@@ -294,6 +294,14 @@ export namespace media {
 	    artwork_mime?: string;
 	    artwork_b64?: string;
 	    summary: string;
+	    media_kind?: string;
+	    video_codec?: string;
+	    audio_codec?: string;
+	    video_width?: number;
+	    video_height?: number;
+	    duration_label?: string;
+	    apple_video_ready?: boolean;
+	    apple_video_detail?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AudioTagInfo(source);
@@ -317,6 +325,14 @@ export namespace media {
 	        this.artwork_mime = source["artwork_mime"];
 	        this.artwork_b64 = source["artwork_b64"];
 	        this.summary = source["summary"];
+	        this.media_kind = source["media_kind"];
+	        this.video_codec = source["video_codec"];
+	        this.audio_codec = source["audio_codec"];
+	        this.video_width = source["video_width"];
+	        this.video_height = source["video_height"];
+	        this.duration_label = source["duration_label"];
+	        this.apple_video_ready = source["apple_video_ready"];
+	        this.apple_video_detail = source["apple_video_detail"];
 	    }
 	}
 	export class AlbumFolderReadResult {
@@ -808,6 +824,7 @@ export namespace media {
 	    optimize_artwork?: boolean;
 	    write_cover_sidecar?: boolean;
 	    mp4box_reembed: boolean;
+	    output_path?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WriteAudioTagsInput(source);
@@ -832,6 +849,7 @@ export namespace media {
 	        this.optimize_artwork = source["optimize_artwork"];
 	        this.write_cover_sidecar = source["write_cover_sidecar"];
 	        this.mp4box_reembed = source["mp4box_reembed"];
+	        this.output_path = source["output_path"];
 	    }
 	}
 
@@ -1146,6 +1164,8 @@ export namespace youtube {
 	    disc_number: number;
 	    track_total: number;
 	    art_url?: string;
+	    cover_path?: string;
+	    art_source?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DownloadMeta(source);
@@ -1164,6 +1184,8 @@ export namespace youtube {
 	        this.disc_number = source["disc_number"];
 	        this.track_total = source["track_total"];
 	        this.art_url = source["art_url"];
+	        this.cover_path = source["cover_path"];
+	        this.art_source = source["art_source"];
 	    }
 	}
 

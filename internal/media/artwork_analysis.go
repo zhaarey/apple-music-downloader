@@ -118,3 +118,33 @@ func AnalyzeEmbeddedArtworkAccent(m4aPath string, includeOptimizedPreview bool) 
 	}
 	return AnalyzeArtworkAccent(raw, includeOptimizedPreview)
 }
+
+func rgbToHSL(r, g, b float64) (h, s, l float64) {
+	max := math.Max(r, math.Max(g, b))
+	min := math.Min(r, math.Min(g, b))
+	l = (max + min) / 2
+	if max == min {
+		return 0, 0, l
+	}
+	d := max - min
+	if l > 0.5 {
+		s = d / (2 - max - min)
+	} else {
+		s = d / (max + min)
+	}
+	switch max {
+	case r:
+		h = (g-b)/d + func() float64 {
+			if g < b {
+				return 6
+			}
+			return 0
+		}()
+	case g:
+		h = (b-r)/d + 2
+	default:
+		h = (r-g)/d + 4
+	}
+	h /= 6
+	return h, s, l
+}

@@ -29,6 +29,24 @@ type ffprobeStream struct {
 	PixFmt     string `json:"pix_fmt"`
 	SampleRate string `json:"sample_rate"`
 	Channels   int    `json:"channels"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Disposition struct {
+		AttachedPic int `json:"attached_pic"`
+	} `json:"disposition"`
+}
+
+// VideoFileInfo describes an MP4 music video for the Tag Editor.
+type VideoFileInfo struct {
+	VideoCodec    string `json:"video_codec"`
+	AudioCodec    string `json:"audio_codec"`
+	Width         int    `json:"width"`
+	Height        int    `json:"height"`
+	DurationMs    int    `json:"duration_ms"`
+	DurationLabel string `json:"duration_label"`
+	AudioChannels int    `json:"audio_channels"`
+	AppleReady    bool   `json:"apple_ready"`
+	AppleDetail   string `json:"apple_detail,omitempty"`
 }
 
 // VideoProbeInfo describes streams in a video file for Apple Music validation.
@@ -149,6 +167,56 @@ func ValidateAppleMusicMP4(ffmpegConfigured, path string) error {
 	}
 	_, err = validateAppleMusicStreams(result.Streams)
 	return err
+}
+
+func primaryVideoStream(streams []ffprobeStream) (ffprobeStream, bool) {
+	for _, stream := range streams {
+		if stream.CodecType != "video" || stream.Disposition.AttachedPic == 1 {
+			continue
+		}
+		if isH264Codec(stream.CodecName) {
+			return stream, true
+		}
+	}
+	for _, stream := range streams {
+		if stream.CodecType == "video" && stream.Disposition.AttachedPic != 1 {
+			return stream, true
+		}
+	}
+	return ffprobeStream{}, false
+}
+
+// ProbeVideoFile reads MP4 stream details for the Tag Editor and Apple Music checks.
+func ProbeVideoFile(ffmpegConfigured, path string) (VideoFileInfo, error) {
+	result, err := probeFile(ffmpegConfigured, path)
+	if err != nil {
+		return VideoFileInfo{}, err
+	}
+	info := VideoFileInfo{}
+	if result.Format.Duration != "" {
+		if sec, err := strconv.ParseFloat(result.Format.Duration, 64); err == nil {
+			info.DurationMs = int(sec * 1000)
+			info.DurationLabel = FormatDuration(info.DurationMs, info.DurationMs >= 3600000)
+		}
+	}
+	streamInfo, err := validateAppleMusicStreams(result.Streams)
+	if err != nil {
+		info.AppleDetail = err.Error()
+	} else {
+		info.AppleReady = true
+		info.AppleDetail = "H.264 video + AAC stereo"
+	}
+	info.VideoCodec = streamInfo.VideoCodec
+	info.AudioCodec = streamInfo.AudioCodec
+	info.AudioChannels = streamInfo.AudioChannels
+	if video, ok := primaryVideoStream(result.Streams); ok {
+		info.Width = video.Width
+		info.Height = video.Height
+		if info.VideoCodec == "" {
+			info.VideoCodec = video.CodecName
+		}
+	}
+	return info, nil
 }
 
 func formatSummary(info SourceInfo) string {

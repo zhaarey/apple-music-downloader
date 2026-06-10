@@ -30,6 +30,14 @@ type AudioTagInfo struct {
 	ArtworkMime  string `json:"artwork_mime,omitempty"`
 	ArtworkB64  string `json:"artwork_b64,omitempty"`
 	Summary     string `json:"summary"`
+	MediaKind      string `json:"media_kind,omitempty"` // audio | video
+	VideoCodec     string `json:"video_codec,omitempty"`
+	AudioCodec     string `json:"audio_codec,omitempty"`
+	VideoWidth     int    `json:"video_width,omitempty"`
+	VideoHeight    int    `json:"video_height,omitempty"`
+	DurationLabel  string `json:"duration_label,omitempty"`
+	AppleVideoReady bool  `json:"apple_video_ready,omitempty"`
+	AppleVideoDetail string `json:"apple_video_detail,omitempty"`
 }
 
 // ReadAudioTags reads Apple Music–friendly tags from an M4A file.
@@ -83,7 +91,42 @@ func ReadAudioTags(path string) (AudioTagInfo, error) {
 	if out.Album != "" {
 		out.Summary += " · " + out.Album
 	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".mp4":
+		out.MediaKind = "video"
+	default:
+		out.MediaKind = "audio"
+	}
 	return out, nil
+}
+
+// EnrichVideoTagInfo attaches ffprobe stream details for MP4 music videos.
+func EnrichVideoTagInfo(ffmpegConfigured, path string, info AudioTagInfo) AudioTagInfo {
+	if !strings.EqualFold(filepath.Ext(path), ".mp4") {
+		return info
+	}
+	info.MediaKind = "video"
+	probe, err := ProbeVideoFile(ffmpegConfigured, path)
+	if err != nil {
+		if info.Summary != "" {
+			info.Summary += " · video probe failed"
+		}
+		return info
+	}
+	info.VideoCodec = probe.VideoCodec
+	info.AudioCodec = probe.AudioCodec
+	info.VideoWidth = probe.Width
+	info.VideoHeight = probe.Height
+	info.DurationLabel = probe.DurationLabel
+	info.AppleVideoReady = probe.AppleReady
+	info.AppleVideoDetail = probe.AppleDetail
+	if info.DurationLabel != "" {
+		info.Summary += " · " + info.DurationLabel
+	}
+	if info.VideoWidth > 0 && info.VideoHeight > 0 {
+		info.Summary += fmt.Sprintf(" · %dx%d", info.VideoWidth, info.VideoHeight)
+	}
+	return info
 }
 
 // AudioTagInfoFromPath builds minimal tag info from the file path when mp4tag cannot read the file.
@@ -141,6 +184,7 @@ type WriteAudioTagsInput struct {
 	OptimizeArtwork  *bool  `json:"optimize_artwork"`
 	WriteCoverSidecar *bool `json:"write_cover_sidecar"`
 	Mp4boxReembed    bool   `json:"mp4box_reembed"`
+	OutputPath       string `json:"output_path,omitempty"`
 }
 
 func boolOrDefault(ptr *bool, def bool) bool {
@@ -150,9 +194,48 @@ func boolOrDefault(ptr *bool, def bool) bool {
 	return *ptr
 }
 
-// WriteAudioTags applies metadata to an existing M4A file.
+func resolveWriteTarget(src, output string) (string, error) {
+	src = strings.TrimSpace(src)
+	if src == "" {
+		return "", fmt.Errorf("no file selected")
+	}
+	out := strings.TrimSpace(output)
+	if out == "" {
+		return src, nil
+	}
+	if strings.EqualFold(filepath.Clean(src), filepath.Clean(out)) {
+		return src, nil
+	}
+	return out, nil
+}
+
+func copyMediaFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+// WriteAudioTags applies metadata to an existing M4A or MP4 file.
 func WriteAudioTags(input WriteAudioTagsInput) error {
-	optimize := boolOrDefault(input.OptimizeArtwork, true)
+	target, err := resolveWriteTarget(input.Path, input.OutputPath)
+	if err != nil {
+		return err
+	}
+	optimize := boolOrDefault(input.OptimizeArtwork, false)
 	writeSidecar := boolOrDefault(input.WriteCoverSidecar, true)
 	tags := TrackTags{
 		Title:           input.Title,
@@ -171,24 +254,60 @@ func WriteAudioTags(input WriteAudioTagsInput) error {
 		Mp4boxReembed:   input.Mp4boxReembed,
 		WriteCoverSidecar: writeSidecar,
 	}
+	isVideo := strings.EqualFold(filepath.Ext(input.Path), ".mp4")
 	if input.ClearArtwork {
 		tags.CoverPath = ""
 		tags.CoverData = nil
-		return writeTrackTagsClearArt(input.Path, tags)
+		if err := writeTrackTagsClearArtAt(input.Path, target, tags, isVideo); err != nil {
+			return err
+		}
+		return writeCoverSidecarIfNeeded(target, tags, false, writeSidecar)
 	}
 	newCover := tags.CoverPath != ""
-	if err := WriteTrackTags(input.Path, tags); err != nil {
+	if err := writeTrackTagsAt(input.Path, target, tags, isVideo); err != nil {
 		return err
 	}
-	if newCover && writeSidecar {
-		if cover, err := PrepareCoverBytes(tags); err == nil && len(cover) > 0 {
-			_, _ = WriteCoverSidecarForDir(filepath.Dir(input.Path), cover)
-		}
+	return writeCoverSidecarIfNeeded(target, tags, newCover, writeSidecar)
+}
+
+func writeCoverSidecarIfNeeded(target string, tags TrackTags, newCover, writeSidecar bool) error {
+	if !newCover || !writeSidecar {
+		return nil
+	}
+	if cover, err := PrepareCoverBytes(tags); err == nil && len(cover) > 0 {
+		_, _ = WriteCoverSidecarForDir(filepath.Dir(target), cover)
 	}
 	return nil
 }
 
+func writeTrackTagsAt(src, dst string, tags TrackTags, isVideo bool) error {
+	if isVideo {
+		return WriteVideoTrackTagsTo("", src, dst, tags)
+	}
+	if !strings.EqualFold(filepath.Clean(src), filepath.Clean(dst)) {
+		if err := copyMediaFile(src, dst); err != nil {
+			return fmt.Errorf("copy for save as: %w", err)
+		}
+	}
+	return WriteTrackTags(dst, tags)
+}
+
+func writeTrackTagsClearArtAt(src, dst string, tags TrackTags, isVideo bool) error {
+	if isVideo {
+		return WriteVideoTrackTagsTo("", src, dst, tags)
+	}
+	if !strings.EqualFold(filepath.Clean(src), filepath.Clean(dst)) {
+		if err := copyMediaFile(src, dst); err != nil {
+			return fmt.Errorf("copy for save as: %w", err)
+		}
+	}
+	return writeTrackTagsClearArt(dst, tags)
+}
+
 func writeTrackTagsClearArt(path string, tags TrackTags) error {
+	if strings.EqualFold(filepath.Ext(path), ".mp4") {
+		return WriteVideoTrackTags("", path, tags)
+	}
 	t, err := buildMP4Tags(tags)
 	if err != nil {
 		return err
@@ -237,14 +356,14 @@ func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4
 		// Metadata-only save: leave embedded artwork bytes untouched (avoids re-reading corrupt covr atoms).
 		return nil, nil
 	}
-	coverData, err := PrepareCoverBytes(tags)
+	coverData, format, err := PrepareCoverForEmbed(tags)
 	if err != nil || len(coverData) == 0 {
 		if err == nil {
 			err = os.ErrNotExist
 		}
 		return nil, fmt.Errorf("artwork: %w", err)
 	}
-	return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: coverData}}, nil
+	return []*mp4tag.MP4Picture{{Format: format, Data: coverData}}, nil
 }
 
 func buildMP4Tags(tags TrackTags) (*mp4tag.MP4Tags, error) {

@@ -258,6 +258,10 @@ export function TagPickAudioFile() {
   return window['go']['main']['App']['TagPickAudioFile']();
 }
 
+export function TagPickSaveMediaFile(arg1) {
+  return window['go']['main']['App']['TagPickSaveMediaFile'](arg1);
+}
+
 export function TagPreviewOptimizedArtwork(arg1) {
   return window['go']['main']['App']['TagPreviewOptimizedArtwork'](arg1);
 }

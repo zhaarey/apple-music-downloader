@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   TagPickAudioFile,
+  TagPickSaveMediaFile,
   TagPickArtworkFile,
   TagReadFile,
   TagWriteFile,
@@ -23,6 +24,7 @@ import PageShell from '../../components/PageShell'
 import StatusToast from '../../components/StatusToast'
 import SyncValidationPanel, { SyncTroubleshootingPanel } from './SyncValidationPanel'
 import AlbumBulkTagEditor from './AlbumBulkTagEditor'
+import VideoTagInfoPanel from './VideoTagInfoPanel'
 import { useTagEditorDrop } from '../../hooks/useTagEditorDrop'
 import { resolveMediaURL } from '../../lib/resolveMediaURL'
 import { formatActionError } from '../../lib/formatActionError'
@@ -45,6 +47,10 @@ const EMPTY = {
 function basename(path) {
   const parts = String(path || '').split(/[/\\]/)
   return parts[parts.length - 1] || path
+}
+
+function isVideoPath(path) {
+  return String(path || '').toLowerCase().endsWith('.mp4')
 }
 
 function albumFolder(path) {
@@ -122,7 +128,7 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
   const [recentFiles, setRecentFiles] = useState([])
   const [albumLoadRequest, setAlbumLoadRequest] = useState(null)
   const [albumBusy, setAlbumBusy] = useState(false)
-  const [optimizeArtwork, setOptimizeArtwork] = useState(true)
+  const [optimizeArtwork, setOptimizeArtwork] = useState(false)
   const [mp4boxReembed, setMp4boxReembed] = useState(false)
   const [artworkAnalysis, setArtworkAnalysis] = useState(null)
   const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')
@@ -301,9 +307,11 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
     return Number.isFinite(n) && n > 0 ? Math.round(n) : 0
   }
 
+  const isVideo = isVideoPath(tags.path)
+
   const validateSync = async () => {
     if (!tags.path) {
-      showToast('Open an audio file first.', 'error')
+      showToast('Open a file first.', 'error')
       return
     }
     setValidating(true)
@@ -319,16 +327,18 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
     }
   }
 
-  const save = async () => {
+  const persistTags = async (outputPath = '') => {
     if (!tags.path) {
-      showToast('Open an audio file first.', 'error')
+      showToast('Open a file first.', 'error')
       return
     }
+    const sourcePath = tags.path
     setSaving(true)
     setSaved(false)
     try {
       const updated = await TagWriteFile({
-        path: tags.path,
+        path: sourcePath,
+        output_path: outputPath,
         title: tags.title,
         artist: tags.artist,
         album: tags.album,
@@ -344,19 +354,24 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
         sort_tags: true,
         optimize_artwork: optimizeArtwork,
         write_cover_sidecar: true,
-        mp4box_reembed: mp4boxReembed,
+        mp4box_reembed: isVideo ? false : mp4boxReembed,
       })
+      const savedPath = outputPath || sourcePath
       setFileInfo(updated)
-      setTags(tagsFromInfo(updated, tags.path))
+      setTags(tagsFromInfo(updated, savedPath))
       setCoverPath('')
       setCoverPreviewURL('')
       setOptimizedPreviewURL('')
       setArtworkAnalysis(null)
       setClearArtwork(false)
       setSaved(true)
-      const validation = await ValidateIPhoneSync(tags.path)
+      setRecentFiles((prev) => [savedPath, ...prev.filter((p) => p !== savedPath)].slice(0, 15))
+      const validation = await ValidateIPhoneSync(savedPath)
       setSyncResult(validation)
-      showToast(validation.ready ? 'Tags saved — ready for iPhone sync.' : 'Tags saved — review sync checklist below.')
+      const saveLabel = outputPath ? `Saved as ${basename(savedPath)}` : 'Tags saved'
+      showToast(
+        validation.ready ? `${saveLabel} — ready for iPhone sync.` : `${saveLabel} — review sync checklist below.`,
+      )
       setTimeout(() => setSaved(false), 2200)
     } catch (e) {
       reportFrontendError('MetadataTab.save', e)
@@ -366,7 +381,14 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
     }
   }
 
-  const saveButtonLabel = saved ? 'Saved' : saving ? 'Saving…' : 'Save tags'
+  const save = () => persistTags('')
+
+  const saveAs = async () => {
+    if (!tags.path || saving) return
+    const dest = await TagPickSaveMediaFile(tags.path)
+    if (!dest) return
+    await persistTags(dest)
+  }
 
   const hintAlbumFolder =
     editorMode === 'single' && tags.path ? albumFolder(tags.path) : editorMode === 'album' ? bulkAlbumFolder : ''
@@ -386,7 +408,9 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-accent/50 bg-accent/10 backdrop-blur-[1px]">
           <div className="rounded-xl border border-accent/30 bg-surface-raised/95 px-6 py-4 text-center shadow-lg">
             <p className="text-sm font-medium text-white">Drop to open in Tag Editor</p>
-            <p className="mt-1 text-xs text-white/55">One .m4a → single file · Folder or multiple tracks → album bulk</p>
+            <p className="mt-1 text-xs text-white/55">
+              One .m4a or .mp4 → single file · Folder or multiple tracks → album bulk
+            </p>
           </div>
         </div>
       )}
@@ -394,8 +418,8 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h2 className="text-xl font-semibold">Tag Editor</h2>
         <p className="mt-1 text-sm text-white/50">
-          Edit title, album, track numbers, and artwork on local M4A files before syncing to Apple Music. Drag and drop a
-          file or folder anywhere here.
+          Edit title, album, track numbers, and artwork on local M4A and MP4 music videos before syncing to Apple Music.
+          Drag and drop a file or folder anywhere here.
         </p>
         <div className="mt-4 inline-flex rounded-lg border border-white/10 bg-black/20 p-0.5">
           <button
@@ -425,7 +449,7 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
             disabled={loading || saving}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium transition-all duration-200 ease-apple disabled:opacity-50"
           >
-            {loading ? 'Loading…' : 'Open audio file'}
+            {loading ? 'Loading…' : 'Open file'}
           </button>
           {tags.path && (
             <button
@@ -459,9 +483,16 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
         </div>
         )}
         {editorMode === 'single' && tags.path && (
-          <p className="mt-2 truncate text-xs text-white/45" title={tags.path}>
-            {tags.path}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {isVideo && (
+              <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-200">
+                MP4 music video
+              </span>
+            )}
+            <p className="min-w-0 flex-1 truncate text-xs text-white/45" title={tags.path}>
+              {tags.path}
+            </p>
+          </div>
         )}
         {editorMode === 'single' && tags.path && albumFolder(tags.path) && (
           <p className="mt-1 truncate text-xs text-white/35" title={albumFolder(tags.path)}>
@@ -499,7 +530,7 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
             </section>
           )}
           <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/45">
-            Open an .m4a file or drag one here. Drop a folder (or several tracks from the same album) for bulk edit.
+            Open an .m4a or .mp4 file, or drag one here. Drop a folder (or several tracks from the same album) for bulk edit.
           </div>
         </div>
       ) : editorMode === 'album' ? (
@@ -510,35 +541,44 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
           onBusyChange={setAlbumBusy}
         />
       ) : (
-        <div
-          className={`grid gap-4 transition-opacity duration-300 ease-apple lg:grid-cols-[12rem_1fr] ${
-            saving ? 'pointer-events-none opacity-70' : 'opacity-100'
-          }`}
-        >
-          <ArtworkAppleOptions
-            previewSrc={artworkPreview}
-            optimizedPreviewSrc={optimizedPreviewURL}
-            analysis={artworkAnalysis}
-            optimizeArtwork={optimizeArtwork}
-            onOptimizeArtworkChange={setOptimizeArtwork}
-            mp4boxReembed={mp4boxReembed}
-            onMp4boxReembedChange={setMp4boxReembed}
-            showFolderCover={Boolean(tags.path && albumFolder(tags.path))}
-            onUseFolderCover={useFolderCover}
-            onReplace={pickArtwork}
-            onRemove={() => {
-              setClearArtwork(true)
-              setCoverPath('')
-              setCoverPreviewURL('')
-              setOptimizedPreviewURL('')
-              setArtworkAnalysis(null)
-              setSaved(false)
-            }}
-            disabled={saving}
-          />
+        <div className="flex flex-col gap-4">
+          <VideoTagInfoPanel fileInfo={fileInfo} />
+          <div
+            className={`grid gap-4 transition-opacity duration-300 ease-apple lg:grid-cols-[12rem_1fr] ${
+              saving ? 'pointer-events-none opacity-70' : 'opacity-100'
+            }`}
+          >
+            <ArtworkAppleOptions
+              previewSrc={artworkPreview}
+              optimizedPreviewSrc={optimizedPreviewURL}
+              analysis={artworkAnalysis}
+              optimizeArtwork={optimizeArtwork}
+              onOptimizeArtworkChange={setOptimizeArtwork}
+              mp4boxReembed={mp4boxReembed}
+              onMp4boxReembedChange={setMp4boxReembed}
+              showMp4boxReembed={!isVideo}
+              showFolderCover={Boolean(tags.path && albumFolder(tags.path))}
+              onUseFolderCover={useFolderCover}
+              onReplace={pickArtwork}
+              onRemove={() => {
+                setClearArtwork(true)
+                setCoverPath('')
+                setCoverPreviewURL('')
+                setOptimizedPreviewURL('')
+                setArtworkAnalysis(null)
+                setSaved(false)
+              }}
+              disabled={saving}
+            />
 
-          <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
-            <h3 className="text-sm font-medium">Metadata</h3>
+            <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
+              <h3 className="text-sm font-medium">{isVideo ? 'Music video metadata' : 'Metadata'}</h3>
+              {isVideo && (
+                <p className="mt-1 text-xs text-white/45">
+                  Title, artist, album, and artwork are embedded for the iPhone Music library. Video and audio streams are
+                  not re-encoded on save.
+                </p>
+              )}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {[
                 ['title', 'Title'],
@@ -577,21 +617,32 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving}
-              aria-busy={saving}
-              className={`mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all duration-300 ease-apple disabled:cursor-wait ${
-                saved
-                  ? 'bg-green-600 text-white shadow-sm shadow-green-900/30'
-                  : 'bg-accent text-white hover:bg-accent/90 disabled:opacity-80'
-              }`}
-            >
-              <SaveButtonIcon saving={saving} saved={saved} />
-              {saveButtonLabel}
-            </button>
-          </section>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving}
+                  aria-busy={saving}
+                  className={`flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all duration-300 ease-apple disabled:cursor-wait ${
+                    saved
+                      ? 'bg-green-600 text-white shadow-sm shadow-green-900/30'
+                      : 'bg-accent text-white hover:bg-accent/90 disabled:opacity-80'
+                  }`}
+                >
+                  <SaveButtonIcon saving={saving} saved={saved} />
+                  {saved ? 'Saved' : saving ? 'Saving…' : 'Save to current file'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveAs()}
+                  disabled={saving}
+                  className="rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium transition-colors duration-200 ease-apple hover:bg-white/5 disabled:opacity-50"
+                >
+                  Save as new file…
+                </button>
+              </div>
+            </section>
+          </div>
         </div>
       )}
 

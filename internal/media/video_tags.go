@@ -13,7 +13,12 @@ import (
 // WriteVideoTrackTags embeds metadata into an MP4 video using ffmpeg stream copy.
 // go-mp4tag cannot reliably rewrite video containers (moov layout / multiple tracks).
 func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
-	info, err := os.Stat(path)
+	return WriteVideoTrackTagsTo(ffmpegConfigured, path, path, tags)
+}
+
+// WriteVideoTrackTagsTo writes tagged MP4 to dst (stream copy from src). When src != dst the source file is kept.
+func WriteVideoTrackTagsTo(ffmpegConfigured, srcPath, dstPath string, tags TrackTags) error {
+	info, err := os.Stat(srcPath)
 	if err != nil {
 		return err
 	}
@@ -22,7 +27,7 @@ func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
 	}
 
 	ffmpeg := appconfig.FFmpegPath(ffmpegConfigured)
-	dir := filepath.Dir(path)
+	dir := filepath.Dir(dstPath)
 	tmp, err := os.CreateTemp(dir, ".amd-tag-*.mp4")
 	if err != nil {
 		return err
@@ -31,7 +36,7 @@ func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
 	_ = tmp.Close()
 	defer os.Remove(tmpPath)
 
-	args := []string{"-y", "-loglevel", "error", "-i", path}
+	args := []string{"-y", "-loglevel", "error", "-i", srcPath}
 
 	var coverCleanup func()
 	coverPath, coverCleanup, coverErr := PrepareCoverFile(tags)
@@ -40,9 +45,14 @@ func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
 		args = append(args, "-i", coverPath)
 	}
 
-	args = append(args, "-map", "0")
+	args = append(args, "-map", "0:v:0", "-map", "0:a:0")
 	if coverPath != "" {
-		args = append(args, "-map", "1", "-c", "copy", "-metadata:s:t:0", "mimetype=image/jpeg")
+		args = append(args,
+			"-map", "1",
+			"-c", "copy",
+			"-disposition:v:1", "attached_pic",
+			"-metadata:s:v:1", "mimetype=image/jpeg",
+		)
 	} else {
 		args = append(args, "-c", "copy")
 	}
@@ -59,10 +69,10 @@ func WriteVideoTrackTags(ffmpegConfigured, path string, tags TrackTags) error {
 		return fmt.Errorf("ffmpeg metadata embed failed: %s", msg)
 	}
 
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(dstPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("replace tagged video: %w", err)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := os.Rename(tmpPath, dstPath); err != nil {
 		return fmt.Errorf("replace tagged video: %w", err)
 	}
 	return nil

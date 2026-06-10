@@ -415,6 +415,17 @@ export default function DownloadTab({
       }
     }
 
+    if (youtubeMode) {
+      const youtubeMetaDraft = metaPayload(metaByTrack, selected)
+      const missingCustomArt = youtubeMetaDraft.find(
+        (m) => m?.art_source === 'custom' && !String(m.cover_path || '').trim(),
+      )
+      if (missingCustomArt) {
+        setFetchError('Choose a custom artwork image or switch artwork to YouTube thumbnail.')
+        return
+      }
+    }
+
     setFetchError('')
     setPreflight(null)
 
@@ -728,6 +739,7 @@ export default function DownloadTab({
                 selected={selected}
                 metaByTrack={metaByTrack}
                 disabled={downloading}
+                saveVideo={saveVideo}
                 onChange={(num, patch) =>
                   setMetaByTrack((prev) => ({
                     ...prev,
@@ -757,7 +769,7 @@ export default function DownloadTab({
                 <span>
                   <span className="font-medium text-white/90">Also save MP4 video copy</span>
                   <span className="mt-1 block text-xs text-white/50">
-                    Standalone H.264 MP4 with validated AAC stereo audio — plays in the iPhone Music app without the separate .m4a file.
+                    Standalone H.264 MP4 with validated AAC stereo audio and embedded artwork — plays in the iPhone Music app without the separate .m4a file.
                     Adds extra download and conversion time.
                   </span>
                 </span>

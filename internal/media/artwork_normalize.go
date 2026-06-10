@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"math"
 )
@@ -18,21 +18,21 @@ type CoverNormalizeOptions struct {
 	TargetEdgePx       int
 }
 
-// DefaultCoverNormalizeOptions is used for Tag Editor saves and download embeds.
+// DefaultCoverNormalizeOptions is used when the user opts into Apple Music UI optimization.
 func DefaultCoverNormalizeOptions() CoverNormalizeOptions {
 	return CoverNormalizeOptions{
 		OptimizeForAppleUI: true,
 		SquareCrop:         true,
 		TrimLetterbox:      true,
-		SaturationBoost:    0.08,
+		SaturationBoost:    0,
 		TargetEdgePx:       TargetCoverEdgePx,
 	}
 }
 
-// LegacyCoverNormalizeOptions only downscales oversized images (no square crop).
-func LegacyCoverNormalizeOptions() CoverNormalizeOptions {
+// CoverDownscaleOnlyOptions shrinks only when above MaxCoverEdgePx — no crop or color changes.
+func CoverDownscaleOnlyOptions() CoverNormalizeOptions {
 	return CoverNormalizeOptions{
-		TargetEdgePx: TargetCoverEdgePx,
+		TargetEdgePx: MaxCoverEdgePx,
 	}
 }
 
@@ -41,10 +41,16 @@ func NormalizeCoverWithOptions(data []byte, opts CoverNormalizeOptions) ([]byte,
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty cover data")
 	}
+	if !opts.OptimizeForAppleUI {
+		if ok, err := coverWithinEdgeLimit(data, opts.targetEdge()); err == nil && ok {
+			return data, nil
+		}
+	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("decode cover: %w", err)
 	}
+	img = toRGBA(img)
 	if opts.OptimizeForAppleUI {
 		if opts.TrimLetterbox {
 			img = trimUniformBorders(img)
@@ -52,11 +58,31 @@ func NormalizeCoverWithOptions(data []byte, opts CoverNormalizeOptions) ([]byte,
 		if opts.SquareCrop {
 			img = centerSquareCrop(img)
 		}
-		if opts.SaturationBoost > 0 {
-			img = boostSaturation(toRGBA(img), opts.SaturationBoost)
-		}
 	}
-	return encodeCoverJPEG(resizeCoverImage(img, opts.targetEdge()), coverJPEGQuality)
+	quality := coverJPEGQuality
+	if !opts.OptimizeForAppleUI {
+		quality = 95
+	}
+	return encodeCoverJPEG(resizeCoverImage(img, opts.targetEdge()), quality)
+}
+
+func coverWithinEdgeLimit(data []byte, maxEdge int) (bool, error) {
+	if maxEdge <= 0 {
+		maxEdge = MaxCoverEdgePx
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return false, err
+	}
+	w, h := cfg.Width, cfg.Height
+	if w <= 0 || h <= 0 {
+		return false, fmt.Errorf("invalid cover dimensions")
+	}
+	long := w
+	if h > long {
+		long = h
+	}
+	return long <= maxEdge, nil
 }
 
 func (o CoverNormalizeOptions) targetEdge() int {
@@ -203,93 +229,6 @@ func toRGBA(img image.Image) *image.RGBA {
 	}
 	b := img.Bounds()
 	out := image.NewRGBA(b)
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			out.Set(x, y, img.At(x, y))
-		}
-	}
+	draw.Draw(out, b, img, b.Min, draw.Src)
 	return out
-}
-
-func boostSaturation(img *image.RGBA, amount float64) *image.RGBA {
-	b := img.Bounds()
-	out := image.NewRGBA(b)
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			r, g, bl, a := img.At(x, y).RGBA()
-			h, s, l := rgbToHSL(float64(r)/65535, float64(g)/65535, float64(bl)/65535)
-			s = math.Min(1, s*(1+amount))
-			nr, ng, nb := hslToRGB(h, s, l)
-			out.SetRGBA(x, y, color.RGBA{
-				R: uint8(math.Round(nr * 255)),
-				G: uint8(math.Round(ng * 255)),
-				B: uint8(math.Round(nb * 255)),
-				A: uint8(a >> 8),
-			})
-		}
-	}
-	return out
-}
-
-func rgbToHSL(r, g, b float64) (h, s, l float64) {
-	max := math.Max(r, math.Max(g, b))
-	min := math.Min(r, math.Min(g, b))
-	l = (max + min) / 2
-	if max == min {
-		return 0, 0, l
-	}
-	d := max - min
-	if l > 0.5 {
-		s = d / (2 - max - min)
-	} else {
-		s = d / (max + min)
-	}
-	switch max {
-	case r:
-		h = (g-b)/d + func() float64 {
-			if g < b {
-				return 6
-			}
-			return 0
-		}()
-	case g:
-		h = (b-r)/d + 2
-	default:
-		h = (r-g)/d + 4
-	}
-	h /= 6
-	return h, s, l
-}
-
-func hslToRGB(h, s, l float64) (r, g, b float64) {
-	if s == 0 {
-		return l, l, l
-	}
-	var q float64
-	if l < 0.5 {
-		q = l * (1 + s)
-	} else {
-		q = l + s - l*s
-	}
-	p := 2*l - q
-	return hueToRGB(p, q, h+1/3), hueToRGB(p, q, h), hueToRGB(p, q, h-1/3)
-}
-
-func hueToRGB(p, q, t float64) float64 {
-	if t < 0 {
-		t += 1
-	}
-	if t > 1 {
-		t -= 1
-	}
-	if t < 1.0/6.0 {
-		return p + (q-p)*6*t
-	}
-	if t < 1.0/2.0 {
-		return q
-	}
-	if t < 2.0/3.0 {
-		return p + (q-p)*(2.0/3.0-t)*6
-	}
-	return p
 }
