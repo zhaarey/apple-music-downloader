@@ -29,6 +29,9 @@ export default {
       transitionTimingFunction: {
         apple: 'cubic-bezier(0.2, 0, 0, 1)',
       },
+      maxWidth: {
+        content: '72rem', // 1152px — main tab column on desktop
+      },
     },
   },
   plugins: [],

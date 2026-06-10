@@ -10,6 +10,10 @@ export function CheckDependencies() {
   return window['go']['main']['App']['CheckDependencies']();
 }
 
+export function CheckTrackDuplicates(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['CheckTrackDuplicates'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
 export function ClearAllSyncCaches() {
   return window['go']['main']['App']['ClearAllSyncCaches']();
 }
@@ -78,6 +82,10 @@ export function LogFrontendError(arg1, arg2, arg3) {
   return window['go']['main']['App']['LogFrontendError'](arg1, arg2, arg3);
 }
 
+export function OpenApplePurgeLog() {
+  return window['go']['main']['App']['OpenApplePurgeLog']();
+}
+
 export function OpenConfigFolder() {
   return window['go']['main']['App']['OpenConfigFolder']();
 }
@@ -120,6 +128,10 @@ export function PreviewURL(arg1) {
 
 export function RevealInFolder(arg1) {
   return window['go']['main']['App']['RevealInFolder'](arg1);
+}
+
+export function RunAppleMusicDeepPurge(arg1) {
+  return window['go']['main']['App']['RunAppleMusicDeepPurge'](arg1);
 }
 
 export function RunSyncRepair(arg1) {
@@ -208,6 +220,10 @@ export function SpliceSetTrackStart(arg1, arg2, arg3) {
 
 export function SpliceStartExport(arg1) {
   return window['go']['main']['App']['SpliceStartExport'](arg1);
+}
+
+export function StartBulkDownloadJob(arg1, arg2) {
+  return window['go']['main']['App']['StartBulkDownloadJob'](arg1, arg2);
 }
 
 export function StartDownload(arg1, arg2, arg3, arg4, arg5) {

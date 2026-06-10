@@ -141,3 +141,11 @@ func (a *App) ClearAllSyncCaches() media.CacheClearResult {
 func (a *App) OpenSyncRepairLog() error {
 	return osutil.RevealInFileManager(platform.SyncRepairLogPath())
 }
+
+func (a *App) RunAppleMusicDeepPurge(elevated bool) media.ApplePurgeResult {
+	return media.RunAppleMusicDeepPurge(elevated)
+}
+
+func (a *App) OpenApplePurgeLog() error {
+	return osutil.RevealInFileManager(platform.ApplePurgeLogPath())
+}

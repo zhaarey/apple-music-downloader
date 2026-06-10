@@ -100,14 +100,13 @@ func ValidateAlbumSync(ffmpegConfigured, root string, recursive bool) (FolderSyn
 				for _, tp := range g.tracks {
 					if out.Files[i].Path == tp {
 						out.Files[i].Checks = append(out.Files[i].Checks, check("album_art_match", "Album artwork match", false,
-							"Tracks in this album folder have different embedded covers — use Prepare album for sync", "fail"))
-						out.Files[i].Ready = false
-						out.Files[i].Summary = "Album artwork mismatch across tracks"
+							"Tracks in this folder have different embedded covers — iPhone may show one art for the album; fix each track in Tag Editor if needed", "warn"))
 					}
 				}
 			}
 		}
 	}
+	out.FolderChecks = folderArtworkDiagnostics(paths)
 	out.Total = len(out.Files)
 	for _, f := range out.Files {
 		if f.Ready {
@@ -123,6 +122,51 @@ func ValidateAlbumSync(ffmpegConfigured, root string, recursive bool) (FolderSyn
 		out.Summary = fmt.Sprintf("%d of %d track(s) ready — fix issues or run Prepare album for sync.", out.ReadyCount, out.Total)
 	}
 	return out, nil
+}
+
+func folderArtworkDiagnostics(paths []string) []SyncCheck {
+	if len(paths) == 0 {
+		return nil
+	}
+	checks := []SyncCheck{}
+	hashSet := map[string]struct{}{}
+	albums := map[string]struct{}{}
+	albumArtists := map[string]struct{}{}
+	for _, p := range paths {
+		if h, err := EmbeddedCoverHash(p); err == nil && h != "" {
+			hashSet[h] = struct{}{}
+		}
+		if info, err := ReadAudioTags(p); err == nil {
+			if a := strings.TrimSpace(info.Album); a != "" {
+				albums[a] = struct{}{}
+			}
+			if aa := strings.TrimSpace(info.AlbumArtist); aa != "" {
+				albumArtists[aa] = struct{}{}
+			}
+		}
+	}
+	if len(albums) > 1 {
+		checks = append(checks, check("folder_multi_album", "One album per folder", false,
+			fmt.Sprintf("%d different album titles in this folder — bulk artwork update is only for a single album", len(albums)), "warn"))
+	}
+	switch len(hashSet) {
+	case 0:
+		checks = append(checks, check("folder_art_none", "Embedded artwork", false,
+			"No embedded covers found — iPhone sync needs art inside each file", "fail"))
+	case 1:
+		if len(paths) > 1 {
+			checks = append(checks, check("folder_art_same", "Embedded artwork", true,
+				"All tracks share one identical embedded cover (normal for a single album). iPhone shows one artwork per album — if the phone shows the wrong image, delete the album on the iPhone and re-sync; PC tools cannot reset device cache.", "pass"))
+		}
+	default:
+		checks = append(checks, check("folder_art_mixed", "Embedded artwork", false,
+			fmt.Sprintf("%d different embedded covers in this folder — Apple Music on iPhone may pick one for the whole album", len(hashSet)), "warn"))
+	}
+	if len(albumArtists) > 1 {
+		checks = append(checks, check("folder_multi_album_artist", "Album artist", false,
+			"Multiple album artists in one folder — iPhone may group or display artwork unexpectedly", "warn"))
+	}
+	return checks
 }
 
 func resolveGroupCover(dir string, tracks []string) ([]byte, string, error) {

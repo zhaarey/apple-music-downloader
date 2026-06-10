@@ -161,14 +161,15 @@ func clonePicture(p *mp4tag.MP4Picture) *mp4tag.MP4Picture {
 }
 
 func readExistingPictures(path string) ([]*mp4tag.MP4Picture, error) {
-	mp4, err := mp4tag.Open(path)
+	existing, err := readMP4TagsSafe(path)
 	if err != nil {
+		if isMissingMetaBoxErr(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	defer mp4.Close()
-	existing, err := mp4.Read()
-	if err != nil || existing == nil {
-		return nil, err
+	if existing == nil {
+		return nil, nil
 	}
 	out := make([]*mp4tag.MP4Picture, 0, len(existing.Pictures))
 	for _, p := range existing.Pictures {
@@ -208,8 +209,13 @@ func buildMP4Tags(tags TrackTags) (*mp4tag.MP4Tags, error) {
 	return BuildAppleMusicTags(tags)
 }
 
-func writeMP4Tags(path string, t *mp4tag.MP4Tags, pictures []*mp4tag.MP4Picture) error {
+func writeMP4Tags(path string, t *mp4tag.MP4Tags, pictures []*mp4tag.MP4Picture) (err error) {
 	t.Pictures = pictures
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("mp4tag write failed: %v", r)
+		}
+	}()
 	mp4, err := mp4tag.Open(path)
 	if err != nil {
 		return err

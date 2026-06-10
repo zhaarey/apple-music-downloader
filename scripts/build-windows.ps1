@@ -50,6 +50,58 @@ function Find-Wails {
     throw "Wails CLI not found. Run: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
 }
 
+function Get-RunningAuraProcesses {
+    @("AuraAudioDownloader", "amd", "aura") | ForEach-Object {
+        Get-Process -Name $_ -ErrorAction SilentlyContinue
+    } | Where-Object { $_ }
+}
+
+function Copy-FileWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [int]$Attempts = 5,
+        [int]$DelaySeconds = 1
+    )
+    for ($i = 1; $i -le $Attempts; $i++) {
+        try {
+            Copy-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
+            return $true
+        } catch [System.IO.IOException] {
+            if ($i -ge $Attempts) {
+                return $false
+            }
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+    return $false
+}
+
+function Publish-BuiltGui {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$DistDir
+    )
+    $dest = Join-Path $DistDir "AuraAudioDownloader.exe"
+    $running = @(Get-RunningAuraProcesses)
+    if ($running.Count -gt 0) {
+        $pids = ($running | ForEach-Object { $_.Id }) -join ", "
+        Write-Warning "Aura Audio Downloader may be running (PID: $pids). Close it to update dist\AuraAudioDownloader.exe."
+    }
+
+    if (Copy-FileWithRetry -Source $Source -Destination $dest) {
+        return $dest
+    }
+
+    $fallback = Join-Path $DistDir "AuraAudioDownloader.build.exe"
+    Copy-Item -LiteralPath $Source -Destination $fallback -Force
+    Write-Warning ("Could not overwrite {0} - the file is in use." -f $dest)
+    Write-Host "  Fresh build copied to: $fallback"
+    Write-Host "  Wails output still at:   $Source"
+    Write-Host "  Close the running app, then re-run this script (or rename .build.exe over the old exe)."
+    return $fallback
+}
+
 $go = Find-Go
 Write-Host "Using Go: $go"
 
@@ -81,7 +133,7 @@ $builtGui = @(
     (Join-Path $Root "build\bin\AuraAudioDownloader.exe")
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($builtGui) {
-    Copy-Item $builtGui (Join-Path $Dist "AuraAudioDownloader.exe") -Force
+    $script:PublishedGuiPath = Publish-BuiltGui -Source $builtGui -DistDir $Dist
 }
 Pop-Location
 if ($LASTEXITCODE -ne 0) { throw "Wails build failed" }
@@ -91,6 +143,7 @@ $ScriptsDst = Join-Path $Dist "scripts"
 if (Test-Path $ScriptsSrc) {
     New-Item -ItemType Directory -Force -Path $ScriptsDst | Out-Null
     Copy-Item (Join-Path $ScriptsSrc "sync-repair-windows.ps1") $ScriptsDst -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $ScriptsSrc "apple-purge-windows.ps1") $ScriptsDst -Force -ErrorAction SilentlyContinue
 }
 
 $requiredTools = @("MP4Box.exe")
@@ -137,6 +190,7 @@ if (-not $SkipInstaller) {
 
 Write-Host ""
 Write-Host "Build complete:"
-Write-Host "  GUI:  $Dist\AuraAudioDownloader.exe"
+$guiOut = if ($script:PublishedGuiPath) { $script:PublishedGuiPath } else { Join-Path $Dist "AuraAudioDownloader.exe" }
+Write-Host "  GUI:  $guiOut"
 Write-Host "  CLI:  $Dist\aura.exe (amd.exe is a copy for legacy scripts)"
-Write-Host "  Tools: $Tools\"
+Write-Host "  Tools: $Tools"

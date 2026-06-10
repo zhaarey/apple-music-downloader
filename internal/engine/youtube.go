@@ -513,6 +513,57 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 		return youtube.DownloadMeta{Num: num, TrackNumber: num, DiscNumber: 1, TrackTotal: 1}
 	}
 
+	if !isPlaylist {
+		meta := resolveMeta(1)
+		if num := 1; len(selectedNums) > 0 {
+			num = selectedNums[0]
+			meta = resolveMeta(num)
+		}
+		if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
+			counter.Success++
+			counter.Total++
+			msg := fmt.Sprintf("Already on disk: %s", meta.Title)
+			if rootHint != "output folder" {
+				msg = fmt.Sprintf("Already on disk (%s): %s", rootHint, meta.Title)
+			}
+			e.emitTrackSkipped(meta.Title, 1, 1, msg)
+			e.log(fmt.Sprintf("Skipped (exists): %s", path))
+			noteDownloadOutput(path)
+			return handoffFromMeta(path, YouTubeDownloadMeta(meta)), nil
+		}
+	} else if len(selectedNums) > 0 {
+		missing := filterMissingYouTubeTracks(saveDir, selectedNums, multiTrack, metaMap)
+		for _, num := range selectedNums {
+			if containsInt(missing, num) {
+				continue
+			}
+			meta := resolveMeta(num)
+			if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
+				counter.Success++
+				msg := fmt.Sprintf("Already on disk: %s", meta.Title)
+				if rootHint != "output folder" {
+					msg = fmt.Sprintf("Already on disk (%s): %s", rootHint, meta.Title)
+				}
+				e.emitTrackSkipped(meta.Title, int64(num), int64(len(selectedNums)), msg)
+				e.log(fmt.Sprintf("Skipped (exists): %s", path))
+				noteDownloadOutput(path)
+			}
+		}
+		if len(missing) == 0 {
+			counter.Total++
+			e.emit(events.Event{
+				Type:    events.EventTrackComplete,
+				Message: "All selected tracks already on disk",
+				Track:   trackLabel,
+				Phase:   "skipped",
+				Current: 1,
+				Total:   1,
+			})
+			return nil, nil
+		}
+		selectedNums = missing
+	}
+
 	counter.Total++
 	e.emit(events.Event{
 		Type:    events.EventTrackStart,
@@ -566,6 +617,17 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 				num = selectedNums[i]
 			}
 			meta := resolveMeta(num)
+			if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
+				counter.Success++
+				msg := fmt.Sprintf("Already on disk: %s", meta.Title)
+				if rootHint != "output folder" {
+					msg = fmt.Sprintf("Already on disk (%s): %s", rootHint, meta.Title)
+				}
+				e.emitTrackSkipped(meta.Title, int64(num), int64(len(downloaded)), msg)
+				e.log(fmt.Sprintf("Skipped (exists): %s", path))
+				noteDownloadOutput(path)
+				continue
+			}
 			e.emit(events.Event{
 				Type:    events.EventTrackStart,
 				Message: fmt.Sprintf("Processing: %s", meta.Title),
@@ -838,6 +900,26 @@ func (e *Engine) emitTrackFailed(label string, current, total int64, msg string)
 		Total:   total,
 		Phase:   "failed",
 	})
+}
+
+func (e *Engine) emitTrackSkipped(label string, current, total int64, msg string) {
+	e.emit(events.Event{
+		Type:    events.EventTrackComplete,
+		Message: msg,
+		Track:   label,
+		Current: current,
+		Total:   total,
+		Phase:   "skipped",
+	})
+}
+
+func containsInt(nums []int, want int) bool {
+	for _, n := range nums {
+		if n == want {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) runYtDlp(args ...string) ([]byte, error) {

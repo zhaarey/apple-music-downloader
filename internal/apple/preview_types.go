@@ -19,6 +19,9 @@ type PreviewTrack struct {
 	Year        string `json:"year,omitempty"`
 	TrackNumber int    `json:"track_number,omitempty"`
 	DiscNumber  int    `json:"disc_number,omitempty"`
+	OnDisk      bool   `json:"on_disk,omitempty"`
+	ExistingPath string `json:"existing_path,omitempty"`
+	ExistingRoot string `json:"existing_root_label,omitempty"`
 }
 
 // PreviewResult is returned by PreviewURL for Apple Music links.

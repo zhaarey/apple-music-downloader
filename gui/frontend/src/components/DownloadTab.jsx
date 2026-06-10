@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder, RevealInFolder, PreflightDownloadJob } from '../wailsjs/go/main/App'
+import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder, RevealInFolder, PreflightDownloadJob, PickFolder, CheckTrackDuplicates } from '../wailsjs/go/main/App'
 import { parseJobResult, parseTrackRows, parseYouTubeProgress, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
 import { FetchPreviewSkeleton, FetchStatusBanner, YouTubeProgressPanel } from './YouTubeUI'
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
 import SearchTab from './SearchTab'
+import OutputFolderField from './OutputFolderField'
+import ApplePurgePanel from './ApplePurgePanel'
+import BulkDownloadQueue from './BulkDownloadQueue'
+import AppleDownloadModeSwitch from './AppleDownloadModeSwitch'
+import { outputFolderKey, outputFolderLabel, outputFolderPath } from '../lib/settings'
 import { reportFrontendError } from '../lib/errorReporting'
 import { formatActionError } from '../lib/formatActionError'
 
@@ -44,12 +49,14 @@ function formatAppleAuthError(message) {
 }
 
 function outputFolderForQuality(settings, quality, youtubeMode) {
-  if (youtubeMode) {
-    return settings?.['youtube-save-folder'] || settings?.['aac-save-folder'] || ''
-  }
-  if (quality === 'alac') return settings?.['alac-save-folder'] || settings?.['aac-save-folder'] || ''
-  if (quality === 'atmos') return settings?.['atmos-save-folder'] || settings?.['aac-save-folder'] || ''
-  return settings?.['aac-save-folder'] || ''
+  return outputFolderPath(settings, quality, youtubeMode)
+}
+
+async function saveOutputFolder(settings, onSettingsChange, quality, youtubeMode, path) {
+  const trimmed = String(path || '').trim()
+  if (!trimmed || !onSettingsChange) return
+  const key = outputFolderKey(quality, youtubeMode)
+  await onSettingsChange({ [key]: trimmed })
 }
 
 function JobStatusBanner({ jobResult, onRevealFile, onOpenFolder, onOpenLog, onSplitIntoTracks }) {
@@ -122,6 +129,7 @@ export default function DownloadTab({
   onSettingsChange,
   onSplitIntoTracks,
   sourceMode,
+  platform = 'windows',
   showAppleSearch = true,
   showLosslessQualities = true,
 }) {
@@ -138,6 +146,10 @@ export default function DownloadTab({
   const [fetchStatus, setFetchStatus] = useState('')
   const [metaByTrack, setMetaByTrack] = useState({})
   const [preflight, setPreflight] = useState(null)
+  const [duplicateInfo, setDuplicateInfo] = useState(null)
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false)
+  const [appleInputMode, setAppleInputMode] = useState('single')
+  const [queueAddRequest, setQueueAddRequest] = useState(null)
 
   const youtubeMode = sourceMode ? sourceMode === 'youtube' : Boolean(settings?.['youtube-mode'])
   const showSourceToggle = !sourceMode
@@ -147,6 +159,21 @@ export default function DownloadTab({
   const ffmpegOk = deps?.some((d) => d.name === 'ffmpeg' && d.ok)
   const wrapperOk = deps?.some((d) => d.name?.includes('wrapper') && d.ok)
   const hasToken = (settings?.['media-user-token'] || '').length > 50
+  const outputFolder = outputFolderForQuality(settings, quality, youtubeMode)
+  const outputFolderHint =
+    !youtubeMode && quality !== 'aac'
+      ? 'Uses the AAC folder if this quality-specific path is empty. Change all folders in Settings.'
+      : 'Also editable in Settings → Output folders.'
+
+  const browseOutputFolder = async () => {
+    const path = await PickFolder()
+    if (!path) return
+    await saveOutputFolder(settings, onSettingsChange, quality, youtubeMode, path)
+  }
+
+  const saveOutputFolderPath = async (path) => {
+    await saveOutputFolder(settings, onSettingsChange, quality, youtubeMode, path)
+  }
 
   const previewTracks = useMemo(() => {
     if (!preview?.tracks?.length) return []
@@ -167,6 +194,60 @@ export default function DownloadTab({
     () => (youtubeMode ? parseYouTubeProgress(engineEvents) : null),
     [engineEvents, youtubeMode],
   )
+
+  const onDiskByNum = useMemo(() => {
+    const map = {}
+    duplicateInfo?.tracks?.forEach((t) => {
+      if (t.on_disk) map[t.num] = t
+    })
+    return map
+  }, [duplicateInfo])
+
+  const duplicateFoldersKey = JSON.stringify(settings?.['duplicate-check-folders'] || [])
+
+  useEffect(() => {
+    if (!preview?.tracks?.length || downloading) {
+      setDuplicateInfo(null)
+      return undefined
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setCheckingDuplicates(true)
+      try {
+        const selectedTrackNums = preview.can_select_tracks ? [...selected].sort((a, b) => a - b) : []
+        const youtubeMeta = youtubeMode ? metaPayload(metaByTrack, selected) : []
+        const res = await CheckTrackDuplicates(
+          preview.url,
+          youtubeMode ? 'youtube' : quality,
+          selectedTrackNums,
+          saveVideo,
+          youtubeMode ? 'youtube' : 'apple',
+          youtubeMeta,
+          preview,
+        )
+        if (!cancelled) setDuplicateInfo(res)
+      } catch (e) {
+        reportFrontendError('CheckTrackDuplicates', e)
+        if (!cancelled) setDuplicateInfo(null)
+      } finally {
+        if (!cancelled) setCheckingDuplicates(false)
+      }
+    }, 350)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [
+    preview,
+    quality,
+    selected,
+    youtubeMode,
+    saveVideo,
+    metaByTrack,
+    outputFolder,
+    duplicateFoldersKey,
+    downloading,
+  ])
 
   useEffect(() => {
     if (prefillUrl && !youtubeMode) {
@@ -270,6 +351,7 @@ export default function DownloadTab({
     )
     setPreview(null)
     setSelected(new Set())
+    setDuplicateInfo(null)
     setJobStarted(false)
     onResetPipeline?.()
     try {
@@ -373,8 +455,45 @@ export default function DownloadTab({
     fetchPreview(searchUrl)
   }
 
+  const addPreviewToQueue = () => {
+    if (!preview?.url || downloading) return
+    setQueueAddRequest({ url: preview.url, ts: Date.now() })
+    setAppleInputMode('bulk')
+    resetPreview({ clearPipeline: true })
+    setUrl('')
+  }
+
+  const showBulkMode = !youtubeMode && appleInputMode === 'bulk'
+
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-y-auto pb-4">
+    <div className="mx-auto flex h-full max-w-content flex-col gap-4 overflow-y-auto pb-4">
+      {!youtubeMode && (
+        <AppleDownloadModeSwitch
+          mode={appleInputMode}
+          disabled={downloading}
+          onChange={setAppleInputMode}
+        />
+      )}
+
+      {showBulkMode ? (
+        <BulkDownloadQueue
+          quality={quality}
+          qualityOptions={qualityOptions}
+          settings={settings}
+          hasToken={hasToken}
+          downloading={downloading}
+          jobStarted={jobStarted}
+          engineEvents={engineEvents}
+          onDownloadStart={() => {
+            setJobStarted(true)
+            onDownloadStart?.()
+          }}
+          onDownloadEnd={onDownloadEnd}
+          onQualityChange={setQuality}
+          addUrlRequest={queueAddRequest}
+        />
+      ) : (
+        <>
       {embedSearch && !preview && (
         <SearchTab embedded onPreview={handleSearchSelect} />
       )}
@@ -425,6 +544,16 @@ export default function DownloadTab({
                   ? 'Paste a link below or pick from search results — fetch to preview, then download'
                   : 'Paste a link, fetch to preview, then download — success and errors show here when finished'}
             </p>
+            {!youtubeMode && appleInputMode === 'single' && (
+              <button
+                type="button"
+                disabled={downloading}
+                onClick={() => setAppleInputMode('bulk')}
+                className="mt-2 text-sm font-medium text-accent hover:underline disabled:opacity-40"
+              >
+                Need many albums? Switch to bulk queue →
+              </button>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -509,9 +638,21 @@ export default function DownloadTab({
             >
               ← Change URL
             </button>
-            {downloading && (
-              <span className="rounded-full bg-accent/20 px-3 py-1 text-xs text-accent animate-pulse">Downloading…</span>
-            )}
+            <div className="flex items-center gap-3">
+              {!youtubeMode && (
+                <button
+                  type="button"
+                  onClick={addPreviewToQueue}
+                  disabled={downloading}
+                  className="text-sm text-accent hover:underline disabled:opacity-40"
+                >
+                  Add to bulk queue
+                </button>
+              )}
+              {downloading && (
+                <span className="rounded-full bg-accent/20 px-3 py-1 text-xs text-accent animate-pulse">Downloading…</span>
+              )}
+            </div>
           </div>
 
           <JobStatusBanner
@@ -623,6 +764,26 @@ export default function DownloadTab({
             </div>
           )}
 
+          {duplicateInfo?.existing_count > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <p className="font-medium">
+                {duplicateInfo.existing_count} of {duplicateInfo.selected_count} selected{' '}
+                {duplicateInfo.existing_count === 1 ? 'track is' : 'tracks are'} already on disk
+              </p>
+              <p className="mt-1 text-xs text-amber-100/80">
+                Checking output folder
+                {(settings?.['duplicate-check-folders']?.length ?? 0) > 0
+                  ? ` plus ${settings['duplicate-check-folders'].length} extra folder(s) from Settings`
+                  : ''}
+                . Existing files are skipped during download.
+              </p>
+            </div>
+          )}
+
+          {checkingDuplicates && !duplicateInfo && preview.can_select_tracks && (
+            <p className="text-xs text-white/40">Checking for existing files…</p>
+          )}
+
           {preview.can_select_tracks && preview.tracks?.length > 0 && (
             <div className="rounded-xl border border-white/10 bg-surface-raised">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -668,6 +829,16 @@ export default function DownloadTab({
                       <p className="truncate text-xs text-white/40">{t.artist}</p>
                     </div>
                     <span className="shrink-0 text-xs text-white/40">{t.duration}</span>
+                    {onDiskByNum[t.num] && (
+                      <button
+                        type="button"
+                        title={onDiskByNum[t.num].existing_path || 'Already on disk'}
+                        onClick={() => onDiskByNum[t.num].existing_path && RevealInFolder(onDiskByNum[t.num].existing_path)}
+                        className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+                      >
+                        On disk
+                      </button>
+                    )}
                     {t.explicit && <span className="shrink-0 text-xs text-white/50">E</span>}
                     {t.is_mv && <span className="shrink-0 text-xs text-white/50">MV</span>}
                   </li>
@@ -714,13 +885,17 @@ export default function DownloadTab({
             </div>
           )}
 
-          <p
-            className="truncate text-xs text-white/40"
-            title={outputFolderForQuality(settings, quality, youtubeMode)}
-          >
-            Output:{' '}
-            {outputFolderForQuality(settings, quality, youtubeMode) || preview.output_folder || 'Default downloads folder'}
-          </p>
+          <OutputFolderField
+            label={outputFolderLabel(quality, youtubeMode)}
+            hint={outputFolderHint}
+            value={outputFolder || preview?.output_folder || ''}
+            disabled={downloading || !onSettingsChange}
+            onBrowse={browseOutputFolder}
+            onOpen={() => outputFolder && OpenFolder(outputFolder)}
+            onSavePath={saveOutputFolderPath}
+          />
+
+          {!youtubeMode && platform !== 'darwin' && <ApplePurgePanel compact />}
 
           {!youtubeMode && quality === 'aac' && !hasToken && (
             <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
@@ -780,6 +955,8 @@ export default function DownloadTab({
                   : `Download ${selectedCount} selected`}
             </button>
           )}
+        </>
+      )}
         </>
       )}
     </div>

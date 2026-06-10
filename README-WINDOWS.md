@@ -64,6 +64,7 @@ Actions are ordered **safest first**. Nothing here modifies your iPhone library 
 
 1. **Check folder** — read-only; scans files in that folder only.
 2. **Clear PC caches** — deletes Apple Music artwork cache on this PC; **never changes .m4a files**. Quit Apple Music first. Re-import albums afterward.
+   **Settings → Apple Music PC cache purge** — stronger Windows-only cleanup (closes Apple Music, clears UWP + library artwork caches). Use if step 2 is not enough.
 3. **Update album artwork** — embeds one shared JPEG per track in that folder; **preserves title, artist, and track numbers**; skips tracks already correct. Quit Apple Music first.
 4. **Heavy repair** (collapsed) — same as step 3 across all download folders, then cache clear. Last resort only.
 
@@ -74,3 +75,14 @@ After any PC fix: remove albums from Apple Music library (keep files on disk), r
 For normal tag edits, use **Save tags** or **Album bulk** — those do not run the bulk artwork rewrite unless you explicitly use Sync repair tools.
 
 The app cannot reset the iPhone music database from the PC — deleting music on the device and re-syncing is required once stale entries exist.
+
+### Art missing everywhere (PC + iPhone) but files still have art
+
+Apple Music keeps **three** artwork layers: embedded tags in each `.m4a`, a PC thumbnail index, and an iPhone grid cache. They drift apart — especially after cache clears without removing library entries. File properties can show correct art while both apps show blank tiles.
+
+**Full reset (Settings → Full artwork reset):**
+
+1. **PC** — Delete albums from Apple Music library (Keep Files) → **Deep purge PC caches** → Tag Editor: embed JPEG art per album folder → re-import.
+2. **iPhone** — Turn off Sync Library → delete affected albums from Music → force-close app → sync **one album** from PC first → re-enable Sync Library.
+
+Your Aura download folders are never deleted — only Apple’s caches and library references are reset.

@@ -300,7 +300,7 @@ export default function MetadataTab({ platform = 'windows' }) {
 
   return (
     <div
-      className={`relative mx-auto flex h-full max-w-4xl flex-col gap-4 overflow-y-auto pb-4 transition-colors duration-200 ${
+      className={`relative mx-auto flex h-full max-w-content flex-col gap-4 overflow-y-auto pb-4 transition-colors duration-200 ${
         dragOver ? 'rounded-xl ring-2 ring-accent/40 ring-inset' : ''
       }`}
       {...dropZoneProps}

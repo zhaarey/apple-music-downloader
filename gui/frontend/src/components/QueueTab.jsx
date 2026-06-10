@@ -1,9 +1,14 @@
 import { useMemo } from 'react'
 import { parseJobResult, sliceEventsForCurrentJob, jobStatusMeta, trackStatusIcon } from '../lib/downloadStatus'
+import { parseBulkQueueProgress } from '../lib/bulkQueueProgress'
 
 export default function QueueTab({ logs, engineEvents, downloading, onCancel, onOpenFolder, jobSession }) {
   const jobResult = useMemo(() => jobSession || parseJobResult(engineEvents), [jobSession, engineEvents])
   const meta = jobResult ? jobStatusMeta(jobResult.phase) : null
+  const bulkProgress = useMemo(
+    () => (downloading ? parseBulkQueueProgress(engineEvents) : null),
+    [downloading, engineEvents],
+  )
 
   const failedTracks = useMemo(() => {
     return sliceEventsForCurrentJob(engineEvents)
@@ -36,6 +41,19 @@ export default function QueueTab({ logs, engineEvents, downloading, onCancel, on
           </button>
         </div>
       </div>
+
+      {bulkProgress && bulkProgress.total > 1 && (
+        <div className="rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
+          <p className="text-sm font-medium text-accent">Bulk queue progress</p>
+          <p className="mt-1 text-xs text-white/70">{bulkProgress.label}</p>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/30">
+            <div
+              className="h-full rounded-full bg-accent transition-all"
+              style={{ width: `${Math.round((bulkProgress.current / bulkProgress.total) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {jobResult && meta && (
         <div className={`rounded-xl border px-4 py-3 ${meta.className}`}>

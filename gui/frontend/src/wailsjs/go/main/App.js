@@ -18,6 +18,11 @@ export const RevealInFolder = (path) => window.go?.main?.App?.RevealInFolder?.(p
 export const OpenConfigFolder = () => window.go?.main?.App?.OpenConfigFolder?.() ?? Promise.resolve()
 export const PreflightDownloadJob = (url, quality, youtubeSaveVideo, sourceMode) =>
   window.go?.main?.App?.PreflightDownloadJob?.(url, quality, youtubeSaveVideo, sourceMode) ?? Promise.resolve({ ready: true, summary: '', checks: [] })
+export const StartBulkDownloadJob = (entries, quality) =>
+  window.go?.main?.App?.StartBulkDownloadJob?.(entries, quality) ?? Promise.resolve()
+export const CheckTrackDuplicates = (url, quality, selectedTrackNums, youtubeSaveVideo, sourceMode, youtubeMeta, preview) =>
+  window.go?.main?.App?.CheckTrackDuplicates?.(url, quality, selectedTrackNums, youtubeSaveVideo, sourceMode, youtubeMeta, preview) ??
+  Promise.resolve({ roots: [], tracks: [], existing_count: 0, selected_count: 0 })
 export const GetRecentFiles = () => window.go?.main?.App?.GetRecentFiles?.() ?? Promise.resolve([])
 export const GetSetupComplete = () => window.go?.main?.App?.GetSetupComplete?.() ?? Promise.resolve(false)
 export const SetSetupComplete = (v) => window.go?.main?.App?.SetSetupComplete?.(v) ?? Promise.resolve()
@@ -88,6 +93,10 @@ export const RunSyncRepairElevated = () =>
   window.go?.main?.App?.RunSyncRepairElevated?.() ?? Promise.resolve({ ok: false, summary: 'Unavailable', steps: [], manual_steps: [] })
 export const IsAppleMusicRunning = () => window.go?.main?.App?.IsAppleMusicRunning?.() ?? Promise.resolve(false)
 export const OpenSyncRepairLog = () => window.go?.main?.App?.OpenSyncRepairLog?.() ?? Promise.resolve()
+export const RunAppleMusicDeepPurge = (elevated) =>
+  window.go?.main?.App?.RunAppleMusicDeepPurge?.(elevated) ??
+  Promise.resolve({ ok: false, summary: 'Unavailable', steps: [], manual_steps: [] })
+export const OpenApplePurgeLog = () => window.go?.main?.App?.OpenApplePurgeLog?.() ?? Promise.resolve()
 
 export const EventsOn = (eventName, callback) => {
   if (window.runtime?.EventsOn) {

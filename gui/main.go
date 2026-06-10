@@ -193,6 +193,63 @@ func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []i
 	return nil
 }
 
+func (a *App) StartBulkDownloadJob(entries []engine.BulkQueueEntry, quality string) error {
+	urls := make([]string, len(entries))
+	for i, ent := range entries {
+		urls[i] = ent.URL
+	}
+	opts := engine.RunOptions{
+		URLs:        urls,
+		Quality:     quality,
+		BulkEntries: entries,
+	}
+	if err := a.eng.ValidateDownloadRequest(opts); err != nil {
+		return err
+	}
+
+	a.mu.Lock()
+	if a.running {
+		a.mu.Unlock()
+		return fmt.Errorf("a download is already running")
+	}
+	a.running = true
+	a.mu.Unlock()
+
+	logging.Info("StartBulkDownloadJob quality=%s entries=%d", quality, len(entries))
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				msg := logging.LogPanic("StartBulkDownloadJob", r)
+				a.emitEngineEvent(events.Event{
+					Type:    events.EventError,
+					Message: "The app hit an unexpected error during download. Details were saved to: " + logging.Path(),
+				})
+				a.emitEngineEvent(events.Event{Type: events.EventLog, Message: msg})
+				a.emitEngineEvent(events.Event{
+					Type:    events.EventJobComplete,
+					Message: "Download stopped due to an unexpected error",
+					Phase:   "failed",
+				})
+			}
+			a.mu.Lock()
+			a.running = false
+			a.mu.Unlock()
+		}()
+
+		if err := a.eng.StartDownload(opts); err != nil {
+			logging.Error("StartBulkDownloadJob failed: %v", err)
+			a.emitEngineEvent(events.Event{Type: events.EventError, Message: err.Error()})
+			a.emitEngineEvent(events.Event{
+				Type:    events.EventJobComplete,
+				Message: err.Error(),
+				Phase:   "failed",
+			})
+		}
+	}()
+	return nil
+}
+
 // StartDownload is kept for backwards compatibility with older frontend stubs.
 func (a *App) StartDownload(urls []string, quality string, singleSong, selectTracks, allArtistAlbums bool) error {
 	url := ""

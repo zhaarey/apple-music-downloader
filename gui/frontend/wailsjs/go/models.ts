@@ -18,6 +18,9 @@ export namespace apple {
 	    year?: string;
 	    track_number?: number;
 	    disc_number?: number;
+	    on_disk?: boolean;
+	    existing_path?: string;
+	    existing_root_label?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PreviewTrack(source);
@@ -42,6 +45,9 @@ export namespace apple {
 	        this.year = source["year"];
 	        this.track_number = source["track_number"];
 	        this.disc_number = source["disc_number"];
+	        this.on_disk = source["on_disk"];
+	        this.existing_path = source["existing_path"];
+	        this.existing_root_label = source["existing_root_label"];
 	    }
 	}
 	export class PreviewResult {
@@ -99,6 +105,22 @@ export namespace apple {
 
 export namespace engine {
 	
+	export class BulkQueueEntry {
+	    url: string;
+	    selected_track_nums: number[];
+	    force_track_nums: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BulkQueueEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.selected_track_nums = source["selected_track_nums"];
+	        this.force_track_nums = source["force_track_nums"];
+	    }
+	}
 	export class DependencyStatus {
 	    name: string;
 	    ok: boolean;
@@ -116,6 +138,64 @@ export namespace engine {
 	        this.detail = source["detail"];
 	        this.required = source["required"];
 	    }
+	}
+	export class TrackDuplicateStatus {
+	    num: number;
+	    on_disk: boolean;
+	    existing_path?: string;
+	    existing_root_label?: string;
+	    expected_path?: string;
+	    expected_filename?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrackDuplicateStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.num = source["num"];
+	        this.on_disk = source["on_disk"];
+	        this.existing_path = source["existing_path"];
+	        this.existing_root_label = source["existing_root_label"];
+	        this.expected_path = source["expected_path"];
+	        this.expected_filename = source["expected_filename"];
+	    }
+	}
+	export class DuplicateCheckResult {
+	    roots: string[];
+	    tracks: TrackDuplicateStatus[];
+	    existing_count: number;
+	    selected_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuplicateCheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.roots = source["roots"];
+	        this.tracks = this.convertValues(source["tracks"], TrackDuplicateStatus);
+	        this.existing_count = source["existing_count"];
+	        this.selected_count = source["selected_count"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class PreflightCheck {
 	    id: string;
@@ -253,6 +333,68 @@ export namespace media {
 	        this.note = source["note"];
 	    }
 	}
+	export class SyncRepairStep {
+	    id: string;
+	    label: string;
+	    ok: boolean;
+	    detail: string;
+	    skipped: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncRepairStep(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.ok = source["ok"];
+	        this.detail = source["detail"];
+	        this.skipped = source["skipped"];
+	    }
+	}
+	export class ApplePurgeResult {
+	    ok: boolean;
+	    summary: string;
+	    message: string;
+	    steps: SyncRepairStep[];
+	    log_path: string;
+	    need_elevated: boolean;
+	    manual_steps: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ApplePurgeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.summary = source["summary"];
+	        this.message = source["message"];
+	        this.steps = this.convertValues(source["steps"], SyncRepairStep);
+	        this.log_path = source["log_path"];
+	        this.need_elevated = source["need_elevated"];
+	        this.manual_steps = source["manual_steps"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class AudioTagInfo {
 	    path: string;
 	    title: string;
@@ -315,26 +457,6 @@ export namespace media {
 	        this.platform = source["platform"];
 	    }
 	}
-	export class SyncCheck {
-	    id: string;
-	    label: string;
-	    pass: boolean;
-	    detail: string;
-	    severity: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SyncCheck(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.label = source["label"];
-	        this.pass = source["pass"];
-	        this.detail = source["detail"];
-	        this.severity = source["severity"];
-	    }
-	}
 	export class SyncValidationResult {
 	    path: string;
 	    ready: boolean;
@@ -371,12 +493,33 @@ export namespace media {
 		    return a;
 		}
 	}
+	export class SyncCheck {
+	    id: string;
+	    label: string;
+	    pass: boolean;
+	    detail: string;
+	    severity: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.pass = source["pass"];
+	        this.detail = source["detail"];
+	        this.severity = source["severity"];
+	    }
+	}
 	export class FolderSyncValidationResult {
 	    folder: string;
 	    ready: boolean;
 	    total: number;
 	    ready_count: number;
 	    summary: string;
+	    folder_checks?: SyncCheck[];
 	    files: SyncValidationResult[];
 	
 	    static createFrom(source: any = {}) {
@@ -390,6 +533,7 @@ export namespace media {
 	        this.total = source["total"];
 	        this.ready_count = source["ready_count"];
 	        this.summary = source["summary"];
+	        this.folder_checks = this.convertValues(source["folder_checks"], SyncCheck);
 	        this.files = this.convertValues(source["files"], SyncValidationResult);
 	    }
 	
@@ -444,26 +588,6 @@ export namespace media {
 	        this.folders = source["folders"];
 	        this.track_count = source["track_count"];
 	        this.warning = source["warning"];
-	    }
-	}
-	export class SyncRepairStep {
-	    id: string;
-	    label: string;
-	    ok: boolean;
-	    detail: string;
-	    skipped: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new SyncRepairStep(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.label = source["label"];
-	        this.ok = source["ok"];
-	        this.detail = source["detail"];
-	        this.skipped = source["skipped"];
 	    }
 	}
 	export class SyncRepairResult {
@@ -861,6 +985,7 @@ export namespace structs {
 	    "youtube-mode": boolean;
 	    "yt-dlp-path": string;
 	    "youtube-save-folder": string;
+	    "duplicate-check-folders": string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ConfigSet(source);
@@ -924,6 +1049,7 @@ export namespace structs {
 	        this["youtube-mode"] = source["youtube-mode"];
 	        this["yt-dlp-path"] = source["yt-dlp-path"];
 	        this["youtube-save-folder"] = source["youtube-save-folder"];
+	        this["duplicate-check-folders"] = source["duplicate-check-folders"];
 	    }
 	}
 

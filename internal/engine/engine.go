@@ -915,48 +915,54 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + strings.ToLower(Config.ConvertFormat)
 		considerConverted = true
 	}
-	// Existence check now considers converted output (if original was deleted)
-	existsOriginal, err := fileExists(trackPath)
-	if err != nil {
-		fmt.Println("Failed to check if track exists.")
-	}
-	if existsOriginal {
-		counter.Success++
-		okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
-		emitTrackDone(track, trackLabel, "skipped", fmt.Sprintf("Already on disk: %s", track.Resp.Attributes.Name))
-
-		tArtistId := ""
-		if len(track.Resp.Relationships.Artists.Data) > 0 {
-			tArtistId = track.Resp.Relationships.Artists.Data[0].ID
-		}
-		AddedTracks = append(AddedTracks, AddedTrack{
-			Path:     trackPath,
-			Artist:   track.Resp.Attributes.ArtistName,
-			ArtistID: tArtistId,
-			Album:    track.Resp.Attributes.AlbumName,
-			Song:     track.Resp.Attributes.Name,
-		})
-		return
-	}
-	if considerConverted {
-		existsConverted, err2 := fileExists(convertedPath)
-		if err2 == nil && existsConverted {
+	// Existence check across output folder plus any extra duplicate-check folders.
+	skipExistsCheck := shouldForceRedownloadTrack(track.TaskNum)
+	if !skipExistsCheck {
+		if foundPath, rootHint, ok := existingTrackLocation(trackPath, track.SaveName); ok {
 			counter.Success++
 			okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
-			emitTrackDone(track, trackLabel, "skipped", fmt.Sprintf("Already on disk (converted): %s", track.Resp.Attributes.Name))
+			msg := fmt.Sprintf("Already on disk: %s", track.Resp.Attributes.Name)
+			if rootHint != "output folder" {
+				msg = fmt.Sprintf("Already on disk (%s): %s", rootHint, track.Resp.Attributes.Name)
+			}
+			emitTrackDone(track, trackLabel, "skipped", msg)
 
 			tArtistId := ""
 			if len(track.Resp.Relationships.Artists.Data) > 0 {
 				tArtistId = track.Resp.Relationships.Artists.Data[0].ID
 			}
 			AddedTracks = append(AddedTracks, AddedTrack{
-				Path:     convertedPath,
+				Path:     foundPath,
 				Artist:   track.Resp.Attributes.ArtistName,
 				ArtistID: tArtistId,
 				Album:    track.Resp.Attributes.AlbumName,
 				Song:     track.Resp.Attributes.Name,
 			})
 			return
+		}
+		if considerConverted {
+			if foundPath, rootHint, ok := existingConvertedLocation(convertedPath); ok {
+				counter.Success++
+				okDict[track.PreID] = append(okDict[track.PreID], track.TaskNum)
+				msg := fmt.Sprintf("Already on disk (converted): %s", track.Resp.Attributes.Name)
+				if rootHint != "output folder" {
+					msg = fmt.Sprintf("Already on disk (converted, %s): %s", rootHint, track.Resp.Attributes.Name)
+				}
+				emitTrackDone(track, trackLabel, "skipped", msg)
+
+				tArtistId := ""
+				if len(track.Resp.Relationships.Artists.Data) > 0 {
+					tArtistId = track.Resp.Relationships.Artists.Data[0].ID
+				}
+				AddedTracks = append(AddedTracks, AddedTrack{
+					Path:     foundPath,
+					Artist:   track.Resp.Attributes.ArtistName,
+					ArtistID: tArtistId,
+					Album:    track.Resp.Attributes.AlbumName,
+					Song:     track.Resp.Attributes.Name,
+				})
+				return
+			}
 		}
 	}
 

@@ -90,13 +90,66 @@ func trackToMediaTags(track *task.Track, lrc string) media.TrackTags {
 }
 
 func writeMP4Tags(track *task.Track, lrc string) error {
+	return writeMP4TagsForDownload(track, lrc)
+}
+
+// writeMP4TagsForDownload embeds Apple Music–ready metadata and normalized JPEG artwork for iPhone sync.
+func writeMP4TagsForDownload(track *task.Track, lrc string) error {
 	tags := trackToMediaTags(track, lrc)
-	if Config.EmbedCover && strings.TrimSpace(tags.CoverPath) == "" {
-		if _, err := resolveCoverPath(track); err != nil {
-			return fmt.Errorf("embed cover enabled but no artwork available for %q", track.Resp.Attributes.Name)
+	if Config.EmbedCover {
+		tags.RequireCover = true
+		if strings.TrimSpace(tags.CoverPath) == "" {
+			if err := prepareDownloadArtwork(track); err != nil {
+				return fmt.Errorf("embed cover enabled but no artwork available for %q: %w", track.Resp.Attributes.Name, err)
+			}
+		}
+		tags.CoverPath = track.CoverPath
+	}
+	if strings.TrimSpace(tags.AlbumArtist) == "" {
+		tags.AlbumArtist = tags.Artist
+	}
+	if tags.TrackTotal <= 0 {
+		tags.TrackTotal = tags.TrackNumber
+		if tags.TrackTotal <= 0 {
+			tags.TrackTotal = 1
 		}
 	}
+	if tags.TrackNumber <= 0 {
+		tags.TrackNumber = 1
+	}
+	if tags.DiscTotal <= 0 {
+		tags.DiscTotal = 1
+	}
+	if tags.DiscNumber <= 0 {
+		tags.DiscNumber = 1
+	}
 	return media.WriteTrackTags(track.SavePath, tags)
+}
+
+func prepareDownloadArtwork(track *task.Track) error {
+	if track.CoverPath != "" {
+		if ok, err := fileExists(track.CoverPath); err == nil && ok {
+			// fall through to sidecar
+		} else {
+			track.CoverPath = ""
+		}
+	}
+	if track.CoverPath == "" {
+		p, err := resolveCoverPath(track)
+		if err != nil {
+			return err
+		}
+		track.CoverPath = p
+	}
+	if track.SaveDir == "" {
+		return nil
+	}
+	sidecar, err := media.WriteNormalizedCoverSidecar(track.SaveDir, track.CoverPath)
+	if err != nil {
+		return err
+	}
+	track.CoverPath = sidecar
+	return nil
 }
 
 func writeStationTrackTags(path, name, coverPath string) error {

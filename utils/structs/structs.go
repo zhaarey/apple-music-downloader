@@ -56,7 +56,8 @@ type ConfigSet struct {
 	ExitOnError                bool   `yaml:"exit-on-error" json:"exit-on-error"`
 	YouTubeMode                bool   `yaml:"youtube-mode" json:"youtube-mode"`
 	YtDlpPath                  string `yaml:"yt-dlp-path" json:"yt-dlp-path"`
-	YouTubeSaveFolder          string `yaml:"youtube-save-folder" json:"youtube-save-folder"`
+	YouTubeSaveFolder          string   `yaml:"youtube-save-folder" json:"youtube-save-folder"`
+	DuplicateCheckFolders      []string `yaml:"duplicate-check-folders" json:"duplicate-check-folders"`
 }
 
 type Counter struct {

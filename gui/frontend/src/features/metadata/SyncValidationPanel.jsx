@@ -188,7 +188,23 @@ export function FolderSyncValidationPanel({ result }) {
   if (!result) return null
   return (
     <div className="space-y-3">
-      <SyncValidationPanel result={{ ready: result.ready, summary: result.summary, checks: [] }} compact />
+      <SyncValidationPanel result={{ ready: result.ready, summary: result.summary, checks: result.folder_checks || [] }} compact={!(result.folder_checks || []).length} />
+      {(result.folder_checks || []).length > 0 && (
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-medium text-white/55">Folder summary</p>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {result.folder_checks.map((c) => (
+              <li key={c.id} className="flex gap-2 rounded-lg bg-black/20 px-2 py-1.5">
+                <CheckIcon pass={c.pass} severity={c.severity} />
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-white/90">{c.label}</span>
+                  <span className={`ml-2 ${severityClass(c.severity, c.pass)}`}>{c.detail}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {(result.files || []).map((file) => (
         <div key={file.path} className="rounded-lg border border-white/10 bg-black/20 p-3">
           <p className="truncate text-xs text-white/50" title={file.path}>

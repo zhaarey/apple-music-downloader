@@ -62,7 +62,7 @@ const FEATURES = [
 
 export default function RequirementsTab({ deps, onRefreshDeps }) {
   return (
-    <div className="mx-auto h-full max-w-4xl space-y-4 overflow-y-auto pb-8">
+    <div className="mx-auto h-full max-w-content space-y-4 overflow-y-auto pb-8">
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h2 className="text-xl font-semibold">Build and tool requirements</h2>
         <p className="mt-1 text-sm text-white/60">

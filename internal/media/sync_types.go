@@ -19,12 +19,13 @@ type SyncValidationResult struct {
 
 // FolderSyncValidationResult summarizes sync readiness for a folder of tracks.
 type FolderSyncValidationResult struct {
-	Folder      string                 `json:"folder"`
-	Ready       bool                   `json:"ready"`
-	Total       int                    `json:"total"`
-	ReadyCount  int                    `json:"ready_count"`
-	Summary     string                 `json:"summary"`
-	Files       []SyncValidationResult `json:"files"`
+	Folder       string                 `json:"folder"`
+	Ready        bool                   `json:"ready"`
+	Total        int                    `json:"total"`
+	ReadyCount   int                    `json:"ready_count"`
+	Summary      string                 `json:"summary"`
+	FolderChecks []SyncCheck            `json:"folder_checks,omitempty"`
+	Files        []SyncValidationResult `json:"files"`
 }
 
 // CacheClearResult reports cache clearing outcome.

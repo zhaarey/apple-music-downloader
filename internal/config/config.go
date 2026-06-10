@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"main/internal/platform"
 	"main/utils/structs"
@@ -307,6 +308,11 @@ func normalize(cfg *structs.ConfigSet) {
 	if len(cfg.Storefront) != 2 {
 		cfg.Storefront = "us"
 	}
+	cfg.AlacSaveFolder = strings.TrimSpace(cfg.AlacSaveFolder)
+	cfg.AtmosSaveFolder = strings.TrimSpace(cfg.AtmosSaveFolder)
+	cfg.AacSaveFolder = strings.TrimSpace(cfg.AacSaveFolder)
+	cfg.MVSaveFolder = strings.TrimSpace(cfg.MVSaveFolder)
+	cfg.YouTubeSaveFolder = strings.TrimSpace(cfg.YouTubeSaveFolder)
 	if cfg.AlacSaveFolder == "" {
 		cfg.AlacSaveFolder = "AM-DL downloads"
 	}
@@ -364,6 +370,28 @@ func normalize(cfg *structs.ConfigSet) {
 	if cfg.YouTubeSaveFolder == "" {
 		cfg.YouTubeSaveFolder = cfg.AacSaveFolder
 	}
+	cfg.DuplicateCheckFolders = normalizeFolderList(cfg.DuplicateCheckFolders)
+}
+
+func normalizeFolderList(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		key := strings.ToLower(filepath.Clean(p))
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, filepath.Clean(p))
+	}
+	return out
 }
 
 func FromExample(examplePath string) (structs.ConfigSet, error) {

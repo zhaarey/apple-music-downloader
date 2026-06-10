@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { OpenLogFile, OpenConfigFolder } from '../wailsjs/go/main/App'
+import IPhoneArtworkGuide from './IPhoneArtworkGuide'
+import FullArtworkResetGuide from './FullArtworkResetGuide'
 
 export default function SettingsTab({
   settings,
@@ -30,7 +32,11 @@ export default function SettingsTab({
 
   const pickFolder = async (key) => {
     const path = await onPickFolder()
-    if (path) update(key, path)
+    if (!path) return
+    update(key, path)
+    await onSave({ [key]: path })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   const isMac = platform === 'darwin'
@@ -39,7 +45,7 @@ export default function SettingsTab({
     : 'Config is saved to your AppData folder'
 
   return (
-    <div className="mx-auto h-full max-w-2xl overflow-y-auto">
+    <div className="mx-auto h-full max-w-content overflow-y-auto">
       <h2 className="text-xl font-semibold">Settings</h2>
       <p className="mt-1 text-sm text-white/50">{configDirHint}</p>
       <button
@@ -70,6 +76,9 @@ export default function SettingsTab({
 
       <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
         <h3 className="font-medium">Output folders</h3>
+        <p className="text-xs text-white/50">
+          Downloads save as Artist → Album → track files. Browse saves immediately; typed paths need Save settings.
+        </p>
         {[
           ['aac-save-folder', 'AAC / default'],
           ['alac-save-folder', 'ALAC'],
@@ -95,6 +104,67 @@ export default function SettingsTab({
           </div>
         ))}
       </section>
+
+      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <h3 className="font-medium">Duplicate detection</h3>
+        <p className="text-xs text-white/50">
+          Extra folders to scan before download (in addition to the output folder above). Useful if you moved
+          your library — matching files are skipped automatically.
+        </p>
+        {(cfg['duplicate-check-folders'] || []).map((folder, idx) => (
+          <div key={`${folder}-${idx}`} className="flex gap-2">
+            <input
+              value={folder}
+              onChange={(e) => {
+                const next = [...(cfg['duplicate-check-folders'] || [])]
+                next[idx] = e.target.value
+                update('duplicate-check-folders', next)
+              }}
+              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const next = (cfg['duplicate-check-folders'] || []).filter((_, i) => i !== idx)
+                update('duplicate-check-folders', next)
+              }}
+              className="shrink-0 rounded-lg border border-white/10 px-3 text-sm text-white/60 hover:bg-white/5"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => update('duplicate-check-folders', [...(cfg['duplicate-check-folders'] || []), ''])}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm hover:bg-white/5"
+          >
+            Add folder
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              const path = await onPickFolder()
+              if (!path) return
+              const list = [...(cfg['duplicate-check-folders'] || [])]
+              if (!list.some((p) => p.trim().toLowerCase() === path.trim().toLowerCase())) {
+                list.push(path)
+              }
+              update('duplicate-check-folders', list)
+              await onSave({ 'duplicate-check-folders': list.filter(Boolean) })
+              setSaved(true)
+              setTimeout(() => setSaved(false), 2000)
+            }}
+            className="rounded-lg bg-surface px-3 py-1.5 text-sm hover:bg-surface-hover"
+          >
+            Browse to add
+          </button>
+        </div>
+      </section>
+
+      <IPhoneArtworkGuide platform={platform} />
+      <FullArtworkResetGuide platform={platform} />
 
       <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
         <h3 className="font-medium">Library organization</h3>

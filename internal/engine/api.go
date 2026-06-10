@@ -36,6 +36,7 @@ type RunOptions struct {
 	AllArtistAlbums   bool
 	YouTubeSaveVideo  bool
 	YouTubeMeta       []YouTubeDownloadMeta
+	BulkEntries       []BulkQueueEntry
 	Debug             bool
 	PrintJSON         bool
 }
@@ -307,7 +308,12 @@ func (e *Engine) StartDownload(opts RunOptions) (err error) {
 		return formatTokenError(err)
 	}
 	urls := opts.URLs
-	if len(opts.ChildURLs) > 0 {
+	if len(opts.BulkEntries) > 0 {
+		urls = make([]string, len(opts.BulkEntries))
+		for i, ent := range opts.BulkEntries {
+			urls[i] = ent.URL
+		}
+	} else if len(opts.ChildURLs) > 0 {
 		urls = opts.ChildURLs
 	} else if len(urls) == 1 && strings.Contains(urls[0], "/artist/") && opts.AllArtistAlbums {
 		artist_select = true
@@ -397,7 +403,10 @@ func jobCompletePhase() string {
 
 func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 	currentEmitter = e.emitter
-	defer func() { currentEmitter = nil }()
+	defer func() {
+		currentEmitter = nil
+		resetBulkEntryState()
+	}()
 
 	counter = structs.Counter{}
 	AddedTracks = nil
@@ -428,6 +437,18 @@ func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 		default:
 		}
 		e.log(fmt.Sprintf("Queue %d of %d: %s", albumNum+1, albumTotal, e.DetectURLType(urlRaw)))
+		if albumTotal > 1 {
+			e.emit(events.Event{
+				Type:    events.EventProgress,
+				Message: fmt.Sprintf("Queue %d of %d: %s", albumNum+1, albumTotal, e.DetectURLType(urlRaw)),
+				Phase:   "queue",
+				Current: int64(albumNum + 1),
+				Total:   int64(albumTotal),
+				Track:   urlRaw,
+			})
+		}
+
+		applyBulkEntryForURL(urlRaw, opts.BulkEntries)
 
 		if strings.Contains(urlRaw, "/music-video/") {
 			e.processMV(urlRaw, token, opts)

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   GetSettings,
-  SaveSettings,
   CheckDependencies,
   CancelDownload,
   OpenFolder,
@@ -26,6 +25,7 @@ import MetadataTab from './features/metadata/MetadataTab'
 import ErrorBoundary from './components/ErrorBoundary'
 import { parseYouTubeProgress } from './lib/downloadStatus'
 import { featuresForPlatform, isTabEnabled } from './config/platform'
+import { persistSettings } from './lib/settings'
 
 function canSwitchTabWhileDownloading(targetTab, downloadJob, multitaskTabs) {
   if (!downloadJob?.source) return true
@@ -206,17 +206,22 @@ export default function App() {
 
   const refreshDeps = () => CheckDependencies().then(setDeps)
 
+  const handleSaveSettings = async (updates) => {
+    const merged = await persistSettings(settings, updates)
+    setSettings(merged)
+    refreshDeps()
+    return merged
+  }
+
   const handleWizardDone = async (cfg) => {
-    await SaveSettings(cfg)
-    setSettings(cfg)
+    await handleSaveSettings(cfg)
     await SetWizardComplete(true)
     setShowWizard(false)
     refreshDeps()
   }
 
   const handleSetupChecklistDone = async (cfg) => {
-    await SaveSettings(cfg)
-    setSettings(cfg)
+    await handleSaveSettings(cfg)
     await SetSetupComplete(true)
     setShowSetupChecklist(false)
     refreshDeps()
@@ -274,12 +279,7 @@ export default function App() {
     onClearJobSession: () => setJobSessions((prev) => ({ ...prev, [sourceMode]: null })),
     onResetPipeline: resetDownloadPipeline,
     onSplitIntoTracks: features.showSplitHandoff ? openSpliceWithHandoff : undefined,
-    onSettingsChange: async (patch) => {
-      const cfg = { ...settings, ...patch }
-      await SaveSettings(cfg)
-      setSettings(cfg)
-      refreshDeps()
-    },
+    onSettingsChange: handleSaveSettings,
     sourceMode,
     showAppleSearch: features.showAppleSearch,
     showLosslessQualities: features.showLosslessQualities,
@@ -411,11 +411,7 @@ export default function App() {
             deps={deps}
             platform={platform}
             activityLogs={features.showActivityLogInSettings ? logs : []}
-            onSave={async (cfg) => {
-              await SaveSettings(cfg)
-              setSettings(cfg)
-              refreshDeps()
-            }}
+            onSave={handleSaveSettings}
             onPickFolder={PickFolder}
             onRefreshDeps={refreshDeps}
             onShowWizard={features.showWizard ? () => setShowWizard(true) : undefined}
