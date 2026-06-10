@@ -39,8 +39,7 @@ export default function Wizard({ settings, deps, onComplete, onRefreshDeps }) {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold">Welcome to Aura</h2>
             <p className="text-white/70 leading-relaxed">
-              Aura Audio Downloader fetches Apple Music in AAC (works immediately) or ALAC / Dolby Atmos with the
-              wrapper service, downloads YouTube DJ sets, and splits long recordings into tagged tracks.
+              Aura downloads Apple Music as AAC, pulls YouTube DJ sets, and includes a tag editor for your library.
             </p>
             <p className="text-sm text-white/50">Apple Music downloads require an active subscription.</p>
           </div>
@@ -107,7 +106,7 @@ export default function Wizard({ settings, deps, onComplete, onRefreshDeps }) {
               ))}
             </ul>
             <p className="text-xs text-white/40">
-              MP4Box is bundled with the installer. Wrapper is only needed for ALAC / Atmos — see Settings → Dependencies.
+              MP4Box is bundled with the installer for tagging AAC downloads.
             </p>
           </div>
         )}

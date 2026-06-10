@@ -1,28 +1,3 @@
-export const MIGRATION_STEPS = [
-  {
-    title: 'Make playlist public on Spotify',
-    detail: 'Open the playlist → ⋯ menu → Make public. Private playlists cannot be read.',
-  },
-  {
-    title: 'Add Spotify API keys (one-time)',
-    detail: 'Settings → Spotify matching. Free developer account — needed to read playlist track lists.',
-  },
-  {
-    title: 'Paste playlist link here',
-    detail: 'We match each song on Apple Music using ISRC, then you add them to the queue.',
-  },
-  {
-    title: 'Download queue',
-    detail: 'Review the queue, then run Download queue — same flow as any Apple Music bulk job.',
-  },
-]
-
-export function hasSpotifyCredentials(settings) {
-  const id = String(settings?.['spotify-client-id'] || '').trim()
-  const secret = String(settings?.['spotify-client-secret'] || '').trim()
-  return id.length > 0 && secret.length > 0
-}
-
 /** @returns {'track'|'album'|'playlist'|null} */
 export function parseSpotifyLinkKind(raw) {
   const t = String(raw || '').trim()
@@ -31,10 +6,20 @@ export function parseSpotifyLinkKind(raw) {
   return m[1].toLowerCase()
 }
 
-export function spotifyNeedsCredentials(raw, settings) {
-  if (hasSpotifyCredentials(settings)) return false
+export function spotifyUnsupportedKind(raw) {
   const kind = parseSpotifyLinkKind(raw)
-  return kind === 'playlist' || kind === 'album'
+  if (kind === 'playlist' || kind === 'album') return kind
+  return null
+}
+
+export function spotifyUnsupportedMessage(kind) {
+  if (kind === 'playlist') {
+    return 'Spotify playlists are not supported. Build the list on Apple Music first (e.g. with a transfer tool), then paste the Apple Music playlist link here.'
+  }
+  if (kind === 'album') {
+    return 'Spotify albums are not supported. Paste one Spotify track link at a time, or use the matching Apple Music album link.'
+  }
+  return 'That Spotify link type is not supported.'
 }
 
 export function formatUnmatchedForClipboard(items) {

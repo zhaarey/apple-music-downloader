@@ -321,19 +321,15 @@ func (c *Client) fetchPlaylistTracks(playlistID string) ([]Track, error) {
 	return out, nil
 }
 
-// Resolve uses API when configured; single tracks fall back to oEmbed.
-func Resolve(raw, clientID, clientSecret string) (ResolveResult, error) {
-	kind, id, ok := ParseLink(raw)
+// Resolve uses Spotify oEmbed for single track links (no API keys required).
+func Resolve(raw string) (ResolveResult, error) {
+	kind, _, ok := ParseLink(raw)
 	if !ok {
 		return ResolveResult{}, fmt.Errorf("not a spotify link")
 	}
 	raw = strings.TrimSpace(raw)
-	client := NewClient(clientID, clientSecret)
-	if client.configured() {
-		return client.ResolveLink(kind, id, raw)
-	}
 	if kind != LinkTrack {
-		return ResolveResult{}, fmt.Errorf("to migrate Spotify %ss, add free API keys in Settings → Spotify matching (one-time setup at developer.spotify.com)", kind)
+		return ResolveResult{}, fmt.Errorf("spotify %ss are not supported — paste one track link at a time (open.spotify.com/track/…). For playlists, use an Apple Music playlist link instead", kind)
 	}
 	tr, err := ResolveViaOEmbed(raw)
 	if err != nil {
@@ -358,8 +354,13 @@ func friendlySpotifyAPIError(status int, body, kind string) error {
 			return fmt.Errorf("couldn't read that playlist — on Spotify open ⋯ → Make public, then paste the link again")
 		}
 		return fmt.Errorf("spotify %s not found — check the link is correct and public", kind)
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("spotify API keys were rejected — open Settings → Spotify matching and verify Client ID and Secret")
+	case http.StatusUnauthorized:
+		return fmt.Errorf("spotify API access was rejected")
+	case http.StatusForbidden:
+		if strings.Contains(strings.ToLower(body), "premium") {
+			return fmt.Errorf("spotify developer access requires Premium on the app owner account — paste one open.spotify.com/track/… link instead")
+		}
+		return fmt.Errorf("spotify API access denied — paste one open.spotify.com/track/… link instead")
 	case http.StatusTooManyRequests:
 		return fmt.Errorf("spotify rate limit hit — wait a minute and try again")
 	default:

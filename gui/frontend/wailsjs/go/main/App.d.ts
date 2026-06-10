@@ -7,6 +7,7 @@ import {media} from '../models';
 import {structs} from '../models';
 import {splice} from '../models';
 import {main} from '../models';
+import {trim} from '../models';
 
 export function CancelDownload():Promise<void>;
 
@@ -50,6 +51,8 @@ export function LogFrontendError(arg1:string,arg2:string,arg3:string):Promise<vo
 
 export function OpenApplePurgeLog():Promise<void>;
 
+export function OpenAppleSyncUnlockLog():Promise<void>;
+
 export function OpenConfigFolder():Promise<void>;
 
 export function OpenFolder(arg1:string):Promise<void>;
@@ -69,6 +72,8 @@ export function PrepareLibraryForSync():Promise<Array<media.AlbumPrepareResult>>
 export function PreviewPrepareAlbumForSync(arg1:string):Promise<media.AlbumPreparePreview>;
 
 export function PreviewURL(arg1:string):Promise<apple.PreviewResult>;
+
+export function ReleaseAppleSyncLock(arg1:boolean,arg2:boolean):Promise<media.AppleSyncUnlockResult>;
 
 export function ResolveSpotifyLink(arg1:string):Promise<engine.SpotifyResolveResult>;
 
@@ -155,6 +160,24 @@ export function TagResolveDrop(arg1:Array<string>):Promise<main.TagDropResolve>;
 export function TagWriteAlbumBatch(arg1:media.TagAlbumBatchInput):Promise<media.TagAlbumBatchResult>;
 
 export function TagWriteFile(arg1:media.WriteAudioTagsInput):Promise<media.AudioTagInfo>;
+
+export function TrimCancelExport():Promise<void>;
+
+export function TrimDefaultOutputPath(arg1:string):Promise<string>;
+
+export function TrimGetPeaks(arg1:string,arg2:number):Promise<splice.WaveformPeaks>;
+
+export function TrimIsExporting():Promise<boolean>;
+
+export function TrimMediaURL(arg1:string):Promise<string>;
+
+export function TrimPickSourceFile():Promise<string>;
+
+export function TrimProbeFile(arg1:string):Promise<trim.ProbeResult>;
+
+export function TrimStartExport(arg1:trim.ExportInput):Promise<void>;
+
+export function TrimSuggestPath(arg1:string):Promise<string>;
 
 export function ValidateIPhoneSync(arg1:string):Promise<media.SyncValidationResult>;
 

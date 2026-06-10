@@ -86,6 +86,10 @@ export function OpenApplePurgeLog() {
   return window['go']['main']['App']['OpenApplePurgeLog']();
 }
 
+export function OpenAppleSyncUnlockLog() {
+  return window['go']['main']['App']['OpenAppleSyncUnlockLog']();
+}
+
 export function OpenConfigFolder() {
   return window['go']['main']['App']['OpenConfigFolder']();
 }
@@ -124,6 +128,10 @@ export function PreviewPrepareAlbumForSync(arg1) {
 
 export function PreviewURL(arg1) {
   return window['go']['main']['App']['PreviewURL'](arg1);
+}
+
+export function ReleaseAppleSyncLock(arg1, arg2) {
+  return window['go']['main']['App']['ReleaseAppleSyncLock'](arg1, arg2);
 }
 
 export function ResolveSpotifyLink(arg1) {
@@ -296,6 +304,42 @@ export function TagWriteAlbumBatch(arg1) {
 
 export function TagWriteFile(arg1) {
   return window['go']['main']['App']['TagWriteFile'](arg1);
+}
+
+export function TrimCancelExport() {
+  return window['go']['main']['App']['TrimCancelExport']();
+}
+
+export function TrimDefaultOutputPath(arg1) {
+  return window['go']['main']['App']['TrimDefaultOutputPath'](arg1);
+}
+
+export function TrimGetPeaks(arg1, arg2) {
+  return window['go']['main']['App']['TrimGetPeaks'](arg1, arg2);
+}
+
+export function TrimIsExporting() {
+  return window['go']['main']['App']['TrimIsExporting']();
+}
+
+export function TrimMediaURL(arg1) {
+  return window['go']['main']['App']['TrimMediaURL'](arg1);
+}
+
+export function TrimPickSourceFile() {
+  return window['go']['main']['App']['TrimPickSourceFile']();
+}
+
+export function TrimProbeFile(arg1) {
+  return window['go']['main']['App']['TrimProbeFile'](arg1);
+}
+
+export function TrimStartExport(arg1) {
+  return window['go']['main']['App']['TrimStartExport'](arg1);
+}
+
+export function TrimSuggestPath(arg1) {
+  return window['go']['main']['App']['TrimSuggestPath'](arg1);
 }
 
 export function ValidateIPhoneSync(arg1) {

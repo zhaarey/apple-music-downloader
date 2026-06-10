@@ -16,6 +16,9 @@ const (
 	EventSpliceProgress EventType = "splice_progress"
 	EventSpliceComplete EventType = "splice_complete"
 	EventSpliceError    EventType = "splice_error"
+	EventTrimProgress   EventType = "trim_progress"
+	EventTrimComplete   EventType = "trim_complete"
+	EventTrimError      EventType = "trim_error"
 )
 
 // SpliceHandoff prefills the Split mix tab after a download.

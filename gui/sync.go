@@ -146,6 +146,14 @@ func (a *App) RunAppleMusicDeepPurge(elevated bool) media.ApplePurgeResult {
 	return media.RunAppleMusicDeepPurge(elevated)
 }
 
+func (a *App) ReleaseAppleSyncLock(restartService, elevated bool) media.AppleSyncUnlockResult {
+	return media.ReleaseAppleSyncLock(restartService, elevated)
+}
+
+func (a *App) OpenAppleSyncUnlockLog() error {
+	return osutil.RevealInFileManager(platform.AppleSyncUnlockLogPath())
+}
+
 func (a *App) OpenApplePurgeLog() error {
 	return osutil.RevealInFileManager(platform.ApplePurgeLogPath())
 }

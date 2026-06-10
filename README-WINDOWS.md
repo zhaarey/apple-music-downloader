@@ -69,6 +69,8 @@ Actions are ordered **safest first**. Nothing here modifies your iPhone library 
 
 **iPhone wrong art:** delete the album on the phone, then re-sync that album only in Apple Devices — PC repairs cannot reset device artwork cache.
 
+**Artwork only appears after restarting Windows:** Apple Devices can leave `AMPDevicesAgent.exe` stuck after sync. Use **Settings → iPhone sync unlock → Release sync lock** (or Tag Editor → Sync repair tools → step 2b) instead of rebooting.
+
 After any PC fix: remove albums from Apple Music library (keep files on disk), re-import, delete on iPhone, sync selected albums first.
 
 For normal tag edits, use **Save tags** or **Album bulk** — those do not run the bulk artwork rewrite unless you explicitly use Sync repair tools.

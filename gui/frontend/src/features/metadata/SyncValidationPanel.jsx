@@ -16,6 +16,7 @@ import {
 } from '../../wailsjs/go/main/App'
 import { useConfirm } from '../../hooks/useConfirm'
 import { confirmAndPrepareAlbum, syncRepairConfirmDetails } from '../../lib/prepareAlbumConfirm'
+import AppleSyncUnlockPanel from '../../components/AppleSyncUnlockPanel'
 
 const MIN_ACTION_MS = 450
 
@@ -511,6 +512,15 @@ export function SyncTroubleshootingPanel({
             {renderButtonLabel('app', 'App temp files')}
           </button>
         </div>
+
+        <SectionDivider />
+
+        <SectionLabel step="2b">Release sync lock (Windows)</SectionLabel>
+        <SectionHint>
+          After Apple Devices finishes syncing, run this if iPhone artwork still looks wrong until you restart the PC.
+          Stops stuck AMPDevicesAgent — same effect as canceling a shutdown/restart.
+        </SectionHint>
+        <AppleSyncUnlockPanel compact className="mt-2" />
 
         <SectionDivider />
 

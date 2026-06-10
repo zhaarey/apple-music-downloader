@@ -601,6 +601,30 @@ export namespace media {
 		    return a;
 		}
 	}
+	export class AppleSyncUnlockResult {
+	    ok: boolean;
+	    summary: string;
+	    message: string;
+	    log_path: string;
+	    need_elevated: boolean;
+	    manual_steps: string[];
+	    killed_hint?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppleSyncUnlockResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.summary = source["summary"];
+	        this.message = source["message"];
+	        this.log_path = source["log_path"];
+	        this.need_elevated = source["need_elevated"];
+	        this.manual_steps = source["manual_steps"];
+	        this.killed_hint = source["killed_hint"];
+	    }
+	}
 	export class ArtworkAccentAnalysis {
 	    width: number;
 	    height: number;
@@ -1301,6 +1325,53 @@ export namespace structs {
 	        this["spotify-client-id"] = source["spotify-client-id"];
 	        this["spotify-client-secret"] = source["spotify-client-secret"];
 	        this["duplicate-check-folders"] = source["duplicate-check-folders"];
+	    }
+	}
+
+}
+
+export namespace trim {
+	
+	export class ExportInput {
+	    source_path: string;
+	    output_path: string;
+	    start_ms: number;
+	    end_ms: number;
+	    copy_tags: boolean;
+	    overwrite: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source_path = source["source_path"];
+	        this.output_path = source["output_path"];
+	        this.start_ms = source["start_ms"];
+	        this.end_ms = source["end_ms"];
+	        this.copy_tags = source["copy_tags"];
+	        this.overwrite = source["overwrite"];
+	    }
+	}
+	export class ProbeResult {
+	    duration_ms: number;
+	    has_video: boolean;
+	    has_audio: boolean;
+	    summary: string;
+	    media_kind: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProbeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.duration_ms = source["duration_ms"];
+	        this.has_video = source["has_video"];
+	        this.has_audio = source["has_audio"];
+	        this.summary = source["summary"];
+	        this.media_kind = source["media_kind"];
 	    }
 	}
 

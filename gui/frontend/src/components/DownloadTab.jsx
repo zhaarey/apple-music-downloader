@@ -71,11 +71,12 @@ async function saveOutputFolder(settings, onSettingsChange, quality, youtubeMode
   await onSettingsChange({ [key]: trimmed })
 }
 
-function JobStatusBanner({ jobResult, onRevealFile, onOpenFolder, onOpenLog, onSplitIntoTracks }) {
+function JobStatusBanner({ jobResult, onRevealFile, onOpenFolder, onOpenLog, onSplitIntoTracks, onTrimFile }) {
   if (!jobResult) return null
   const meta = jobStatusMeta(jobResult.phase)
   const canSplit = Boolean(jobResult.handoff?.master_path || jobResult.masterPath)
   const revealPath = jobResult.outputPath || jobResult.masterPath || jobResult.handoff?.master_path || ''
+  const canTrim = Boolean(revealPath && onTrimFile && /\.(m4a|mp4)$/i.test(revealPath))
   return (
     <div className={`rounded-xl border px-4 py-3 ${meta.className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -104,6 +105,15 @@ function JobStatusBanner({ jobResult, onRevealFile, onOpenFolder, onOpenLog, onS
           {canSplit && onSplitIntoTracks && (
             <button type="button" onClick={onSplitIntoTracks} className="rounded-lg bg-accent/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-accent">
               Split into tracks
+            </button>
+          )}
+          {canTrim && (
+            <button
+              type="button"
+              onClick={() => onTrimFile(revealPath)}
+              className="rounded-lg border border-white/15 bg-black/20 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-black/30"
+            >
+              Trim dead space
             </button>
           )}
           {revealPath ? (
@@ -141,6 +151,7 @@ export default function DownloadTab({
   onResetPipeline,
   onSettingsChange,
   onSplitIntoTracks,
+  onTrimFile,
   onOpenSettings,
   sourceMode,
   platform = 'windows',
@@ -505,7 +516,7 @@ export default function DownloadTab({
       ? youtubeMode
         ? 'Paste a video or playlist URL — fetch to preview, then download'
         : embedSearch
-          ? 'Search, paste Apple Music or Spotify — fetch to preview, then download'
+          ? 'Search, paste Apple Music links, or match a Spotify track link'
           : 'Paste a link, fetch to preview, then download'
       : flowPhase === 'review'
         ? 'Confirm tracks, quality, and output folder'
@@ -526,7 +537,7 @@ export default function DownloadTab({
     ) : null
 
   const flowFooter =
-    flowPhase === 'link' ? (
+    flowPhase === 'link' && (youtubeMode || !embedSearch) ? (
       <button
         type="button"
         onClick={() => fetchPreview()}
@@ -604,7 +615,6 @@ export default function DownloadTab({
           downloading={downloading}
           jobStarted={jobStarted}
           engineEvents={engineEvents}
-          onOpenSettings={onOpenSettings}
           onDownloadStart={() => {
             setJobStarted(true)
             onDownloadStart?.()
@@ -622,14 +632,22 @@ export default function DownloadTab({
           backAction={backAction}
           footer={flowFooter}
         >
-          {embedSearch && flowPhase === 'link' && (
-            <CatalogLookupPanel
-              disabled={downloading || fetching}
-              onSelectAppleUrl={handleSearchSelect}
-              settings={settings}
-              onOpenSettings={onOpenSettings}
-              showSearchTypes
-            />
+          {embedSearch && flowPhase === 'link' && !youtubeMode && (
+            <>
+              <CatalogLookupPanel
+                disabled={downloading || fetching}
+                onSelectAppleUrl={handleSearchSelect}
+                showSearchTypes
+              />
+              {fetching && <FetchStatusBanner message={fetchStatus} variant="info" />}
+              {fetching && <FetchPreviewSkeleton step={fetchStep} youtubeMode={false} />}
+              {!fetching && fetchError && <FetchStatusBanner message={fetchError} variant="error" />}
+              {!fetching && !fetchError && !hasToken && (
+                <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                  {APPLE_SUBSCRIPTION_MSG}
+                </p>
+              )}
+            </>
           )}
 
           {showSourceToggle && (
@@ -665,7 +683,7 @@ export default function DownloadTab({
             </div>
           )}
 
-          {flowPhase === 'link' && (
+          {flowPhase === 'link' && (youtubeMode || !embedSearch) && (
             <>
               {!youtubeMode && appleInputMode === 'single' && (
                 <button
@@ -674,7 +692,7 @@ export default function DownloadTab({
                   onClick={() => setAppleInputMode('bulk')}
                   className="text-sm font-medium text-accent hover:underline disabled:opacity-40"
                 >
-                  Migrating from Spotify? Switch to bulk queue →
+                  Queue a playlist or many links? Switch to bulk queue →
                 </button>
               )}
 
@@ -720,7 +738,8 @@ export default function DownloadTab({
                 </div>
               ) : (
                 !fetching &&
-                !fetchError && (
+                !fetchError &&
+                !embedSearch && (
                   <div className="space-y-2">
                     {!hasToken && (
                       <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
@@ -767,6 +786,7 @@ export default function DownloadTab({
                     const h = resolvedJobResult?.handoff
                     if (h?.master_path) onSplitIntoTracks?.(h)
                   }}
+                  onTrimFile={onTrimFile}
                 />
               )}
 
@@ -789,7 +809,7 @@ export default function DownloadTab({
                 </div>
               </div>
 
-              {flowPhase === 'review' && !youtubeMode && (
+              {flowPhase === 'review' && !youtubeMode && qualityOptions.length > 1 && (
                 <div>
                   <p className="mb-2 text-sm text-white/60">Quality</p>
                   <div className="grid gap-2 sm:grid-cols-3">
@@ -820,6 +840,13 @@ export default function DownloadTab({
                       Wrapper not running — check Requirements tab before using Lossless or Atmos.
                     </p>
                   )}
+                </div>
+              )}
+
+              {flowPhase === 'review' && !youtubeMode && qualityOptions.length === 1 && (
+                <div className="rounded-xl border border-white/10 bg-surface-raised px-4 py-3">
+                  <p className="text-sm font-medium text-white/90">AAC (256 kbps)</p>
+                  <p className="mt-1 text-xs text-white/50">Downloads as .m4a with embedded artwork and tags.</p>
                 </div>
               )}
 

@@ -21,7 +21,7 @@ const TOOLS = [
   {
     name: 'MP4Box.exe',
     url: 'https://gpac.io/downloads/gpac-nightly-builds/',
-    requiredFor: 'Tagging and post-processing tracks',
+    requiredFor: 'Tagging and post-processing AAC tracks',
     withoutIt: 'Core track processing/tagging will fail.',
   },
   {
@@ -36,26 +36,17 @@ const TOOLS = [
     requiredFor: 'YouTube audio downloads (Download tab → YouTube Audio mode)',
     withoutIt: 'YouTube mode is unavailable. Apple Music downloads are unaffected.',
   },
-  {
-    name: 'mp4decrypt.exe',
-    url: 'https://www.bento4.com/downloads/',
-    requiredFor: 'Music video downloads',
-    withoutIt: 'MV downloads are skipped/unavailable.',
-  },
-  {
-    name: 'wrapper (WSL/Linux)',
-    url: 'https://github.com/WorldObservationLog/wrapper/releases',
-    requiredFor: 'ALAC and Dolby Atmos decryption',
-    withoutIt: 'AAC still works. ALAC/Atmos are unavailable.',
-  },
 ]
 
 const FEATURES = [
-  { feature: 'AAC downloads (256 kbps)', worksWithoutTools: true, notes: 'Needs Apple Music subscription + media-user-token in Settings. MP4Box on PATH or in app tools folder for tagging. No wrapper required.' },
-  { feature: 'ALAC downloads', worksWithoutTools: false, notes: 'Needs wrapper running on configured ports (WSL2 on Windows).' },
-  { feature: 'Dolby Atmos downloads', worksWithoutTools: false, notes: 'Needs wrapper running on configured ports (WSL2 on Windows).' },
+  {
+    feature: 'AAC downloads (256 kbps)',
+    worksWithoutTools: true,
+    notes: 'Needs Apple Music subscription + media-user-token in Settings. MP4Box on PATH or in app tools folder for tagging.',
+  },
   { feature: 'Lyrics (LRC)', worksWithoutTools: true, notes: 'Needs valid media-user-token.' },
-  { feature: 'Music video downloads', worksWithoutTools: false, notes: 'Needs mp4decrypt + media-user-token.' },
+  { feature: 'Tag editor & bulk tagging', worksWithoutTools: true, notes: 'Works on local .m4a files. MP4Box recommended for embed operations.' },
+  { feature: 'Spotify track → Apple Music match', worksWithoutTools: true, notes: 'Paste one open.spotify.com/track/… link. No Spotify API keys required.' },
   { feature: 'Post-download conversion', worksWithoutTools: false, notes: 'Needs ffmpeg.' },
   { feature: 'YouTube audio (DJ sets, mixes)', worksWithoutTools: false, notes: 'Enable YouTube Audio on Download tab. Needs yt-dlp + ffmpeg. No Apple account.' },
 ]
@@ -68,7 +59,7 @@ export default function RequirementsTab({ deps, onRefreshDeps }) {
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h2 className="text-xl font-semibold">Build and tool requirements</h2>
         <p className="mt-1 text-sm text-white/60">
-          Use this page to see what to install, where to download it, and what features work with or without each tool.
+          What to install, where to download it, and what works with or without each tool.
         </p>
       </section>
 
@@ -117,10 +108,17 @@ export default function RequirementsTab({ deps, onRefreshDeps }) {
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h3 className="font-medium">AAC troubleshooting</h3>
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-white/70">
-          <li><span className="text-white/90">License failed</span> — refresh media-user-token from music.apple.com (DevTools → Application → Cookies).</li>
-          <li><span className="text-white/90">Download incomplete</span> — check network, retry; Apple CDN may have timed out.</li>
-          <li><span className="text-white/90">Decrypt / tagging failed</span> — ensure MP4Box is on PATH; open the log file from the Queue tab.</li>
-          <li><span className="text-white/90">Lossless (ALAC)</span> — not AAC; requires the wrapper service (see above). Use Quality: AAC in the Download tab for no-wrapper downloads.</li>
+          <li>
+            <span className="text-white/90">License failed</span> — refresh media-user-token from music.apple.com (DevTools →
+            Application → Cookies).
+          </li>
+          <li>
+            <span className="text-white/90">Download incomplete</span> — check network, retry; Apple CDN may have timed out.
+          </li>
+          <li>
+            <span className="text-white/90">Decrypt / tagging failed</span> — ensure MP4Box is on PATH; open the log file from
+            the Queue tab.
+          </li>
         </ul>
       </section>
 
@@ -145,7 +143,7 @@ export default function RequirementsTab({ deps, onRefreshDeps }) {
         <h3 className="font-medium">Build commands (Windows)</h3>
         <p className="mt-1 text-sm text-white/60">Run these from the project root in PowerShell.</p>
         <pre className="mt-3 overflow-x-auto rounded bg-black/40 px-3 py-2 text-xs text-white/80">
-{`# Install Wails CLI once
+          {`# Install Wails CLI once
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 # Build GUI exe + CLI + (optionally) installer

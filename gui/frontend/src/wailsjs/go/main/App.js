@@ -60,6 +60,17 @@ export const SplicePickOutputDir = () => window.go?.main?.App?.SplicePickOutputD
 export const SpliceMasterAudioURL = (path) =>
   window.go?.main?.App?.SpliceMasterAudioURL?.(path) ?? Promise.resolve('')
 
+export const TrimPickSourceFile = () => window.go?.main?.App?.TrimPickSourceFile?.() ?? Promise.resolve('')
+export const TrimProbeFile = (path) => window.go?.main?.App?.TrimProbeFile?.(path) ?? Promise.resolve({})
+export const TrimGetPeaks = (path, binCount) => window.go?.main?.App?.TrimGetPeaks?.(path, binCount) ?? Promise.resolve({ bins: [] })
+export const TrimMediaURL = (path) => window.go?.main?.App?.TrimMediaURL?.(path) ?? Promise.resolve('')
+export const TrimDefaultOutputPath = (sourcePath) =>
+  window.go?.main?.App?.TrimDefaultOutputPath?.(sourcePath) ?? Promise.resolve('')
+export const TrimStartExport = (input) => window.go?.main?.App?.TrimStartExport?.(input) ?? Promise.resolve()
+export const TrimCancelExport = () => window.go?.main?.App?.TrimCancelExport?.() ?? Promise.resolve()
+export const TrimIsExporting = () => window.go?.main?.App?.TrimIsExporting?.() ?? Promise.resolve(false)
+export const TrimSuggestPath = (path) => window.go?.main?.App?.TrimSuggestPath?.(path) ?? Promise.resolve('')
+
 export const TagPickAudioFile = () => window.go?.main?.App?.TagPickAudioFile?.() ?? Promise.resolve('')
 export const TagPickSaveMediaFile = (sourcePath) =>
   window.go?.main?.App?.TagPickSaveMediaFile?.(sourcePath) ?? Promise.resolve('')
@@ -118,6 +129,10 @@ export const OpenSyncRepairLog = () => window.go?.main?.App?.OpenSyncRepairLog?.
 export const RunAppleMusicDeepPurge = (elevated) =>
   window.go?.main?.App?.RunAppleMusicDeepPurge?.(elevated) ??
   Promise.resolve({ ok: false, summary: 'Unavailable', steps: [], manual_steps: [] })
+export const ReleaseAppleSyncLock = (restartService, elevated) =>
+  window.go?.main?.App?.ReleaseAppleSyncLock?.(restartService, elevated) ??
+  Promise.resolve({ ok: false, summary: 'Unavailable', manual_steps: [] })
+export const OpenAppleSyncUnlockLog = () => window.go?.main?.App?.OpenAppleSyncUnlockLog?.() ?? Promise.resolve()
 export const OpenApplePurgeLog = () => window.go?.main?.App?.OpenApplePurgeLog?.() ?? Promise.resolve()
 
 export const EventsOn = (eventName, callback) => {

@@ -7,7 +7,6 @@ import {
   RevealInFolder,
 } from '../wailsjs/go/main/App'
 import {
-  parseBulkUrls,
   newQueueItem,
   buildBulkDownloadPlan,
   buildBulkDownloadEntries,
@@ -364,9 +363,9 @@ function BulkQueueItemRow({
             )}
           </div>
 
-          {fullySkipped && (
+            {fullySkipped && (
             <p className="mt-2 rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-2.5 py-1.5 text-xs text-yellow-100">
-              All tracks set to skip — this album will not download.
+              All tracks set to skip — this item will not download.
             </p>
           )}
 
@@ -408,7 +407,7 @@ function BulkQueueItemRow({
                 onClick={() => onToggleExpand(item.id)}
                 className="text-xs text-white/45 hover:text-white/70"
               >
-                {isExpanded ? 'Hide tracks' : `Show ${tracks.length} tracks`}
+                {isExpanded ? 'Hide tracks' : `Pick tracks (${tracks.length})`}
               </button>
               {isExpanded && !downloading && tracks.length > 1 && (
                 <>
@@ -527,9 +526,7 @@ export default function BulkDownloadQueue({
   onDownloadEnd,
   onQualityChange,
   addUrlRequest,
-  onOpenSettings,
 }) {
-  const [pasteText, setPasteText] = useState('')
   const [queue, setQueue] = useState([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [fetchError, setFetchError] = useState('')
@@ -540,8 +537,6 @@ export default function BulkDownloadQueue({
   const [editingId, setEditingId] = useState(null)
   const [editUrlDraft, setEditUrlDraft] = useState('')
   const [compareItemId, setCompareItemId] = useState(null)
-  const [showPasteArea, setShowPasteArea] = useState(true)
-  const [migrationNotice, setMigrationNotice] = useState('')
   const autoSwitchedIssues = useRef(false)
   const queueSectionRef = useRef(null)
 
@@ -677,6 +672,9 @@ export default function BulkDownloadQueue({
               return next
             }),
           )
+          if (preview.can_select_tracks && preview.tracks?.length > 1) {
+            setExpandedId(item.id)
+          }
         } catch (e) {
           setQueue((prev) =>
             prev.map((q) =>
@@ -700,47 +698,19 @@ export default function BulkDownloadQueue({
     }
   }, [filterCounts.issues, loadingQueue, queueFilter])
 
-  const addUrlsFromList = async (urls, meta) => {
+  const addUrlsFromList = async (urls) => {
     if (!urls?.length) return
     setFetchError('')
     const existing = new Set(queue.map((q) => q.url.toLowerCase()))
     const fresh = urls.filter((u) => !existing.has(u.toLowerCase())).map((u) => newQueueItem(u))
-    const skipped = urls.length - fresh.length
-    if (fresh.length === 0) {
-      setFetchError('Those songs are already in the queue.')
-      return
-    }
-    setQueue((prev) => [...prev, ...fresh])
-    if (meta?.source === 'spotify') {
-      const parts = [`Added ${fresh.length} song${fresh.length !== 1 ? 's' : ''} from Spotify`]
-      if (skipped > 0) parts.push(`${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped`)
-      parts.push('previews loading below — review the queue, then Download queue')
-      if (meta.missingCount > 0) {
-        parts.push(`${meta.missingCount} not on Apple Music (search manually if needed)`)
-      }
-      setMigrationNotice(parts.join(' · '))
-      requestAnimationFrame(() => {
-        queueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      })
-    }
-    await loadPreviews(fresh)
-  }
-
-  const addUrlsFromText = async () => {
-    const urls = parseBulkUrls(pasteText)
-    if (urls.length === 0) {
-      setFetchError('Paste one or more Apple Music links (album, playlist, song, or artist).')
-      return
-    }
-    setFetchError('')
-    const existing = new Set(queue.map((q) => q.url.toLowerCase()))
-    const fresh = urls.filter((u) => !existing.has(u.toLowerCase())).map(newQueueItem)
     if (fresh.length === 0) {
       setFetchError('Those links are already in the queue.')
       return
     }
     setQueue((prev) => [...prev, ...fresh])
-    setPasteText('')
+    requestAnimationFrame(() => {
+      queueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
     await loadPreviews(fresh)
   }
 
@@ -890,23 +860,8 @@ export default function BulkDownloadQueue({
     return 'link'
   }, [downloading, jobStarted, jobResult, queue.length])
 
-  useEffect(() => {
-    if (bulkFlowPhase === 'downloading' || bulkFlowPhase === 'done') {
-      setShowPasteArea(false)
-    }
-  }, [bulkFlowPhase])
-
   const bulkFooter =
-    bulkFlowPhase === 'link' ? (
-      <button
-        type="button"
-        onClick={addUrlsFromText}
-        disabled={!pasteText.trim() || downloading || loadingQueue}
-        className="w-full rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
-      >
-        {loadingQueue ? 'Loading previews…' : 'Add to queue'}
-      </button>
-    ) : bulkFlowPhase === 'review' ? (
+    bulkFlowPhase === 'review' ? (
       <button
         type="button"
         onClick={startBulkDownload}
@@ -925,13 +880,10 @@ export default function BulkDownloadQueue({
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          onClick={() => {
-            setShowPasteArea(true)
-            setQueueFilter('all')
-          }}
+          onClick={() => setQueueFilter('all')}
           className="flex-1 rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted"
         >
-          Migrate another playlist
+          Add more links
         </button>
         <button
           type="button"
@@ -945,15 +897,15 @@ export default function BulkDownloadQueue({
 
   return (
     <DownloadFlowLayout
-      title="Migrate & download"
+      title="Bulk download queue"
       subtitle={
         bulkFlowPhase === 'link'
-          ? 'Move a public Spotify playlist to Apple Music — match, queue, download'
+          ? 'Search or paste Apple Music links — playlists and albums let you pick tracks'
           : bulkFlowPhase === 'review'
-            ? 'Step 4 · Review your queue, then run Download queue'
+            ? 'Review your queue, uncheck tracks you don’t want, then download'
             : bulkFlowPhase === 'downloading'
-              ? 'Downloading your migration queue…'
-              : 'Migration complete — add another playlist or clear the queue'
+              ? 'Downloading your queue…'
+              : 'Queue finished — add more links or clear the queue'
       }
       phase={bulkFlowPhase}
       stepperVariant="bulk"
@@ -970,42 +922,13 @@ export default function BulkDownloadQueue({
         </p>
       )}
 
-      {(bulkFlowPhase === 'link' || showPasteArea) && (
-        <div className="space-y-3">
-          <CatalogLookupPanel
-            disabled={downloading || loadingQueue}
-            onAddAppleUrls={addUrlsFromList}
-            settings={settings}
-            onOpenSettings={onOpenSettings}
-            showSearchTypes
-          />
-          <div className="rounded-xl border border-white/10 bg-surface-raised p-4">
-          <label className="text-xs font-medium uppercase tracking-wide text-white/45">Or paste multiple links</label>
-          <textarea
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            disabled={downloading || loadingQueue}
-            rows={4}
-            placeholder={`https://music.apple.com/us/album/worlds/1440857923\nhttps://music.apple.com/us/album/nurture/...\n(one per line)`}
-            className="mt-2 w-full resize-y rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-          />
-          {bulkFlowPhase !== 'link' && (
-            <button
-              type="button"
-              onClick={() => setShowPasteArea(false)}
-              className="mt-2 text-xs text-white/45 hover:text-white/70"
-            >
-              Hide paste area
-            </button>
-          )}
-          </div>
-        </div>
-      )}
-
-      {migrationNotice && bulkFlowPhase !== 'downloading' && (
-        <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-          {migrationNotice}
-        </p>
+      {(bulkFlowPhase === 'link' || bulkFlowPhase === 'review') && (
+        <CatalogLookupPanel
+          disabled={downloading || loadingQueue}
+          onAddAppleUrls={addUrlsFromList}
+          multiline
+          showSearchTypes
+        />
       )}
 
       {fetchError && (
@@ -1024,7 +947,6 @@ export default function BulkDownloadQueue({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div>
               <p className="text-sm font-medium">
-                {(bulkFlowPhase === 'review' || (bulkFlowPhase === 'link' && readyItems.length > 0)) && 'Step 4 · '}
                 Queue · {readyItems.length}{' '}
                 ready
                 {filterCounts.duplicates > 0 && (
@@ -1040,21 +962,25 @@ export default function BulkDownloadQueue({
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-white/50">Quality</label>
-              <select
-                value={quality}
-                onChange={(e) => onQualityChange?.(e.target.value)}
-                disabled={downloading}
-                className="rounded-lg border border-white/10 bg-surface px-2 py-1 text-sm"
-              >
-                {qualityOptions.map((q) => (
-                  <option key={q.id} value={q.id}>
-                    {q.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {qualityOptions.length > 1 ? (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-white/50">Quality</label>
+                <select
+                  value={quality}
+                  onChange={(e) => onQualityChange?.(e.target.value)}
+                  disabled={downloading}
+                  className="rounded-lg border border-white/10 bg-surface px-2 py-1 text-sm"
+                >
+                  {qualityOptions.map((q) => (
+                    <option key={q.id} value={q.id}>
+                      {q.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <span className="text-xs text-white/50">AAC</span>
+            )}
           </div>
 
           <FilterTabs
@@ -1175,8 +1101,8 @@ export default function BulkDownloadQueue({
 
       {queue.length === 0 && !loadingQueue && bulkFlowPhase === 'link' && (
         <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/55">
-          Paste a public Spotify playlist link above to match tracks on Apple Music, or add Apple Music album links in
-          the box below.
+          Paste an Apple Music playlist to queue all songs with checkboxes, or add albums and individual tracks. Spotify
+          links work one track at a time only.
         </p>
       )}
     </DownloadFlowLayout>

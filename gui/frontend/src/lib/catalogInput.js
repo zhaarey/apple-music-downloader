@@ -6,8 +6,8 @@ const SPOTIFY_RE = /https?:\/\/(?:open\.)?spotify\.com\/(?:track|album|playlist)
 export function detectCatalogInput(raw) {
   const t = String(raw || '').trim()
   if (!t) return 'search'
+  if (extractAppleMusicUrls(t).length > 0) return 'apple'
   if (SPOTIFY_RE.test(t) || /^spotify:(track|album|playlist):/i.test(t)) return 'spotify'
-  if (APPLE_MUSIC_RE.test(t) || /music\.apple\.com|itunes\.apple\.com/i.test(t)) return 'apple'
   return 'search'
 }
 
@@ -30,7 +30,7 @@ export function extractAppleMusicUrls(text) {
 export function inputKindLabel(kind) {
   switch (kind) {
     case 'spotify':
-      return 'Spotify link'
+      return 'Spotify track link'
     case 'apple':
       return 'Apple Music link'
     default:
@@ -41,33 +41,29 @@ export function inputKindLabel(kind) {
 export function inputKindHint(kind, bulkMode) {
   switch (kind) {
     case 'spotify':
-      return bulkMode
-        ? 'Paste a public Spotify playlist link — we’ll match songs on Apple Music for your download queue.'
-        : 'We’ll match this track on Apple Music (ISRC when available).'
+      return 'We’ll match this one Spotify track on Apple Music — playlists and albums are not supported.'
     case 'apple':
       return bulkMode
-        ? 'We’ll add these Apple Music links to your queue and load previews.'
-        : 'We’ll open a preview so you can confirm before downloading.'
+        ? 'Apple Music albums, playlists, songs, or artists — paste one link or several (one per line).'
+        : 'We’ll load a preview so you can pick tracks before downloading.'
     default:
-      return 'Search the Apple Music catalog — or paste a link anytime.'
+      return bulkMode
+        ? 'Search Apple Music, paste links, or match a single Spotify track link.'
+        : 'Search Apple Music, paste a link, or match one Spotify track link.'
   }
 }
 
-export function lookupButtonLabel(kind, loading) {
+export function lookupButtonLabel(kind, loading, bulkMode) {
   if (loading) return 'Working…'
   if (kind === 'spotify') return 'Find on Apple Music'
-  if (kind === 'apple') return 'Continue'
+  if (kind === 'apple') return bulkMode ? 'Add to queue' : 'Continue'
   return 'Search'
 }
 
 export const LOADING_MESSAGES = {
-  apple: ['Adding your Apple Music link…'],
+  apple: ['Adding your Apple Music link…', 'Loading previews…'],
   search: ['Searching Apple Music…'],
-  spotify: [
-    'Reading your Spotify link…',
-    'Matching by ISRC on Apple Music…',
-    'Checking titles for anything ISRC missed…',
-  ],
+  spotify: ['Reading Spotify track…', 'Matching on Apple Music…'],
 }
 
 export function matchStatusMeta(status) {
@@ -119,4 +115,11 @@ export function defaultSelectedMatchIndices(items) {
     }
   })
   return selected
+}
+
+export function catalogPlaceholder(bulkMode) {
+  if (bulkMode) {
+    return 'Search, paste Apple Music links (one per line), or a Spotify track link…'
+  }
+  return 'Search, Apple Music link, or Spotify track link…'
 }

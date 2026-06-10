@@ -13,6 +13,7 @@ import {
   EventsOn,
   IsDownloading,
   SpliceIsExporting,
+  TrimIsExporting,
 } from './wailsjs/go/main/App'
 import Wizard from './components/Wizard'
 import SetupChecklist from './components/SetupChecklist'
@@ -21,6 +22,7 @@ import QueueTab from './components/QueueTab'
 import SettingsTab from './components/SettingsTab'
 import RequirementsTab from './components/RequirementsTab'
 import SpliceTab from './features/splice/SpliceTab'
+import TrimTab from './features/trim/TrimTab'
 import MetadataTab from './features/metadata/MetadataTab'
 import ErrorBoundary from './components/ErrorBoundary'
 import { parseYouTubeProgress } from './lib/downloadStatus'
@@ -77,8 +79,8 @@ function TabPanel({ active, children }) {
   )
 }
 
-function GlobalJobBar({ downloading, downloadJob, spliceExporting, progress, onOpenActivity, showActivityLink }) {
-  if (!downloading && !spliceExporting) return null
+function GlobalJobBar({ downloading, downloadJob, spliceExporting, trimExporting, progress, onOpenActivity, showActivityLink }) {
+  if (!downloading && !spliceExporting && !trimExporting) return null
 
   const downloadLabel =
     downloadJob?.source === 'youtube' ? 'YouTube download' : downloadJob?.source === 'apple' ? 'Apple Music download' : 'Download'
@@ -96,6 +98,11 @@ function GlobalJobBar({ downloading, downloadJob, spliceExporting, progress, onO
           {spliceExporting && (
             <span className={downloading ? 'text-white/50' : ''}>
               {downloading ? '·' : ''} Split mix export in progress
+            </span>
+          )}
+          {trimExporting && (
+            <span className={downloading || spliceExporting ? 'text-white/50' : ''}>
+              {downloading || spliceExporting ? '·' : ''} Trim export in progress
             </span>
           )}
         </div>
@@ -140,9 +147,12 @@ export default function App() {
   const [prefillUrl, setPrefillUrl] = useState('')
   const [jobSessions, setJobSessions] = useState({ apple: null, youtube: null })
   const [spliceHandoff, setSpliceHandoff] = useState(null)
+  const [trimHandoff, setTrimHandoff] = useState(null)
+  const [trimExporting, setTrimExporting] = useState(false)
   const [navBlockHint, setNavBlockHint] = useState('')
 
   const spliceEnabled = isTabEnabled(features, 'splice')
+  const trimEnabled = isTabEnabled(features, 'trim')
 
   const syncBackendJobs = useCallback(async () => {
     const dl = await IsDownloading()
@@ -151,7 +161,10 @@ export default function App() {
     if (spliceEnabled) {
       setSpliceExporting(await SpliceIsExporting())
     }
-  }, [spliceEnabled])
+    if (trimEnabled) {
+      setTrimExporting(await TrimIsExporting())
+    }
+  }, [spliceEnabled, trimEnabled])
 
   useEffect(() => {
     GetPlatform().then((goos) => {
@@ -201,14 +214,24 @@ export default function App() {
       })
     }
 
+    const offTrim = trimEnabled
+      ? EventsOn('trim:event', (ev) => {
+          if (ev?.type === 'trim_progress') setTrimExporting(true)
+          if (ev?.type === 'trim_complete' || ev?.type === 'trim_error') {
+            setTrimExporting(false)
+          }
+        })
+      : undefined
+
     const poll = setInterval(syncBackendJobs, 2500)
 
     return () => {
       offEngine?.()
       offSplice?.()
+      offTrim?.()
       clearInterval(poll)
     }
-  }, [syncBackendJobs, spliceEnabled])
+  }, [syncBackendJobs, spliceEnabled, trimEnabled])
 
   const activeJobEvents = useMemo(() => {
     if (downloadJob?.source) return jobEvents[downloadJob.source] || []
@@ -284,6 +307,12 @@ export default function App() {
     navigateTab('splice')
   }
 
+  const openTrimWithHandoff = (path) => {
+    if (!trimEnabled || !path) return
+    setTrimHandoff(path)
+    navigateTab('trim')
+  }
+
   const makeDownloadTabProps = (sourceMode) => ({
     settings,
     deps,
@@ -300,6 +329,7 @@ export default function App() {
     onClearJobSession: () => setJobSessions((prev) => ({ ...prev, [sourceMode]: null })),
     onResetPipeline: resetDownloadPipeline,
     onSplitIntoTracks: features.showSplitHandoff ? openSpliceWithHandoff : undefined,
+    onTrimFile: trimEnabled ? openTrimWithHandoff : undefined,
     onSettingsChange: handleSaveSettings,
     sourceMode,
     showAppleSearch: features.showAppleSearch,
@@ -309,6 +339,7 @@ export default function App() {
   const tabBadge = (tabId) => {
     if (downloading && downloadJob?.source === tabId) return true
     if (tabId === 'splice' && spliceExporting) return true
+    if (tabId === 'trim' && trimExporting) return true
     if (tabId === 'activity' && downloading) return true
     return false
   }
@@ -379,6 +410,7 @@ export default function App() {
         downloading={downloading}
         downloadJob={downloadJob}
         spliceExporting={spliceExporting}
+        trimExporting={trimExporting}
         progress={globalProgress}
         onOpenActivity={() => navigateTab('activity')}
         showActivityLink={isTabEnabled(features, 'activity')}
@@ -407,9 +439,20 @@ export default function App() {
             </ErrorBoundary>
           </TabPanel>
         )}
+        {trimEnabled && (
+          <TabPanel active={tab === 'trim'}>
+            <ErrorBoundary name="TrimTab" title="Trim tab crashed" onRetry={() => setTab('trim')}>
+              <TrimTab handoff={trimHandoff} onHandoffConsumed={() => setTrimHandoff(null)} />
+            </ErrorBoundary>
+          </TabPanel>
+        )}
         <TabPanel active={tab === 'metadata'}>
           <ErrorBoundary name="MetadataTab" title="Tag Editor crashed" onRetry={() => setTab('metadata')}>
-            <MetadataTab platform={platform} active={tab === 'metadata'} />
+            <MetadataTab
+              platform={platform}
+              active={tab === 'metadata'}
+              onOpenInTrim={trimEnabled ? openTrimWithHandoff : undefined}
+            />
           </ErrorBoundary>
         </TabPanel>
 

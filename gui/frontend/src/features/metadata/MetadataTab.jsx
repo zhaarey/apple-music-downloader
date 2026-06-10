@@ -109,7 +109,7 @@ function SaveButtonIcon({ saving, saved }) {
   return null
 }
 
-export default function MetadataTab({ platform = 'windows', active = true }) {
+export default function MetadataTab({ platform = 'windows', active = true, onOpenInTrim }) {
   const [editorMode, setEditorMode] = useState('single')
   const [bulkAlbumFolder, setBulkAlbumFolder] = useState('')
   const [tags, setTags] = useState(EMPTY)
@@ -468,6 +468,15 @@ export default function MetadataTab({ platform = 'windows', active = true }) {
               className="rounded-lg border border-white/15 px-4 py-2 text-sm transition-colors duration-200 ease-apple hover:bg-white/5"
             >
               Show in folder
+            </button>
+          )}
+          {tags.path && onOpenInTrim && (
+            <button
+              type="button"
+              onClick={() => onOpenInTrim(tags.path)}
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm transition-colors duration-200 ease-apple hover:bg-white/5"
+            >
+              Open in Trim
             </button>
           )}
           {tags.path && (

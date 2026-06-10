@@ -16,6 +16,7 @@ import (
 	"main/internal/osutil"
 	"main/internal/platform"
 	"main/internal/splice"
+	"main/internal/trim"
 	"main/utils/structs"
 
 	"github.com/wailsapp/wails/v2"
@@ -79,10 +80,18 @@ func (a *App) emitSpliceEvent(ev events.Event) {
 	}
 }
 
+func (a *App) emitTrimEvent(ev events.Event) {
+	logging.Info("[trim:%s] %s", ev.Type, ev.Message)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "trim:event", ev)
+	}
+}
+
 type App struct {
 	ctx     context.Context
 	eng     *engine.Engine
 	splice  *splice.Service
+	trim    *trim.Service
 	mu      sync.Mutex
 	running bool
 }

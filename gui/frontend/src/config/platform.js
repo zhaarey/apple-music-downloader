@@ -3,6 +3,7 @@ const WINDOWS = {
     { id: 'apple', label: 'Apple Music' },
     { id: 'youtube', label: 'YouTube' },
     { id: 'splice', label: 'Split mix' },
+    { id: 'trim', label: 'Trim' },
     { id: 'metadata', label: 'Tag Editor' },
   ],
   utilityTabs: [
@@ -10,31 +11,32 @@ const WINDOWS = {
     { id: 'requirements', label: 'Requirements' },
     { id: 'settings', label: 'Settings' },
   ],
-  multitaskTabs: new Set(['activity', 'splice', 'metadata', 'requirements', 'settings']),
+  multitaskTabs: new Set(['activity', 'splice', 'trim', 'metadata', 'requirements', 'settings']),
   showWizard: true,
   showSetupChecklist: false,
   showActivityLogInSettings: false,
   showAppleSearch: true,
   showSplitHandoff: true,
-  showLosslessQualities: true,
-  tagline: 'Download · split · tag for Apple Music',
+  showLosslessQualities: false,
+  tagline: 'Download · split · trim · tag for Apple Music',
 }
 
 const DARWIN = {
   workflowTabs: [
     { id: 'apple', label: 'Apple Music' },
     { id: 'youtube', label: 'YouTube' },
+    { id: 'trim', label: 'Trim' },
     { id: 'metadata', label: 'Tag Editor' },
   ],
   utilityTabs: [{ id: 'settings', label: 'Settings' }],
-  multitaskTabs: new Set(['metadata', 'settings']),
+  multitaskTabs: new Set(['trim', 'metadata', 'settings']),
   showWizard: false,
   showSetupChecklist: true,
   showActivityLogInSettings: true,
   showAppleSearch: false,
   showSplitHandoff: false,
   showLosslessQualities: false,
-  tagline: 'Download · tag for Apple Music',
+  tagline: 'Download · trim · tag for Apple Music',
 }
 
 export function featuresForPlatform(goos) {

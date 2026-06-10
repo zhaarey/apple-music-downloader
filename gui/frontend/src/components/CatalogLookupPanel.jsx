@@ -11,13 +11,13 @@ import {
   matchMethodLabel,
   spotifySummary,
   defaultSelectedMatchIndices,
+  catalogPlaceholder,
 } from '../lib/catalogInput'
 import { formatActionError } from '../lib/formatActionError'
-import SpotifyMigrationGuide from './SpotifyMigrationGuide'
+import SpotifyTrackNotice from './SpotifyTrackNotice'
 import {
-  spotifyNeedsCredentials,
-  formatUnmatchedForClipboard,
-  indicesForStatus,
+  spotifyUnsupportedKind,
+  spotifyUnsupportedMessage,
   collectUrlsFromIndices,
 } from '../lib/spotifyMigration'
 
@@ -36,24 +36,13 @@ function LookupStatusBanner({ message }) {
   )
 }
 
-function StepLabel({ n, label }) {
-  return (
-    <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">
-      Step {n} · {label}
-    </p>
-  )
-}
-
 export default function CatalogLookupPanel({
   disabled = false,
   onAddAppleUrls,
   onSelectAppleUrl,
   showSearchTypes = true,
-  settings = null,
-  onOpenSettings,
+  multiline = false,
 }) {
-  const [copiedUnmatched, setCopiedUnmatched] = useState(false)
-
   const bulkMode = Boolean(onAddAppleUrls)
   const [query, setQuery] = useState('')
   const [searchType, setSearchType] = useState('song')
@@ -67,10 +56,10 @@ export default function CatalogLookupPanel({
   const [spotifyResult, setSpotifyResult] = useState(null)
   const [selectedMatchIdx, setSelectedMatchIdx] = useState(() => new Set())
   const [showTips, setShowTips] = useState(false)
-  const [spotifyFilter, setSpotifyFilter] = useState('ready')
 
   const inputKind = useMemo(() => detectCatalogInput(query), [query])
   const hint = inputKindHint(inputKind, bulkMode)
+  const unsupportedSpotify = useMemo(() => spotifyUnsupportedKind(query), [query])
 
   const phase = loading ? 'loading' : spotifyResult ? 'spotify' : appleHits.length ? 'search' : 'idle'
 
@@ -97,7 +86,6 @@ export default function CatalogLookupPanel({
     setHasNext(false)
     setSearchOffset(0)
     setNotice('')
-    setSpotifyFilter('ready')
   }
 
   const runLookup = async (offset = 0) => {
@@ -108,6 +96,7 @@ export default function CatalogLookupPanel({
     setNotice('')
     try {
       const kind = detectCatalogInput(trimmed)
+
       if (kind === 'apple') {
         resetResults()
         const urls = extractAppleMusicUrls(trimmed)
@@ -120,8 +109,8 @@ export default function CatalogLookupPanel({
           setQuery('')
           setNotice(
             urls.length === 1
-              ? 'Added 1 link to your queue — loading preview next.'
-              : `Added ${urls.length} links to your queue — loading previews next.`,
+              ? 'Added 1 link — loading preview below.'
+              : `Added ${urls.length} links — loading previews below.`,
           )
           return
         }
@@ -130,14 +119,15 @@ export default function CatalogLookupPanel({
           setQuery('')
           return
         }
-        setError('Paste one link here, or switch to bulk queue for multiple links.')
+        setError('Paste one Apple Music link here, or switch to bulk queue for multiple links.')
         return
       }
 
       if (kind === 'spotify') {
         setAppleHits([])
-        if (spotifyNeedsCredentials(trimmed, settings)) {
-          setError(null)
+        const blocked = spotifyUnsupportedKind(trimmed)
+        if (blocked) {
+          setError(spotifyUnsupportedMessage(blocked))
           setSpotifyResult(null)
           return
         }
@@ -149,7 +139,6 @@ export default function CatalogLookupPanel({
         }
         setSpotifyResult(res)
         setSelectedMatchIdx(defaultSelectedMatchIndices(res.items))
-        if (res.uncertain > 0) setSpotifyFilter('all')
         return
       }
 
@@ -166,335 +155,233 @@ export default function CatalogLookupPanel({
     }
   }
 
-  const toggleMatch = (idx) => {
-    setSelectedMatchIdx((prev) => {
-      const next = new Set(prev)
-      if (next.has(idx)) next.delete(idx)
-      else next.add(idx)
-      return next
-    })
-  }
-
-  const pushSpotifyUrls = (urls, meta = {}) => {
-    if (!urls.length) {
-      setError('No tracks selected — pick at least one match below.')
+  const pushSpotifyMatch = (url) => {
+    if (!url) {
+      setError('No Apple Music match to add.')
       return
     }
     if (onAddAppleUrls) {
-      onAddAppleUrls(urls, { source: 'spotify', ...meta })
+      onAddAppleUrls([url], { source: 'spotify' })
       setQuery('')
       resetResults()
-      setNotice(
-        `Step 3 · Added ${urls.length} song${urls.length !== 1 ? 's' : ''} to your queue — previews load below. Review, then Download queue.`,
-      )
+      setNotice('Added matched track to your queue — preview loads below.')
       return
     }
-    if (urls.length === 1 && onSelectAppleUrl) {
-      onSelectAppleUrl(urls[0])
+    if (onSelectAppleUrl) {
+      onSelectAppleUrl(url)
       setQuery('')
       resetResults()
     }
   }
 
-  const addSpotifyMatches = () => {
+  const addSelectedSpotifyMatch = () => {
     if (!spotifyResult?.items?.length) return
     const urls = collectUrlsFromIndices(spotifyResult.items, [...selectedMatchIdx])
-    pushSpotifyUrls(urls, {
-      readyCount: spotifyFilterCounts.ready,
-      missingCount: spotifyFilterCounts.missing,
-      uncertainCount: spotifyFilterCounts.review,
-    })
-  }
-
-  const addReadyMatches = () => {
-    if (!spotifyResult?.items?.length) return
-    const idxs = indicesForStatus(spotifyResult.items, ['matched'])
-    setSelectedMatchIdx(new Set(idxs))
-    pushSpotifyUrls(collectUrlsFromIndices(spotifyResult.items, idxs), {
-      readyCount: idxs.length,
-      missingCount: spotifyFilterCounts.missing,
-    })
-  }
-
-  const addAllMatchedIncludingReview = () => {
-    if (!spotifyResult?.items?.length) return
-    const idxs = indicesForStatus(spotifyResult.items, ['matched', 'uncertain'])
-    setSelectedMatchIdx(new Set(idxs))
-    pushSpotifyUrls(collectUrlsFromIndices(spotifyResult.items, idxs), {
-      readyCount: spotifyFilterCounts.ready,
-      uncertainCount: spotifyFilterCounts.review,
-    })
-  }
-
-  const copyUnmatched = async () => {
-    if (!spotifyResult?.items?.length) return
-    const text = formatUnmatchedForClipboard(spotifyResult.items)
-    if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopiedUnmatched(true)
-      setTimeout(() => setCopiedUnmatched(false), 2500)
-    } catch {
-      setError('Could not copy to clipboard.')
+    if (urls.length === 0) {
+      setError('Pick a match below first.')
+      return
+    }
+    if (urls.length === 1) {
+      pushSpotifyMatch(urls[0])
+      return
+    }
+    if (onAddAppleUrls) {
+      onAddAppleUrls(urls, { source: 'spotify' })
+      setQuery('')
+      resetResults()
+      setNotice(`Added ${urls.length} matched tracks to your queue.`)
     }
   }
 
-  const filteredSpotifyItems = useMemo(() => {
-    if (!spotifyResult?.items) return []
-    return spotifyResult.items
-      .map((item, idx) => ({ item, idx }))
-      .filter(({ item }) => {
-        if (spotifyFilter === 'all') return true
-        if (spotifyFilter === 'ready') return item.match_status === 'matched'
-        if (spotifyFilter === 'review') return item.match_status === 'uncertain'
-        if (spotifyFilter === 'missing') return item.match_status === 'not_found'
-        return true
-      })
-  }, [spotifyResult, spotifyFilter])
-
-  const spotifyFilterCounts = useMemo(() => {
-    const items = spotifyResult?.items || []
-    return {
-      all: items.length,
-      ready: items.filter((i) => i.match_status === 'matched').length,
-      review: items.filter((i) => i.match_status === 'uncertain').length,
-      missing: items.filter((i) => i.match_status === 'not_found').length,
-    }
-  }, [spotifyResult])
+  const primarySpotifyMatch = spotifyResult?.items?.find((item) => item.apple_hit?.url)
 
   return (
     <section className="space-y-3">
-      {bulkMode && (
-        <SpotifyMigrationGuide settings={settings} onOpenSettings={onOpenSettings} />
-      )}
+      <SpotifyTrackNotice compact={!bulkMode} />
 
       <div className="rounded-xl border border-white/10 bg-surface-raised p-4">
-      <StepLabel n={bulkMode ? 2 : 1} label={bulkMode ? 'Paste Spotify or search' : 'Find music'} />
-      <h3 className="mt-1 text-base font-semibold text-white/95">
-        {bulkMode ? 'Find songs on Apple Music' : 'What would you like to download?'}
-      </h3>
-      <p className="mt-1 text-sm text-white/50">{hint}</p>
+        <h3 className="text-base font-semibold text-white/95">
+          {bulkMode ? 'Find & add to queue' : 'Find music to download'}
+        </h3>
+        <p className="mt-1 text-sm text-white/50">{hint}</p>
 
-      {query.trim() && inputKind !== 'search' && !loading && (
-        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/60">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-          Detected {inputKindLabel(inputKind)}
-        </div>
-      )}
+        {query.trim() && inputKind !== 'search' && !loading && !unsupportedSpotify && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/60">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            Detected {inputKindLabel(inputKind)}
+          </div>
+        )}
 
-      {showSearchTypes && inputKind === 'search' && query.trim().length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {SEARCH_TYPES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
+        {showSearchTypes && inputKind === 'search' && query.trim().length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {SEARCH_TYPES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                disabled={disabled || loading}
+                onClick={() => setSearchType(t.id)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  searchType === t.id
+                    ? 'bg-accent text-white'
+                    : 'bg-black/20 text-white/55 hover:bg-black/30 hover:text-white/80'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex gap-2">
+          {multiline ? (
+            <textarea
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                if (error) setError('')
+                if (notice && phase === 'idle') setNotice('')
+              }}
               disabled={disabled || loading}
-              onClick={() => setSearchType(t.id)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                searchType === t.id
-                  ? 'bg-accent text-white'
-                  : 'bg-black/20 text-white/55 hover:bg-black/30 hover:text-white/80'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-3 flex gap-2">
-        <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            if (error) setError('')
-            if (notice && phase === 'idle') setNotice('')
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && runLookup(0)}
-          disabled={disabled || loading}
-          placeholder="Song name, Apple Music link, or Spotify link…"
-          className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-white/30 disabled:opacity-50"
-        />
-        <button
-          type="button"
-          onClick={() => runLookup(0)}
-          disabled={disabled || loading || !query.trim() || spotifyNeedsCredentials(query, settings)}
-          className="shrink-0 rounded-xl bg-accent px-5 py-3 text-sm font-semibold disabled:opacity-40"
-        >
-          {lookupButtonLabel(inputKind, loading)}
-        </button>
-      </div>
-
-      {!query.trim() && phase === 'idle' && (
-        <button
-          type="button"
-          onClick={() => setShowTips((v) => !v)}
-          className="mt-2 text-xs text-white/40 hover:text-white/65"
-        >
-          {showTips ? 'Hide tips' : 'Quick tips'}
-        </button>
-      )}
-
-      {showTips && phase === 'idle' && (
-        <ul className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/15 px-3 py-2.5 text-xs text-white/50">
-          <li>Paste a Spotify playlist — we match tracks on Apple Music using ISRC when possible.</li>
-          <li>Paste Apple Music album or song links to queue them directly.</li>
-          <li>Spotify playlists need free API keys in Settings → Spotify matching.</li>
-        </ul>
-      )}
-
-      {loading && loadingMsg && <LookupStatusBanner message={loadingMsg} />}
-
-      {notice && !error && (
-        <p className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-          {notice}
-        </p>
-      )}
-
-      {error && (
-        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          <p>{error}</p>
-          {(error.includes('Settings') || error.includes('API keys')) && onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="mt-2 text-xs font-medium text-accent hover:underline"
-            >
-              Open Settings → Spotify matching
-            </button>
+              rows={4}
+              placeholder={catalogPlaceholder(bulkMode)}
+              className="flex-1 resize-y rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-white/30 disabled:opacity-50"
+            />
+          ) : (
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                if (error) setError('')
+                if (notice && phase === 'idle') setNotice('')
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && runLookup(0)}
+              disabled={disabled || loading}
+              placeholder={catalogPlaceholder(bulkMode)}
+              className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm placeholder:text-white/30 disabled:opacity-50"
+            />
           )}
+          <button
+            type="button"
+            onClick={() => runLookup(0)}
+            disabled={disabled || loading || !query.trim() || Boolean(unsupportedSpotify)}
+            className="shrink-0 self-start rounded-xl bg-accent px-5 py-3 text-sm font-semibold disabled:opacity-40"
+          >
+            {lookupButtonLabel(inputKind, loading, bulkMode)}
+          </button>
         </div>
-      )}
 
-      {spotifyNeedsCredentials(query, settings) && !loading && (
-        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100">
-          <p className="font-medium">Playlist migration needs a one-time Spotify setup</p>
-          <p className="mt-1 text-xs text-amber-100/80">
-            Add free API keys in Settings, make the playlist public on Spotify, then press Find on Apple Music.
-          </p>
-          {onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="mt-2 text-xs font-medium text-accent hover:underline"
-            >
-              Set up Spotify matching →
-            </button>
-          )}
-        </div>
-      )}
+        {!query.trim() && phase === 'idle' && (
+          <button
+            type="button"
+            onClick={() => setShowTips((v) => !v)}
+            className="mt-2 text-xs text-white/40 hover:text-white/65"
+          >
+            {showTips ? 'Hide tips' : 'Quick tips'}
+          </button>
+        )}
 
-      {appleHits.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <StepLabel n={2} label="Pick a result" />
-          <p className="text-sm text-white/50">
-            {appleHits.length} result{appleHits.length !== 1 ? 's' : ''} — choose one to continue.
+        {showTips && phase === 'idle' && (
+          <ul className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/15 px-3 py-2.5 text-xs text-white/50">
+            <li>Apple Music playlist links load every song — expand the queue row to pick tracks.</li>
+            <li>Paste several Apple Music links (one per line) to bulk queue albums or playlists.</li>
+            <li>Spotify: one track link at a time only — not playlists or albums.</li>
+          </ul>
+        )}
+
+        {unsupportedSpotify && !loading && (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100">
+            <p>{spotifyUnsupportedMessage(unsupportedSpotify)}</p>
+          </div>
+        )}
+
+        {loading && loadingMsg && <LookupStatusBanner message={loadingMsg} />}
+
+        {notice && !error && (
+          <p className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+            {notice}
           </p>
-          <div className="max-h-56 overflow-y-auto">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {appleHits.map((h) => (
-                <div
-                  key={h.id + h.url}
-                  className="flex gap-3 rounded-lg border border-white/10 bg-black/20 p-2.5 transition hover:border-accent/40"
-                >
-                  {h.art_url ? (
-                    <img src={h.art_url} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-xl">
-                      ♫
+        )}
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <p>{error}</p>
+          </div>
+        )}
+
+        {appleHits.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-sm text-white/50">
+              {appleHits.length} result{appleHits.length !== 1 ? 's' : ''} — choose one to continue.
+            </p>
+            <div className="max-h-56 overflow-y-auto">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {appleHits.map((h) => (
+                  <div
+                    key={h.id + h.url}
+                    className="flex gap-3 rounded-lg border border-white/10 bg-black/20 p-2.5 transition hover:border-accent/40"
+                  >
+                    {h.art_url ? (
+                      <img src={h.art_url} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-xl">
+                        ♫
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium">{h.name}</p>
+                        <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase text-white/45">
+                          {h.type}
+                        </span>
+                      </div>
+                      <p className="truncate text-xs text-white/45">{h.detail}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onAddAppleUrls) onAddAppleUrls([h.url])
+                          else onSelectAppleUrl?.(h.url)
+                        }}
+                        className="mt-1.5 text-xs font-medium text-accent hover:underline"
+                      >
+                        {bulkMode ? 'Add to queue →' : 'Preview this →'}
+                      </button>
                     </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium">{h.name}</p>
-                      <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase text-white/45">
-                        {h.type}
-                      </span>
-                    </div>
-                    <p className="truncate text-xs text-white/45">{h.detail}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onAddAppleUrls) onAddAppleUrls([h.url])
-                        else onSelectAppleUrl?.(h.url)
-                      }}
-                      className="mt-1.5 text-xs font-medium text-accent hover:underline"
-                    >
-                      {bulkMode ? 'Add to queue →' : 'Preview this →'}
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={searchOffset === 0 || loading}
+                onClick={() => runLookup(Math.max(0, searchOffset - 15))}
+                className="rounded-lg bg-black/20 px-3 py-1.5 text-xs disabled:opacity-30"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={!hasNext || loading}
+                onClick={() => runLookup(searchOffset + 15)}
+                className="rounded-lg bg-black/20 px-3 py-1.5 text-xs disabled:opacity-30"
+              >
+                Next
+              </button>
             </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              disabled={searchOffset === 0 || loading}
-              onClick={() => runLookup(Math.max(0, searchOffset - 15))}
-              className="rounded-lg bg-black/20 px-3 py-1.5 text-xs disabled:opacity-30"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={!hasNext || loading}
-              onClick={() => runLookup(searchOffset + 15)}
-              className="rounded-lg bg-black/20 px-3 py-1.5 text-xs disabled:opacity-30"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
-      {spotifyResult?.items?.length > 0 && (
-        <div className="mt-4 space-y-3">
-          <StepLabel n={bulkMode ? 3 : 2} label="Review matches" />
-          <div className="rounded-xl border border-[#1DB954]/25 bg-[#1DB954]/[0.08] px-3 py-2.5">
-            <p className="text-sm font-medium text-emerald-50">{spotifyResult.source_title || 'Spotify'}</p>
-            <p className="mt-0.5 text-xs text-emerald-100/75">{spotifySummary(spotifyResult)}</p>
-            <p className="mt-2 text-xs text-emerald-100/60">
-              {bulkMode
-                ? 'Ready matches are pre-selected. Add them to the queue, then scroll down to download.'
-                : 'Confident matches are pre-selected. Uncheck anything you don’t want.'}
-            </p>
-          </div>
+        {spotifyResult?.items?.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-xl border border-[#1DB954]/25 bg-[#1DB954]/[0.08] px-3 py-2.5">
+              <p className="text-sm font-medium text-emerald-50">{spotifyResult.source_title || 'Spotify track'}</p>
+              <p className="mt-0.5 text-xs text-emerald-100/75">{spotifySummary(spotifyResult)}</p>
+            </div>
 
-          <div className="flex flex-wrap gap-1">
-            {[
-              ['all', 'All'],
-              ['ready', 'Ready'],
-              ['review', 'Check'],
-              ['missing', 'Missing'],
-            ].map(([id, label]) => {
-              const count = spotifyFilterCounts[id]
-              if (id !== 'all' && count === 0) return null
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSpotifyFilter(id)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                    spotifyFilter === id
-                      ? 'bg-white/15 text-white'
-                      : 'bg-black/20 text-white/45 hover:text-white/70'
-                  }`}
-                >
-                  {label} ({count})
-                </button>
-              )
-            })}
-          </div>
-
-          <ul className="max-h-72 space-y-2 overflow-y-auto">
-            {filteredSpotifyItems.length === 0 ? (
-              <li className="py-6 text-center text-sm text-white/40">No tracks in this filter.</li>
-            ) : (
-              filteredSpotifyItems.map(({ item, idx }) => {
+            <ul className="max-h-72 space-y-2 overflow-y-auto">
+              {spotifyResult.items.map((item, idx) => {
                 const meta = matchStatusMeta(item.match_status)
                 const hit = item.apple_hit
-                const canSelect = hit?.url && item.match_status !== 'not_found'
                 const method = matchMethodLabel(item.match_method)
                 return (
                   <li
@@ -502,15 +389,6 @@ export default function CatalogLookupPanel({
                     className="rounded-lg border border-white/10 bg-black/20 p-3"
                   >
                     <div className="flex gap-2">
-                      {canSelect && bulkMode && (
-                        <input
-                          type="checkbox"
-                          checked={selectedMatchIdx.has(idx)}
-                          onChange={() => toggleMatch(idx)}
-                          className="mt-1 shrink-0"
-                          aria-label={`Include ${item.spotify_title}`}
-                        />
-                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-medium">{item.spotify_title}</p>
@@ -528,9 +406,7 @@ export default function CatalogLookupPanel({
                         </div>
                         <p className="truncate text-xs text-white/40">{item.spotify_artist}</p>
                         {hit ? (
-                          <p className="mt-1 truncate text-xs text-accent/90">
-                            Apple Music → {hit.name}
-                          </p>
+                          <p className="mt-1 truncate text-xs text-accent/90">Apple Music → {hit.name}</p>
                         ) : (
                           <p className="mt-1 text-xs text-red-300/75">{meta.hint}</p>
                         )}
@@ -539,69 +415,42 @@ export default function CatalogLookupPanel({
                         <img src={hit.art_url} alt="" className="h-11 w-11 shrink-0 rounded object-cover" />
                       )}
                     </div>
-                    {!bulkMode && canSelect && (
+                    {hit?.url && (
                       <button
                         type="button"
-                        onClick={() => onSelectAppleUrl?.(hit.url)}
+                        onClick={() => pushSpotifyMatch(hit.url)}
                         className="mt-2 text-xs font-medium text-accent hover:underline"
                       >
-                        Preview on Apple Music →
+                        {bulkMode ? 'Add to queue →' : 'Preview on Apple Music →'}
                       </button>
                     )}
                   </li>
                 )
-              })
-            )}
-          </ul>
+              })}
+            </ul>
 
-          {bulkMode && (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              {spotifyFilterCounts.ready > 0 && (
-                <button
-                  type="button"
-                  onClick={addReadyMatches}
-                  className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold hover:bg-accent-muted"
-                >
-                  Add {spotifyFilterCounts.ready} ready track{spotifyFilterCounts.ready !== 1 ? 's' : ''} to queue
-                </button>
-              )}
-              {spotifyFilterCounts.review > 0 && (
-                <button
-                  type="button"
-                  onClick={addAllMatchedIncludingReview}
-                  className="flex-1 rounded-xl border border-white/15 bg-black/20 py-3 text-sm font-medium text-white/85 hover:bg-black/30"
-                >
-                  Include {spotifyFilterCounts.review} to review
-                </button>
-              )}
-            </div>
-          )}
-
-          {bulkMode && (
-            <div className="flex flex-wrap gap-2">
+            {spotifyResult.items.length > 1 && bulkMode && (
               <button
                 type="button"
-                onClick={addSpotifyMatches}
+                onClick={addSelectedSpotifyMatch}
                 disabled={selectedMatchIdx.size === 0}
-                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5 disabled:opacity-40"
+                className="w-full rounded-xl border border-white/15 bg-black/20 py-2.5 text-sm font-medium text-white/85 hover:bg-black/30 disabled:opacity-40"
               >
-                {selectedMatchIdx.size === 0
-                  ? 'Add custom selection'
-                  : `Add ${selectedMatchIdx.size} selected`}
+                Add {selectedMatchIdx.size || 0} selected to queue
               </button>
-              {spotifyFilterCounts.missing > 0 && (
-                <button
-                  type="button"
-                  onClick={copyUnmatched}
-                  className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
-                >
-                  {copiedUnmatched ? 'Copied!' : `Copy ${spotifyFilterCounts.missing} unmatched`}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            )}
+
+            {spotifyResult.items.length === 1 && primarySpotifyMatch?.apple_hit?.url && bulkMode && (
+              <button
+                type="button"
+                onClick={() => pushSpotifyMatch(primarySpotifyMatch.apple_hit.url)}
+                className="w-full rounded-xl bg-accent py-3 text-sm font-semibold hover:bg-accent-muted"
+              >
+                Add matched track to queue
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </section>
   )

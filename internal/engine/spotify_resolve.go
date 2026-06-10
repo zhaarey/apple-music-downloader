@@ -41,7 +41,7 @@ func (e *Engine) ResolveSpotifyLink(raw string) SpotifyResolveResult {
 	raw = strings.TrimSpace(raw)
 	out := SpotifyResolveResult{}
 
-	res, err := spotify.Resolve(raw, Config.SpotifyClientID, Config.SpotifyClientSecret)
+	res, err := spotify.Resolve(raw)
 	if err != nil {
 		out.Error = err.Error()
 		return out

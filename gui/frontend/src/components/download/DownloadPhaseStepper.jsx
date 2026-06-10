@@ -6,9 +6,9 @@ const PHASES = {
     { id: 'done', label: 'Done' },
   ],
   bulk: [
-    { id: 'link', label: 'Match' },
+    { id: 'link', label: 'Add links' },
     { id: 'review', label: 'Review queue' },
-    { id: 'downloading', label: 'Download' },
+    { id: 'downloading', label: 'Downloading' },
     { id: 'done', label: 'Done' },
   ],
   youtube: [
