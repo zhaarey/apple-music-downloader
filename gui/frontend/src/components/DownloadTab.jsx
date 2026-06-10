@@ -564,7 +564,9 @@ export default function DownloadTab({
 
   const addPreviewToQueue = () => {
     if (!preview?.url || downloading) return
-    setQueueAddRequest({ url: preview.url, ts: Date.now() })
+    const selectedNums =
+      preview.can_select_tracks && selected.size > 0 ? [...selected].sort((a, b) => a - b) : null
+    setQueueAddRequest({ url: preview.url, selectedNums, ts: Date.now() })
     setAppleInputMode('bulk')
     resetPreview({ clearPipeline: true })
     setUrl('')

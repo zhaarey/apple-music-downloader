@@ -91,7 +91,12 @@ export default function SearchTab({ onPreview, embedded = false }) {
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface text-xl">♫</div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{h.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium">{h.name}</p>
+                    <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
+                      {h.type}
+                    </span>
+                  </div>
                   <p className="truncate text-xs text-white/50">{h.detail}</p>
                   <button
                     type="button"

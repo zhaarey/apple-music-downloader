@@ -22,9 +22,9 @@ func applyBulkEntryForURL(urlRaw string, entries []BulkQueueEntry) {
 	if len(entries) == 0 {
 		return
 	}
-	norm := strings.TrimSpace(strings.ToLower(urlRaw))
+	norm := strings.TrimSpace(strings.ToLower(normalizeAppleCatalogURL(urlRaw)))
 	for _, ent := range entries {
-		if strings.TrimSpace(strings.ToLower(ent.URL)) != norm {
+		if strings.TrimSpace(strings.ToLower(normalizeAppleCatalogURL(ent.URL))) != norm {
 			continue
 		}
 		if len(ent.SelectedTrackNums) > 0 {

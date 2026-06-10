@@ -579,7 +579,11 @@ func handleSearch(searchType string, queryParts []string, token string) (string,
 				for _, item := range searchResp.Results.Songs.Data {
 					detail := fmt.Sprintf("%s (%s)", item.Attributes.ArtistName, item.Attributes.AlbumName)
 					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", item.Attributes.Name, detail))
-					items = append(items, SearchResultItem{Type: "Song", URL: item.Attributes.URL, ID: item.ID})
+					songURL := catalogSongURL(Config.Storefront, item.ID)
+					if songURL == "" {
+						songURL = normalizeAppleCatalogURL(item.Attributes.URL)
+					}
+					items = append(items, SearchResultItem{Type: "Song", URL: songURL, ID: item.ID})
 				}
 				hasNext = searchResp.Results.Songs.Next != ""
 			}

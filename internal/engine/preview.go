@@ -16,6 +16,7 @@ func (e *Engine) PreviewURL(raw string) PreviewResult {
 	if IsYouTubeURL(raw) {
 		return e.previewYouTube(raw)
 	}
+	raw = normalizeAppleCatalogURL(raw)
 	out := PreviewResult{
 		URL:  raw,
 		Type: e.DetectURLType(raw),

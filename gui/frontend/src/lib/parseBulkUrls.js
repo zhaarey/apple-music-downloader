@@ -21,7 +21,7 @@ export function isAppleMusicURL(raw) {
   return /music\.apple\.com|itunes\.apple\.com/i.test(String(raw || '').trim())
 }
 
-export function newQueueItem(url) {
+export function newQueueItem(url, { selectedNums } = {}) {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     url,
@@ -32,7 +32,24 @@ export function newQueueItem(url) {
     /** @type {Record<number, 'skip'|'download'|'redownload'>} */
     trackPolicy: {},
     excludedFromDownload: false,
+    pendingSelectedNums: selectedNums?.length ? [...selectedNums] : null,
   }
+}
+
+/** Apply an explicit track selection (e.g. from single-download tab) onto queue track policy. */
+export function applyTrackSelectionPolicy(item, selectedNums) {
+  const tracks = item.preview?.tracks || []
+  if (!tracks.length || !selectedNums?.length) return item
+  const selectedSet = new Set(selectedNums)
+  const trackPolicy = { ...(item.trackPolicy || {}) }
+  for (const t of tracks) {
+    if (!selectedSet.has(t.num)) {
+      trackPolicy[t.num] = 'skip'
+    } else if (trackPolicy[t.num] === 'skip' && !isTrackOnDisk(item, t.num)) {
+      delete trackPolicy[t.num]
+    }
+  }
+  return { ...item, trackPolicy }
 }
 
 export function isTrackOnDisk(item, num) {
@@ -127,7 +144,7 @@ export function buildBulkDownloadEntries(queue) {
     stats.albums++
     for (const url of urls) {
       entries.push({
-        url,
+        url: item.preview?.url || item.url,
         selected_track_nums: tracks.length > 0 ? selectedNums : [],
         force_track_nums: forceNums,
       })

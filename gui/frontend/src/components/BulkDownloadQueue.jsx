@@ -24,6 +24,8 @@ import {
   isFullySkippedAlbum,
   getTrackChoice,
   summarizeItemTracks,
+  applyTrackSelectionPolicy,
+  isTrackOnDisk,
 } from '../lib/parseBulkUrls'
 import BulkAlbumCompareModal from './BulkAlbumCompareModal'
 import DownloadFlowLayout from './download/DownloadFlowLayout'
@@ -257,6 +259,8 @@ function BulkQueueItemRow({
   onRemove,
   onCompare,
   showCompare,
+  onTrackPolicyChange,
+  onSelectAllTracks,
 }) {
   const badge = statusBadge(item.status, downloading ? dlPhase : null)
   const dupCount = item.duplicateInfo?.existing_count ?? 0
@@ -397,13 +401,33 @@ function BulkQueueItemRow({
       {tracks.length > 0 && (
         <div className="mt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => onToggleExpand(item.id)}
-              className="text-xs text-white/45 hover:text-white/70"
-            >
-              {isExpanded ? 'Hide tracks' : `Show ${tracks.length} tracks`}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onToggleExpand(item.id)}
+                className="text-xs text-white/45 hover:text-white/70"
+              >
+                {isExpanded ? 'Hide tracks' : `Show ${tracks.length} tracks`}
+              </button>
+              {isExpanded && !downloading && tracks.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSelectAllTracks(item.id, true)}
+                    className="text-[10px] text-accent hover:underline"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSelectAllTracks(item.id, false)}
+                    className="text-[10px] text-white/45 hover:text-white/70"
+                  >
+                    Select none
+                  </button>
+                </>
+              )}
+            </div>
             {isExpanded && dupCount > 0 && (
               <div className="flex gap-1">
                 {TRACK_FILTERS.map((f) => {
@@ -441,11 +465,24 @@ function BulkQueueItemRow({
                   const dup = item.duplicateInfo?.tracks?.find((d) => d.num === t.num)
                   const onDisk = dup?.on_disk
                   const choice = getTrackChoice(item, t.num)
+                  const included = choice !== 'skip'
                   return (
-                    <li key={t.num} className="flex justify-between gap-2 text-white/60">
-                      <span className="truncate">
-                        {t.num}. {t.name}
-                      </span>
+                    <li key={t.num} className="flex items-center justify-between gap-2 text-white/60">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                        {!downloading && (
+                          <input
+                            type="checkbox"
+                            checked={included}
+                            onChange={() =>
+                              onTrackPolicyChange(item.id, t.num, included ? 'skip' : 'download')
+                            }
+                            className="shrink-0 rounded border-white/20"
+                          />
+                        )}
+                        <span className="truncate">
+                          {t.num}. {t.name}
+                        </span>
+                      </label>
                       <span className="flex shrink-0 items-center gap-2">
                         {choice === 'skip' && onDisk && (
                           <span className="text-emerald-400">skip</span>
@@ -578,6 +615,26 @@ export default function BulkDownloadQueue({
     )
   }
 
+  const setAllTracksIncluded = (itemId, included) => {
+    if (downloading) return
+    setQueue((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item
+        const trackPolicy = { ...(item.trackPolicy || {}) }
+        for (const t of item.preview?.tracks || []) {
+          if (included) {
+            if (!isTrackOnDisk(item, t.num)) {
+              delete trackPolicy[t.num]
+            }
+          } else {
+            trackPolicy[t.num] = 'skip'
+          }
+        }
+        return { ...item, trackPolicy }
+      }),
+    )
+  }
+
   const openCompare = (item) => {
     setCompareItemId(item.id)
   }
@@ -603,7 +660,18 @@ export default function BulkDownloadQueue({
             return
           }
           setQueue((prev) =>
-            prev.map((q) => (q.id === item.id ? { ...q, status: 'ready', error: '', preview } : q)),
+            prev.map((q) => {
+              if (q.id !== item.id) return q
+              let next = { ...q, status: 'ready', error: '', preview }
+              if (preview.url && preview.url !== q.url) {
+                next.url = preview.url
+              }
+              if (q.pendingSelectedNums?.length && preview.tracks?.length) {
+                next = applyTrackSelectionPolicy(next, q.pendingSelectedNums)
+                next.pendingSelectedNums = null
+              }
+              return next
+            }),
           )
         } catch (e) {
           setQueue((prev) =>
@@ -714,7 +782,7 @@ export default function BulkDownloadQueue({
     const url = addUrlRequest.url.trim()
     if (!url) return
     if (queue.some((q) => q.url.toLowerCase() === url.toLowerCase())) return
-    const item = newQueueItem(url)
+    const item = newQueueItem(url, { selectedNums: addUrlRequest.selectedNums })
     setQueue((prev) => [...prev, item])
     loadPreviews([item])
   }, [addUrlRequest?.ts])
@@ -726,7 +794,7 @@ export default function BulkDownloadQueue({
       for (const item of readyItems) {
         if (cancelled) break
         try {
-          const res = await CheckTrackDuplicates(item.url, quality, [], false, 'apple', [], item.preview)
+          const res = await CheckTrackDuplicates(item.url, quality, [], 'audio', 'apple', [], item.preview)
           if (cancelled) return
           setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, duplicateInfo: res } : q)))
         } catch (e) {
@@ -751,7 +819,7 @@ export default function BulkDownloadQueue({
 
     setFetchError('')
     try {
-      const check = await PreflightDownloadJob(entries[0].url, quality, false, 'apple')
+      const check = await PreflightDownloadJob(entries[0].url, quality, 'audio', 'apple')
       if (!check?.ready) {
         const failed = (check.checks || []).filter((c) => !c.ok && c.blocking).map((c) => c.detail || c.label)
         setFetchError(failed[0] || check.summary || 'Fix requirements before downloading.')
@@ -1002,6 +1070,8 @@ export default function BulkDownloadQueue({
                   onRemove={removeItem}
                   onCompare={openCompare}
                   showCompare={queueFilter === 'on_disk' || (item.duplicateInfo?.existing_count ?? 0) > 0}
+                  onTrackPolicyChange={handleTrackPolicySave}
+                  onSelectAllTracks={setAllTracksIncluded}
                 />
               ))}
             </ul>

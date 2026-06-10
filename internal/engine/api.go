@@ -214,10 +214,14 @@ func (e *Engine) Search(queryType, query string, limit, offset int) ([]SearchHit
 	case "song":
 		if resp.Results.Songs != nil {
 			for _, item := range resp.Results.Songs.Data {
+				songURL := catalogSongURL(Config.Storefront, item.ID)
+				if songURL == "" {
+					songURL = normalizeAppleCatalogURL(item.Attributes.URL)
+				}
 				hits = append(hits, SearchHit{
 					Type: "Song", Name: item.Attributes.Name,
 					Detail: fmt.Sprintf("%s — %s", item.Attributes.ArtistName, item.Attributes.AlbumName),
-					URL: item.Attributes.URL, ID: item.ID,
+					URL: songURL, ID: item.ID,
 					ArtURL: strings.Replace(item.Attributes.Artwork.URL, "{w}x{h}", "300x300", 1),
 				})
 			}
@@ -436,6 +440,7 @@ func (e *Engine) runDownloadLoop(urls []string, token string, opts RunOptions) {
 			return
 		default:
 		}
+		urlRaw = normalizeAppleCatalogURL(urlRaw)
 		e.log(fmt.Sprintf("Queue %d of %d: %s", albumNum+1, albumTotal, e.DetectURLType(urlRaw)))
 		if albumTotal > 1 {
 			e.emit(events.Event{
