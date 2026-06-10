@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
   ValidateIPhoneSyncFolder,
-  ClearAppleMusicArtworkCache,
   PickFolder,
   PrepareAlbumForSync,
   PreviewPrepareAlbumForSync,
@@ -134,23 +133,6 @@ export default function IPhoneArtworkGuide({ platform = 'windows' }) {
       const res = await ValidateIPhoneSyncFolder(albumFolder)
       setValidation(res)
       setFeedback({ variant: 'success', message: outcome.result?.summary || 'Artwork updated.' })
-    } catch (e) {
-      setFeedback({ variant: 'error', message: String(e?.message || e) })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const clearPcCache = async () => {
-    setBusy('cache')
-    setFeedback(null)
-    try {
-      const res = await ClearAppleMusicArtworkCache()
-      setFeedback({
-        variant: res.ok ? 'success' : 'error',
-        message: res.message,
-      })
-      refreshMusicRunning()
     } catch (e) {
       setFeedback({ variant: 'error', message: String(e?.message || e) })
     } finally {
@@ -306,8 +288,8 @@ export default function IPhoneArtworkGuide({ platform = 'windows' }) {
           {step === 2 && (
             <div className="space-y-4">
               <p className="text-sm text-white/70">
-                Quit <strong className="text-white/90">{copy.musicApp}</strong> on this PC, then clear its artwork cache
-                and re-import the album so sync does not reuse a stale thumbnail index.
+                Quit <strong className="text-white/90">{copy.musicApp}</strong> on this PC, then use Tag Editor sync
+                repair to clear the artwork cache and re-import the album so sync does not reuse a stale thumbnail index.
               </p>
               {musicRunning && (
                 <p className="rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100/90">
@@ -317,23 +299,12 @@ export default function IPhoneArtworkGuide({ platform = 'windows' }) {
               <ol className="list-decimal space-y-2 pl-5 text-sm text-white/65">
                 <li>Quit {copy.musicApp} completely.</li>
                 <li>
-                  <button
-                    type="button"
-                    disabled={!!busy || musicRunning}
-                    onClick={() => void clearPcCache()}
-                    className="rounded-lg border border-white/15 px-3 py-1.5 text-xs hover:bg-white/5 disabled:opacity-50"
-                  >
-                    {busy === 'cache' ? 'Clearing…' : 'Clear PC artwork cache'}
-                  </button>
-                  <span className="ml-2 text-xs text-white/45">(Aura action — safe for your .m4a files)</span>
+                  Open <strong className="text-white/80">Tag Editor</strong> → expand Sync repair tools →{' '}
+                  <strong className="text-white/80">Clear Apple Music art cache</strong> (safe for your .m4a files).
                 </li>
                 <li>{copy.removeHint}</li>
                 <li>{copy.importHint}</li>
               </ol>
-              <p className="text-xs text-white/45">
-                For stubborn PC-side art, also try <strong className="text-white/55">Apple Music PC cache purge</strong>{' '}
-                below this guide.
-              </p>
             </div>
           )}
 

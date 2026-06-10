@@ -238,8 +238,16 @@ export function TagAnalyzeArtwork(arg1) {
   return window['go']['main']['App']['TagAnalyzeArtwork'](arg1);
 }
 
+export function TagAnalyzeArtworkSource(arg1, arg2) {
+  return window['go']['main']['App']['TagAnalyzeArtworkSource'](arg1, arg2);
+}
+
 export function TagAnalyzeEmbeddedArtwork(arg1) {
   return window['go']['main']['App']['TagAnalyzeEmbeddedArtwork'](arg1);
+}
+
+export function TagApplyOptimizedArtwork(arg1, arg2) {
+  return window['go']['main']['App']['TagApplyOptimizedArtwork'](arg1, arg2);
 }
 
 export function TagFindAlbumCover(arg1) {

@@ -12,11 +12,11 @@ func (a *App) OpenConfigFolder() error {
 	return osutil.RevealInFileManager(appconfig.AppDataDir())
 }
 
-func (a *App) PreflightDownloadJob(url string, quality string, youtubeSaveVideo bool, sourceMode string) engine.PreflightResult {
+func (a *App) PreflightDownloadJob(url string, quality string, youtubeDeliveryMode string, sourceMode string) engine.PreflightResult {
 	opts := engine.RunOptions{
-		URLs:             []string{url},
-		Quality:          quality,
-		YouTubeSaveVideo: youtubeSaveVideo,
+		URLs:                []string{url},
+		Quality:             quality,
+		YouTubeDeliveryMode: youtubeDeliveryMode,
 	}
 	if sourceMode == "youtube" || quality == "youtube" {
 		opts.Quality = "youtube"
@@ -28,17 +28,17 @@ func (a *App) CheckTrackDuplicates(
 	url string,
 	quality string,
 	selectedTrackNums []int,
-	youtubeSaveVideo bool,
+	youtubeDeliveryMode string,
 	sourceMode string,
 	youtubeMeta []engine.YouTubeDownloadMeta,
 	preview engine.PreviewResult,
 ) engine.DuplicateCheckResult {
 	opts := engine.RunOptions{
-		URLs:              []string{url},
-		Quality:           quality,
-		SelectedTrackNums: selectedTrackNums,
-		YouTubeSaveVideo:  youtubeSaveVideo,
-		YouTubeMeta:       youtubeMeta,
+		URLs:                []string{url},
+		Quality:             quality,
+		SelectedTrackNums:   selectedTrackNums,
+		YouTubeDeliveryMode: youtubeDeliveryMode,
+		YouTubeMeta:         youtubeMeta,
 	}
 	if sourceMode == "youtube" || quality == "youtube" {
 		opts.Quality = "youtube"

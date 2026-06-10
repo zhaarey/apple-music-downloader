@@ -1,5 +1,10 @@
 import { useMemo } from 'react'
-import { parseJobResult, sliceEventsForCurrentJob, jobStatusMeta, trackStatusIcon } from '../lib/downloadStatus'
+import {
+  parseJobResult,
+  parseFailedTracksFromJob,
+  jobStatusMeta,
+  trackStatusIcon,
+} from '../lib/downloadStatus'
 import { parseBulkQueueProgress } from '../lib/bulkQueueProgress'
 import PageShell from './PageShell'
 
@@ -12,15 +17,10 @@ export default function QueueTab({ logs, engineEvents, downloading, onCancel, on
   )
 
   const failedTracks = useMemo(() => {
-    return sliceEventsForCurrentJob(engineEvents)
-      .filter((e) => e.type === 'track_failed')
-      .slice(-20)
-      .map((e) => ({
-        label: e.track || e.message,
-        detail: e.message,
-        phase: e.phase,
-      }))
-  }, [engineEvents])
+    if (downloading) return []
+    if (!jobResult) return []
+    return parseFailedTracksFromJob(engineEvents, null, true).slice(-20)
+  }, [engineEvents, downloading, jobResult])
 
   return (
     <PageShell wide>
@@ -70,11 +70,11 @@ export default function QueueTab({ logs, engineEvents, downloading, onCancel, on
 
       {failedTracks.length > 0 && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-          <p className="mb-2 text-sm font-medium text-red-200">Recent track issues</p>
+          <p className="mb-2 text-sm font-medium text-red-200">Track issues from last job</p>
           <ul className="max-h-32 space-y-1 overflow-y-auto text-xs">
             {failedTracks.map((t, i) => (
               <li key={i} className="text-red-200/90">
-                <span className="text-red-400">{trackStatusIcon(t.phase === 'unavailable' ? 'unavailable' : 'failed')}</span>{' '}
+                <span className="text-red-400">{trackStatusIcon(t.status || (t.phase === 'unavailable' ? 'unavailable' : 'failed'))}</span>{' '}
                 <span className="font-medium">{t.label}</span>
                 {t.detail && t.detail !== t.label && <span className="text-red-200/70"> — {t.detail}</span>}
               </li>

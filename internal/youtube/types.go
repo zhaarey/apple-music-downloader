@@ -15,6 +15,7 @@ type DownloadMeta struct {
 	ArtURL      string `json:"art_url,omitempty"`
 	CoverPath   string `json:"cover_path,omitempty"`
 	ArtSource   string `json:"art_source,omitempty"` // youtube | custom | none
+	OptimizeArtwork bool `json:"optimize_artwork,omitempty"`
 }
 
 // HandoffPayload is sent to the Split mix tab after a DJ set download.

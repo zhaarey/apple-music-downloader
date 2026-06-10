@@ -137,14 +137,14 @@ func (a *App) PreviewURL(url string) engine.PreviewResult {
 	return a.eng.PreviewURL(url)
 }
 
-func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string, youtubeSaveVideo bool, youtubeMeta []engine.YouTubeDownloadMeta) error {
+func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string, youtubeDeliveryMode string, youtubeMeta []engine.YouTubeDownloadMeta) error {
 	opts := engine.RunOptions{
-		URLs:              []string{url},
-		Quality:           quality,
-		SelectedTrackNums: selectedTrackNums,
-		ChildURLs:         childURLs,
-		YouTubeSaveVideo:  youtubeSaveVideo,
-		YouTubeMeta:       youtubeMeta,
+		URLs:                []string{url},
+		Quality:             quality,
+		SelectedTrackNums:   selectedTrackNums,
+		ChildURLs:           childURLs,
+		YouTubeDeliveryMode: youtubeDeliveryMode,
+		YouTubeMeta:         youtubeMeta,
 	}
 	if err := a.eng.ValidateDownloadRequest(opts); err != nil {
 		return err
@@ -158,7 +158,7 @@ func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []i
 	a.running = true
 	a.mu.Unlock()
 
-	logging.Info("StartDownloadJob quality=%s url=%s tracks=%v childURLs=%d saveVideo=%v", quality, url, selectedTrackNums, len(childURLs), youtubeSaveVideo)
+	logging.Info("StartDownloadJob quality=%s url=%s tracks=%v childURLs=%d delivery=%s", quality, url, selectedTrackNums, len(childURLs), youtubeDeliveryMode)
 
 	go func() {
 		defer func() {
@@ -256,7 +256,7 @@ func (a *App) StartDownload(urls []string, quality string, singleSong, selectTra
 	if len(urls) > 0 {
 		url = urls[0]
 	}
-	return a.StartDownloadJob(url, quality, nil, nil, false, nil)
+	return a.StartDownloadJob(url, quality, nil, nil, "audio", nil)
 }
 
 func (a *App) CancelDownload() {

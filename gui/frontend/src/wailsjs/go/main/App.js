@@ -6,8 +6,8 @@ export const CheckDependencies = () => window.go?.main?.App?.CheckDependencies?.
 export const Search = (type, query, offset) => window.go?.main?.App?.Search?.(type, query, offset) ?? Promise.resolve({ hits: [], hasNext: false })
 export const DetectURLType = (url) => window.go?.main?.App?.DetectURLType?.(url) ?? 'Unknown'
 export const PreviewURL = (url) => window.go?.main?.App?.PreviewURL?.(url) ?? Promise.resolve({ error: 'Preview not available' })
-export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs, youtubeSaveVideo, youtubeMeta) =>
-  window.go?.main?.App?.StartDownloadJob?.(url, quality, selectedTrackNums, childURLs, youtubeSaveVideo, youtubeMeta) ?? Promise.resolve()
+export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta) =>
+  window.go?.main?.App?.StartDownloadJob?.(url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta) ?? Promise.resolve()
 export const StartDownload = (urls, quality, singleSong, selectTracks, allArtistAlbums) =>
   window.go?.main?.App?.StartDownload?.(urls, quality, singleSong, selectTracks, allArtistAlbums) ?? Promise.resolve()
 export const CancelDownload = () => window.go?.main?.App?.CancelDownload?.() ?? Promise.resolve()
@@ -16,12 +16,12 @@ export const PickFolder = () => window.go?.main?.App?.PickFolder?.() ?? Promise.
 export const OpenFolder = (path) => window.go?.main?.App?.OpenFolder?.(path) ?? Promise.resolve()
 export const RevealInFolder = (path) => window.go?.main?.App?.RevealInFolder?.(path) ?? Promise.resolve()
 export const OpenConfigFolder = () => window.go?.main?.App?.OpenConfigFolder?.() ?? Promise.resolve()
-export const PreflightDownloadJob = (url, quality, youtubeSaveVideo, sourceMode) =>
-  window.go?.main?.App?.PreflightDownloadJob?.(url, quality, youtubeSaveVideo, sourceMode) ?? Promise.resolve({ ready: true, summary: '', checks: [] })
+export const PreflightDownloadJob = (url, quality, youtubeDeliveryMode, sourceMode) =>
+  window.go?.main?.App?.PreflightDownloadJob?.(url, quality, youtubeDeliveryMode, sourceMode) ?? Promise.resolve({ ready: true, summary: '', checks: [] })
 export const StartBulkDownloadJob = (entries, quality) =>
   window.go?.main?.App?.StartBulkDownloadJob?.(entries, quality) ?? Promise.resolve()
-export const CheckTrackDuplicates = (url, quality, selectedTrackNums, youtubeSaveVideo, sourceMode, youtubeMeta, preview) =>
-  window.go?.main?.App?.CheckTrackDuplicates?.(url, quality, selectedTrackNums, youtubeSaveVideo, sourceMode, youtubeMeta, preview) ??
+export const CheckTrackDuplicates = (url, quality, selectedTrackNums, youtubeDeliveryMode, sourceMode, youtubeMeta, preview) =>
+  window.go?.main?.App?.CheckTrackDuplicates?.(url, quality, selectedTrackNums, youtubeDeliveryMode, sourceMode, youtubeMeta, preview) ??
   Promise.resolve({ roots: [], tracks: [], existing_count: 0, selected_count: 0 })
 export const GetRecentFiles = () => window.go?.main?.App?.GetRecentFiles?.() ?? Promise.resolve([])
 export const GetSetupComplete = () => window.go?.main?.App?.GetSetupComplete?.() ?? Promise.resolve(false)
@@ -65,6 +65,12 @@ export const TagFindAlbumCover = (folder) =>
   window.go?.main?.App?.TagFindAlbumCover?.(folder) ?? Promise.reject(new Error('TagFindAlbumCover unavailable'))
 export const TagAnalyzeArtwork = (path) =>
   window.go?.main?.App?.TagAnalyzeArtwork?.(path) ?? Promise.resolve({ warnings: [], accent_ready: false })
+export const TagAnalyzeArtworkSource = (coverPath, coverURL) =>
+  window.go?.main?.App?.TagAnalyzeArtworkSource?.(coverPath, coverURL) ??
+  Promise.resolve({ warnings: [], accent_ready: false })
+export const TagApplyOptimizedArtwork = (coverPath, coverURL) =>
+  window.go?.main?.App?.TagApplyOptimizedArtwork?.(coverPath, coverURL) ??
+  Promise.resolve({ path: '', warnings: [], accent_ready: false })
 export const TagAnalyzeEmbeddedArtwork = (audioPath) =>
   window.go?.main?.App?.TagAnalyzeEmbeddedArtwork?.(audioPath) ??
   Promise.resolve({ warnings: [], accent_ready: false })

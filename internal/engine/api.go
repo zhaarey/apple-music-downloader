@@ -34,7 +34,7 @@ type RunOptions struct {
 	SelectedTrackNums []int
 	ChildURLs         []string
 	AllArtistAlbums   bool
-	YouTubeSaveVideo  bool
+	YouTubeDeliveryMode string // audio, video, both
 	YouTubeMeta       []YouTubeDownloadMeta
 	BulkEntries       []BulkQueueEntry
 	Debug             bool

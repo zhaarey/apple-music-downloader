@@ -161,6 +161,14 @@ func (a *App) TagPreviewOptimizedArtwork(path string) (media.ArtworkAccentAnalys
 	return a.TagAnalyzeArtwork(path)
 }
 
+func (a *App) TagAnalyzeArtworkSource(coverPath, coverURL string) (media.ArtworkAccentAnalysis, error) {
+	return media.AnalyzeArtworkSource(strings.TrimSpace(coverPath), strings.TrimSpace(coverURL), true)
+}
+
+func (a *App) TagApplyOptimizedArtwork(coverPath, coverURL string) (media.PreparedArtworkResult, error) {
+	return media.PrepareOptimizedCoverToTemp(strings.TrimSpace(coverPath), strings.TrimSpace(coverURL))
+}
+
 func (a *App) TagReadFile(path string) (media.AudioTagInfo, error) {
 	defer func() {
 		if r := recover(); r != nil {

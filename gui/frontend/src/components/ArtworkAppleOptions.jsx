@@ -17,12 +17,16 @@ export default function ArtworkAppleOptions({
   onMp4boxReembedChange,
   showMp4boxReembed = true,
   analysis = null,
+  onApplyOptimization,
+  applyingOptimization = false,
+  applyOptimizationLabel = 'Apply Apple Music optimization',
   className = '',
 }) {
   const displaySrc = previewSrc || optimizedPreviewSrc
   const hasArtwork = Boolean(displaySrc)
   const showOptimizedCompare =
     optimizeArtwork && optimizedPreviewSrc && previewSrc && optimizedPreviewSrc !== previewSrc
+  const showApplyButton = Boolean(onApplyOptimization && hasArtwork && !analysis?.accent_ready)
 
   return (
     <section className={`rounded-xl border border-white/10 bg-surface-raised p-4 ${className}`}>
@@ -49,6 +53,16 @@ export default function ArtworkAppleOptions({
       )}
 
       <div className="mt-3 flex flex-col gap-2">
+        {showApplyButton && (
+          <button
+            type="button"
+            disabled={disabled || applyingOptimization}
+            onClick={onApplyOptimization}
+            className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50"
+          >
+            {applyingOptimization ? 'Optimizing…' : applyOptimizationLabel}
+          </button>
+        )}
         <button
           type="button"
           onClick={onReplace}

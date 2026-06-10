@@ -313,10 +313,9 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 
 	var lastHandoff *youtube.HandoffPayload
 
-	jobMsg := "Starting YouTube download (AAC 256 kbps for Apple Music)"
-	if opts.YouTubeSaveVideo {
-		jobMsg += " + MP4 video"
-	}
+	delivery := NormalizeYouTubeDelivery(opts.YouTubeDeliveryMode)
+
+	jobMsg := delivery.JobStartMessage()
 	e.emit(events.Event{
 		Type:    events.EventJobStart,
 		Message: jobMsg,
@@ -336,7 +335,7 @@ func (e *Engine) runYouTubeDownload(opts RunOptions) {
 		default:
 		}
 		e.log(fmt.Sprintf("YouTube %d of %d", i+1, len(urls)))
-		handoff, err := e.downloadYouTubeURL(raw, opts.SelectedTrackNums, opts.YouTubeSaveVideo, opts.YouTubeMeta)
+		handoff, err := e.downloadYouTubeURL(raw, opts.SelectedTrackNums, delivery, opts.YouTubeMeta)
 		if handoff != nil {
 			lastHandoff = handoff
 		}
@@ -494,12 +493,13 @@ func convertMetas(metas []YouTubeDownloadMeta) []youtube.DownloadMeta {
 	return out
 }
 
-func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bool, metas []YouTubeDownloadMeta) (*youtube.HandoffPayload, error) {
+func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, delivery YouTubeDeliveryMode, metas []YouTubeDownloadMeta) (*youtube.HandoffPayload, error) {
 	saveDir := youtubeOutputDir()
 	trackLabel := e.DetectURLType(raw)
 	isPlaylist := strings.Contains(raw, "list=") || len(selectedNums) > 1
 	multiTrack := isPlaylist || len(selectedNums) > 1
 	metaMap := youtube.MetaByNum(convertMetas(metas))
+	checkVideo := delivery.ExistingMediaIsVideo()
 
 	resolveMeta := func(num int) youtube.DownloadMeta {
 		if m, ok := metaMap[num]; ok {
@@ -519,7 +519,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			num = selectedNums[0]
 			meta = resolveMeta(num)
 		}
-		if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
+		if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, checkVideo); ok {
 			counter.Success++
 			counter.Total++
 			msg := fmt.Sprintf("Already on disk: %s", meta.Title)
@@ -532,13 +532,13 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			return handoffFromMeta(path, YouTubeDownloadMeta(meta)), nil
 		}
 	} else if len(selectedNums) > 0 {
-		missing := filterMissingYouTubeTracks(saveDir, selectedNums, multiTrack, metaMap)
+		missing := filterMissingYouTubeTracks(saveDir, selectedNums, multiTrack, metaMap, delivery)
 		for _, num := range selectedNums {
 			if containsInt(missing, num) {
 				continue
 			}
 			meta := resolveMeta(num)
-			if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
+			if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, checkVideo); ok {
 				counter.Success++
 				msg := fmt.Sprintf("Already on disk: %s", meta.Title)
 				if rootHint != "output folder" {
@@ -581,83 +581,85 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 	}
 	defer os.RemoveAll(tempDir)
 
-	audioArgs := buildYouTubeAudioArgs(tempDir, raw, selectedNums, isPlaylist)
-	if err := e.runYtDlpDownload(raw, audioArgs, trackLabel, "audio"); err != nil {
-		counter.Error++
-		e.emitTrackFailed(trackLabel, 1, 1, err.Error())
-		return nil, err
-	}
-
-	downloaded, err := listTempDownloads(tempDir)
-	if err != nil || len(downloaded) == 0 {
-		counter.Error++
-		msg := "no audio files produced by yt-dlp"
-		if err != nil {
-			msg = err.Error()
-		}
-		e.emitTrackFailed(trackLabel, 1, 1, msg)
-		return nil, fmt.Errorf("%s", msg)
-	}
-
-	e.emit(events.Event{
-		Type:    events.EventProgress,
-		Message: "Converting to AAC (256 kbps) and writing Apple Music tags…",
-		Track:   trackLabel,
-		Phase:   "postprocess",
-		Current: 850,
-		Total:   1000,
-	})
-
 	var handoff *youtube.HandoffPayload
 
-	if isPlaylist {
-		for i, src := range downloaded {
-			num := parseDownloadIndex(filepath.Base(src))
-			if len(selectedNums) > 0 && i < len(selectedNums) {
-				num = selectedNums[i]
-			}
-			meta := resolveMeta(num)
-			if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
-				counter.Success++
-				msg := fmt.Sprintf("Already on disk: %s", meta.Title)
-				if rootHint != "output folder" {
-					msg = fmt.Sprintf("Already on disk (%s): %s", rootHint, meta.Title)
-				}
-				e.emitTrackSkipped(meta.Title, int64(num), int64(len(downloaded)), msg)
-				e.log(fmt.Sprintf("Skipped (exists): %s", path))
-				noteDownloadOutput(path)
-				continue
-			}
-			e.emit(events.Event{
-				Type:    events.EventTrackStart,
-				Message: fmt.Sprintf("Processing: %s", meta.Title),
-				Track:   meta.Title,
-				Current: int64(num),
-				Total:   int64(len(downloaded)),
-			})
-			outPath, err := youtube.FinalizeAudio(Config, saveDir, src, meta, multiTrack)
-			if err != nil {
-				counter.Error++
-				e.emitTrackFailed(meta.Title, int64(num), int64(len(downloaded)), err.Error())
-				return nil, err
-			}
-			e.log(fmt.Sprintf("Saved AAC: %s", outPath))
-			noteDownloadOutput(outPath)
-		}
-	} else {
-		meta := resolveMeta(1)
-		outPath, err := youtube.FinalizeAudio(Config, saveDir, downloaded[0], meta, multiTrack)
-		if err != nil {
+	if delivery.SaveAudio() {
+		audioArgs := buildYouTubeAudioArgs(tempDir, raw, selectedNums, isPlaylist)
+		if err := e.runYtDlpDownload(raw, audioArgs, trackLabel, "audio"); err != nil {
 			counter.Error++
 			e.emitTrackFailed(trackLabel, 1, 1, err.Error())
 			return nil, err
 		}
-		e.log(fmt.Sprintf("Saved AAC: %s", outPath))
-		noteDownloadOutput(outPath)
-		handoff = handoffFromMeta(outPath, YouTubeDownloadMeta(meta))
+
+		downloaded, err := listTempDownloads(tempDir)
+		if err != nil || len(downloaded) == 0 {
+			counter.Error++
+			msg := "no audio files produced by yt-dlp"
+			if err != nil {
+				msg = err.Error()
+			}
+			e.emitTrackFailed(trackLabel, 1, 1, msg)
+			return nil, fmt.Errorf("%s", msg)
+		}
+
+		e.emit(events.Event{
+			Type:    events.EventProgress,
+			Message: "Converting to AAC (256 kbps) and writing Apple Music tags…",
+			Track:   trackLabel,
+			Phase:   "postprocess",
+			Current: 850,
+			Total:   1000,
+		})
+
+		if isPlaylist {
+			for i, src := range downloaded {
+				num := parseDownloadIndex(filepath.Base(src))
+				if len(selectedNums) > 0 && i < len(selectedNums) {
+					num = selectedNums[i]
+				}
+				meta := resolveMeta(num)
+				if path, rootHint, ok := youtubeExistingLocation(saveDir, meta, multiTrack, false); ok {
+					counter.Success++
+					msg := fmt.Sprintf("Already on disk: %s", meta.Title)
+					if rootHint != "output folder" {
+						msg = fmt.Sprintf("Already on disk (%s): %s", rootHint, meta.Title)
+					}
+					e.emitTrackSkipped(meta.Title, int64(num), int64(len(downloaded)), msg)
+					e.log(fmt.Sprintf("Skipped (exists): %s", path))
+					noteDownloadOutput(path)
+					continue
+				}
+				e.emit(events.Event{
+					Type:    events.EventTrackStart,
+					Message: fmt.Sprintf("Processing: %s", meta.Title),
+					Track:   meta.Title,
+					Current: int64(num),
+					Total:   int64(len(downloaded)),
+				})
+				outPath, err := youtube.FinalizeAudio(Config, saveDir, src, meta, multiTrack)
+				if err != nil {
+					counter.Error++
+					e.emitTrackFailed(meta.Title, int64(num), int64(len(downloaded)), err.Error())
+					return nil, err
+				}
+				e.log(fmt.Sprintf("Saved AAC: %s", outPath))
+				noteDownloadOutput(outPath)
+			}
+		} else {
+			meta := resolveMeta(1)
+			outPath, err := youtube.FinalizeAudio(Config, saveDir, downloaded[0], meta, multiTrack)
+			if err != nil {
+				counter.Error++
+				e.emitTrackFailed(trackLabel, 1, 1, err.Error())
+				return nil, err
+			}
+			e.log(fmt.Sprintf("Saved AAC: %s", outPath))
+			noteDownloadOutput(outPath)
+			handoff = handoffFromMeta(outPath, YouTubeDownloadMeta(meta))
+		}
 	}
 
-	if saveVideo {
+	if delivery.SaveVideo() {
 		e.emit(events.Event{
 			Type:    events.EventProgress,
 			Message: "Downloading MP4 video (H.264)…",
@@ -708,7 +710,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 			})
 			outPath, err := youtube.FinalizeVideo(Config, src, meta, multiTrack)
 			if err != nil {
-				e.logError(fmt.Sprintf("Video save failed (audio already saved): %v", err))
+				e.logError(fmt.Sprintf("Video save failed: %v", err))
 				e.emit(events.Event{
 					Type:    events.EventLog,
 					Message: fmt.Sprintf("Video copy failed for %s: %v", meta.Title, err),
@@ -723,7 +725,7 @@ func (e *Engine) downloadYouTubeURL(raw string, selectedNums []int, saveVideo bo
 	counter.Success++
 	e.emit(events.Event{
 		Type:    events.EventTrackComplete,
-		Message: "Saved AAC files ready for Apple Music import",
+		Message: delivery.CompleteMessage(),
 		Track:   trackLabel,
 		Current: 1,
 		Total:   1,

@@ -188,14 +188,22 @@ func (e *Engine) CheckTrackDuplicates(opts RunOptions, preview apple.PreviewResu
 				}
 			}
 			multi := preview.TrackCount > 1
-			expected := youtube.OutputPath(primary, meta, multi, false)
-			st.ExpectedPath = expected
-			st.ExpectedFilename = filepath.Base(expected)
-			relPath, _ = filepath.Rel(primary, expected)
-			basename = st.ExpectedFilename
-			if opts.YouTubeSaveVideo {
+			delivery := NormalizeYouTubeDelivery(opts.YouTubeDeliveryMode)
+			if delivery.SaveAudio() {
+				expected := youtube.OutputPath(primary, meta, multi, false)
+				st.ExpectedPath = expected
+				st.ExpectedFilename = filepath.Base(expected)
+				relPath, _ = filepath.Rel(primary, expected)
+				basename = st.ExpectedFilename
+				if delivery.SaveVideo() {
+					extra = append(extra, filepath.Base(youtube.OutputPath(primary, meta, multi, true)))
+				}
+			} else if delivery.SaveVideo() {
 				vid := youtube.OutputPath(primary, meta, multi, true)
-				extra = append(extra, filepath.Base(vid))
+				st.ExpectedPath = vid
+				st.ExpectedFilename = filepath.Base(vid)
+				relPath, _ = filepath.Rel(primary, vid)
+				basename = st.ExpectedFilename
 			}
 		} else {
 			plan := planAppleTrackPath(preview.Type, preview, t, opts.Quality)
@@ -397,17 +405,18 @@ func youtubeExistingLocation(primary string, meta youtube.DownloadMeta, multiTra
 	return path, rootLabel(root, primary), true
 }
 
-func filterMissingYouTubeTracks(saveDir string, selectedNums []int, multiTrack bool, metaMap map[int]youtube.DownloadMeta) []int {
+func filterMissingYouTubeTracks(saveDir string, selectedNums []int, multiTrack bool, metaMap map[int]youtube.DownloadMeta, delivery YouTubeDeliveryMode) []int {
 	if len(selectedNums) == 0 {
 		return selectedNums
 	}
+	checkVideo := delivery.ExistingMediaIsVideo()
 	out := make([]int, 0, len(selectedNums))
 	for _, num := range selectedNums {
 		meta := metaMap[num]
 		if meta.Num == 0 {
 			meta.Num = num
 		}
-		if _, _, exists := youtubeExistingLocation(saveDir, meta, multiTrack, false); exists {
+		if _, _, exists := youtubeExistingLocation(saveDir, meta, multiTrack, checkVideo); exists {
 			continue
 		}
 		out = append(out, num)

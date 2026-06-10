@@ -33,6 +33,10 @@ func TestResolveArtSource(t *testing.T) {
 			name: "none",
 			meta: DownloadMeta{ArtSource: ArtSourceNone, ArtURL: "https://ignored", CoverPath: "ignored.jpg"},
 		},
+		{
+			name: "optimize flag",
+			meta: DownloadMeta{ArtSource: ArtSourceYouTube, ArtURL: "https://thumb.example/a.jpg", OptimizeArtwork: true},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -42,6 +46,11 @@ func TestResolveArtSource(t *testing.T) {
 			}
 			if tags.CoverURL != tc.wantURL {
 				t.Fatalf("CoverURL = %q, want %q", tags.CoverURL, tc.wantURL)
+			}
+			if tc.name == "optimize flag" {
+				if tags.CoverOptimize == nil || !*tags.CoverOptimize {
+					t.Fatal("expected CoverOptimize true")
+				}
 			}
 		})
 	}

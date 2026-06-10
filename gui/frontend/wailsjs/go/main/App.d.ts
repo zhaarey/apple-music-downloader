@@ -12,7 +12,7 @@ export function CancelDownload():Promise<void>;
 
 export function CheckDependencies():Promise<Array<engine.DependencyStatus>>;
 
-export function CheckTrackDuplicates(arg1:string,arg2:string,arg3:Array<number>,arg4:boolean,arg5:string,arg6:Array<youtube.DownloadMeta>,arg7:apple.PreviewResult):Promise<engine.DuplicateCheckResult>;
+export function CheckTrackDuplicates(arg1:string,arg2:string,arg3:Array<number>,arg4:string,arg5:string,arg6:Array<youtube.DownloadMeta>,arg7:apple.PreviewResult):Promise<engine.DuplicateCheckResult>;
 
 export function ClearAllSyncCaches():Promise<media.CacheClearResult>;
 
@@ -60,7 +60,7 @@ export function OpenSyncRepairLog():Promise<void>;
 
 export function PickFolder():Promise<string>;
 
-export function PreflightDownloadJob(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<engine.PreflightResult>;
+export function PreflightDownloadJob(arg1:string,arg2:string,arg3:string,arg4:string):Promise<engine.PreflightResult>;
 
 export function PrepareAlbumForSync(arg1:string):Promise<media.AlbumPrepareResult>;
 
@@ -122,11 +122,15 @@ export function StartBulkDownloadJob(arg1:Array<engine.BulkQueueEntry>,arg2:stri
 
 export function StartDownload(arg1:Array<string>,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<void>;
 
-export function StartDownloadJob(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>,arg5:boolean,arg6:Array<youtube.DownloadMeta>):Promise<void>;
+export function StartDownloadJob(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>,arg5:string,arg6:Array<youtube.DownloadMeta>):Promise<void>;
 
 export function TagAnalyzeArtwork(arg1:string):Promise<media.ArtworkAccentAnalysis>;
 
+export function TagAnalyzeArtworkSource(arg1:string,arg2:string):Promise<media.ArtworkAccentAnalysis>;
+
 export function TagAnalyzeEmbeddedArtwork(arg1:string):Promise<media.ArtworkAccentAnalysis>;
+
+export function TagApplyOptimizedArtwork(arg1:string,arg2:string):Promise<media.PreparedArtworkResult>;
 
 export function TagFindAlbumCover(arg1:string):Promise<string>;
 

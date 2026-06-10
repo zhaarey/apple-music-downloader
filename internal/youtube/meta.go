@@ -65,6 +65,10 @@ func MetaFromDownload(meta DownloadMeta, cfg structs.ConfigSet) media.TrackTags 
 	coverPath, coverURL := resolveArtSource(meta)
 	tags.CoverPath = coverPath
 	tags.CoverURL = coverURL
+	if meta.OptimizeArtwork {
+		opt := true
+		tags.CoverOptimize = &opt
+	}
 	return tags
 }
 

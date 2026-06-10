@@ -636,6 +636,40 @@ export namespace media {
 		    return a;
 		}
 	}
+	export class PreparedArtworkResult {
+	    path: string;
+	    width: number;
+	    height: number;
+	    is_square: boolean;
+	    min_edge_px: number;
+	    avg_saturation: number;
+	    avg_luminance: number;
+	    accent_ready: boolean;
+	    warnings: string[];
+	    summary: string;
+	    optimized_b64?: string;
+	    optimized_mime?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PreparedArtworkResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.is_square = source["is_square"];
+	        this.min_edge_px = source["min_edge_px"];
+	        this.avg_saturation = source["avg_saturation"];
+	        this.avg_luminance = source["avg_luminance"];
+	        this.accent_ready = source["accent_ready"];
+	        this.warnings = source["warnings"];
+	        this.summary = source["summary"];
+	        this.optimized_b64 = source["optimized_b64"];
+	        this.optimized_mime = source["optimized_mime"];
+	    }
+	}
 	
 	export class SyncRepairOptions {
 	    prepare_folders: string[];
@@ -1166,6 +1200,7 @@ export namespace youtube {
 	    art_url?: string;
 	    cover_path?: string;
 	    art_source?: string;
+	    optimize_artwork?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DownloadMeta(source);
@@ -1186,6 +1221,7 @@ export namespace youtube {
 	        this.art_url = source["art_url"];
 	        this.cover_path = source["cover_path"];
 	        this.art_source = source["art_source"];
+	        this.optimize_artwork = source["optimize_artwork"];
 	    }
 	}
 

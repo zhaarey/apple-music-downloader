@@ -12,6 +12,15 @@ export async function loadArtworkAnalysis(path, analyzeFn) {
   }
 }
 
+export async function loadArtworkSourceAnalysis({ coverPath, artURL }, analyzeSourceFn) {
+  if (!coverPath && !artURL) return null
+  try {
+    return await analyzeSourceFn(coverPath || '', artURL || '')
+  } catch {
+    return null
+  }
+}
+
 export async function loadEmbeddedArtworkAnalysis(audioPath, analyzeEmbeddedFn) {
   if (!audioPath) return null
   try {

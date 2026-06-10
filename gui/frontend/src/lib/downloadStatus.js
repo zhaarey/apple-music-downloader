@@ -10,17 +10,18 @@ const PHASE_LABELS = {
   video: 'Saving MP4 video',
   postprocess: 'Processing',
   download: 'Downloading',
+  queue: 'Queue',
 }
 
 /** Events belonging to the current/last job (from last job_start onward). */
-export function sliceEventsForCurrentJob(engineEvents) {
+export function sliceEventsForCurrentJob(engineEvents, { requireJobStart = false } = {}) {
   const events = engineEvents || []
   for (let i = events.length - 1; i >= 0; i--) {
     if (events[i].type === 'job_start') {
       return events.slice(i)
     }
   }
-  return events
+  return requireJobStart ? [] : events
 }
 
 export function parseJobResult(engineEvents) {
@@ -54,11 +55,24 @@ function formatProgressDetail(ev) {
   return ev.message || phase
 }
 
+function eventTrackIndex(ev, previewTracks) {
+  if (ev.type === 'progress') return null
+  if (ev.current > 0) return ev.current
+  if (previewTracks?.length === 1) return previewTracks[0].num
+  if (ev.track && previewTracks?.length) {
+    const byName = previewTracks.find(
+      (t) => t.name === ev.track || ev.track?.includes(t.name) || t.name?.includes(ev.track),
+    )
+    if (byName) return byName.num
+  }
+  return null
+}
+
 export function parseYouTubeProgress(engineEvents) {
   const events = sliceEventsForCurrentJob(engineEvents)
   for (let i = events.length - 1; i >= 0; i--) {
     const ev = events[i]
-    if (ev.type === 'progress') {
+    if (ev.type === 'progress' && ev.phase !== 'queue') {
       return {
         percent: progressPercent(ev),
         message: ev.message || '',
@@ -87,53 +101,111 @@ export function parseTrackRows(previewTracks, engineEvents, jobStarted) {
     return [...rows.values()].sort((a, b) => a.num - b.num)
   }
 
+  const jobEvents = sliceEventsForCurrentJob(engineEvents, { requireJobStart: true })
+  if (jobEvents.length === 0) {
+    return [...rows.values()].sort((a, b) => a.num - b.num)
+  }
+
   let lastProgress = null
-  for (const ev of sliceEventsForCurrentJob(engineEvents)) {
+  for (const ev of jobEvents) {
     if (ev.type === 'progress') {
       lastProgress = ev
     }
-    if (!ev.current && ev.type !== 'progress') continue
-    const key = ev.current || 1
-    const existing = rows.get(key) || {
-      num: key,
-      label: ev.track || ev.message || `Item ${key}`,
-      sublabel: '',
-      status: 'queued',
-      detail: '',
-      percent: 0,
+
+    if (ev.type === 'track_start' || ev.type === 'track_complete' || ev.type === 'track_failed') {
+      const key = eventTrackIndex(ev, previewTracks)
+      if (key == null) continue
+      const existing = rows.get(key) || {
+        num: key,
+        label: ev.track || `Item ${key}`,
+        sublabel: '',
+        status: 'queued',
+        detail: '',
+        percent: 0,
+      }
+      if (ev.type === 'track_start') {
+        existing.status = 'downloading'
+        existing.label = ev.track || existing.label
+        existing.detail = ev.message || 'Starting…'
+      }
+      if (ev.type === 'track_complete') {
+        existing.status = ev.phase === 'skipped' ? 'skipped' : 'done'
+        existing.detail = ev.message || ''
+        existing.percent = 100
+        existing.label = ev.track || existing.label
+      }
+      if (ev.type === 'track_failed') {
+        existing.status = ev.phase === 'unavailable' ? 'unavailable' : 'failed'
+        existing.detail = ev.message || 'Download failed'
+        existing.label = ev.track || existing.label
+      }
+      rows.set(key, existing)
+      continue
     }
-    if (ev.type === 'track_start') {
-      existing.status = 'downloading'
-      existing.label = existing.label || ev.track || existing.label
-      existing.detail = ev.message || 'Starting…'
+
+    if (ev.type === 'progress' && ev.phase !== 'queue') {
+      const key = eventTrackIndex(ev, previewTracks) ?? (previewTracks.length === 1 ? previewTracks[0].num : null)
+      if (key == null) continue
+      const existing = rows.get(key)
+      if (!existing) continue
+      if (existing.status === 'downloading' || existing.status === 'queued') {
+        existing.status = 'downloading'
+        existing.percent = progressPercent(ev)
+        existing.detail = formatProgressDetail(ev)
+        rows.set(key, existing)
+      }
     }
-    if (ev.type === 'track_complete') {
-      existing.status = ev.phase === 'skipped' ? 'skipped' : 'done'
-      existing.detail = ev.message || ''
-      existing.percent = 100
-      existing.label = ev.track || existing.label
-    }
-    if (ev.type === 'track_failed') {
-      existing.status = ev.phase === 'unavailable' ? 'unavailable' : 'failed'
-      existing.detail = ev.message || 'Download failed'
-      existing.label = ev.track || existing.label
-    }
-    if (ev.type === 'progress' && (existing.status === 'downloading' || existing.status === 'queued')) {
-      existing.status = 'downloading'
-      existing.percent = progressPercent(ev)
-      existing.detail = formatProgressDetail(ev)
-    }
-    rows.set(key, existing)
   }
-  if (rows.size === 1 && lastProgress) {
-    const only = [...rows.values()][0]
-    if (only.status === 'downloading' || only.status === 'queued') {
+
+  if (previewTracks.length === 1 && lastProgress && lastProgress.phase !== 'queue') {
+    const only = rows.get(previewTracks[0].num)
+    if (only && (only.status === 'downloading' || only.status === 'queued')) {
       only.percent = progressPercent(lastProgress)
       only.detail = formatProgressDetail(lastProgress)
       rows.set(only.num, only)
     }
   }
+
   return [...rows.values()].sort((a, b) => a.num - b.num)
+}
+
+export function summarizeTrackRows(rows) {
+  const out = { done: 0, skipped: 0, failed: 0, unavailable: 0, downloading: 0, queued: 0, idle: 0, total: 0 }
+  for (const r of rows || []) {
+    out.total++
+    if (out[r.status] !== undefined) out[r.status]++
+    else out.idle++
+  }
+  out.ok = out.done + out.skipped
+  return out
+}
+
+export function failedTrackRowsFromJob(rows) {
+  return (rows || []).filter((r) => r.status === 'failed' || r.status === 'unavailable')
+}
+
+/** Final failed/unavailable tracks from job events (excludes later successes). */
+export function parseFailedTracksFromJob(engineEvents, previewTracks, jobStarted) {
+  if (previewTracks?.length) {
+    return failedTrackRowsFromJob(parseTrackRows(previewTracks, engineEvents, jobStarted))
+  }
+  const jobEvents = sliceEventsForCurrentJob(engineEvents, { requireJobStart: true })
+  const final = new Map()
+  for (const ev of jobEvents) {
+    if (ev.type !== 'track_failed' && ev.type !== 'track_complete') continue
+    const label = ev.track || ev.message || 'Unknown track'
+    if (ev.type === 'track_complete') {
+      final.delete(label)
+      continue
+    }
+    final.set(label, {
+      label,
+      detail: ev.message || '',
+      phase: ev.phase,
+      status: ev.phase === 'unavailable' ? 'unavailable' : 'failed',
+    })
+  }
+  return [...final.values()]
 }
 
 export function jobStatusMeta(phase) {
@@ -172,4 +244,12 @@ export function trackStatusClass(status) {
     default:
       return 'text-white/40'
   }
+}
+
+/** Derive download flow phase for single-link tabs. */
+export function deriveFlowPhase({ preview, jobStarted, downloading, jobResult }) {
+  if (downloading) return 'downloading'
+  if (jobStarted && jobResult) return 'done'
+  if (preview) return 'review'
+  return 'link'
 }

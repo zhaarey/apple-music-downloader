@@ -26,6 +26,7 @@ import {
   summarizeItemTracks,
 } from '../lib/parseBulkUrls'
 import BulkAlbumCompareModal from './BulkAlbumCompareModal'
+import DownloadFlowLayout from './download/DownloadFlowLayout'
 import { parseBulkQueueProgress } from '../lib/bulkQueueProgress'
 import { parseJobResult, jobStatusMeta } from '../lib/downloadStatus'
 import { formatActionError } from '../lib/formatActionError'
@@ -500,6 +501,7 @@ export default function BulkDownloadQueue({
   const [editingId, setEditingId] = useState(null)
   const [editUrlDraft, setEditUrlDraft] = useState('')
   const [compareItemId, setCompareItemId] = useState(null)
+  const [showPasteArea, setShowPasteArea] = useState(true)
   const autoSwitchedIssues = useRef(false)
 
   const queueProgress = useMemo(
@@ -783,52 +785,115 @@ export default function BulkDownloadQueue({
 
   const jobMeta = jobResult ? jobStatusMeta(jobResult.phase) : null
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold">Bulk download queue</h2>
-        <p className="mt-1 text-sm text-white/50">
-          Paste many links, filter by status, edit bad URLs inline, then download the queue in one run.
-        </p>
-      </div>
+  const bulkFlowPhase = useMemo(() => {
+    if (downloading) return 'downloading'
+    if (jobStarted && jobResult) return 'done'
+    if (queue.length > 0) return 'review'
+    return 'link'
+  }, [downloading, jobStarted, jobResult, queue.length])
 
-      {!hasToken && (
+  useEffect(() => {
+    if (bulkFlowPhase === 'downloading' || bulkFlowPhase === 'done') {
+      setShowPasteArea(false)
+    }
+  }, [bulkFlowPhase])
+
+  const bulkFooter =
+    bulkFlowPhase === 'link' ? (
+      <button
+        type="button"
+        onClick={addUrlsFromText}
+        disabled={!pasteText.trim() || downloading || loadingQueue}
+        className="w-full rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+      >
+        {loadingQueue ? 'Loading previews…' : 'Add to queue'}
+      </button>
+    ) : bulkFlowPhase === 'review' ? (
+      <button
+        type="button"
+        onClick={startBulkDownload}
+        disabled={downloading || queueDownloadPlan.entries.length === 0 || loadingQueue}
+        className="w-full rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+      >
+        {queueDownloadPlan.entries.length === 0
+          ? 'Nothing to download (all skipped)'
+          : `Download queue · ${queueDownloadPlan.stats.albums} album${queueDownloadPlan.stats.albums !== 1 ? 's' : ''} · ${queueDownloadPlan.stats.tracksToDownload} track${queueDownloadPlan.stats.tracksToDownload !== 1 ? 's' : ''}`}
+      </button>
+    ) : bulkFlowPhase === 'downloading' ? (
+      <p className="w-full py-3 text-center text-sm font-medium text-accent">
+        Downloading queue ({queueProgress?.current || 0}/{queueProgress?.total || queueDownloadPlan.stats.urls})…
+      </p>
+    ) : bulkFlowPhase === 'done' ? (
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => {
+            setShowPasteArea(true)
+            setQueueFilter('all')
+          }}
+          className="flex-1 rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted"
+        >
+          Add more links
+        </button>
+        <button
+          type="button"
+          onClick={clearQueue}
+          className="flex-1 rounded-xl border border-white/15 bg-white/[0.04] py-3 font-semibold text-white/90 hover:bg-white/[0.08]"
+        >
+          Clear queue
+        </button>
+      </div>
+    ) : null
+
+  return (
+    <DownloadFlowLayout
+      title="Bulk download queue"
+      subtitle={
+        bulkFlowPhase === 'link'
+          ? 'Paste many Apple Music links — previews load in parallel'
+          : bulkFlowPhase === 'review'
+            ? 'Review queue, fix issues, then download in one run'
+            : bulkFlowPhase === 'downloading'
+              ? 'Queue downloading sequentially — see progress below'
+              : 'Queue finished — add more links or clear the queue'
+      }
+      phase={bulkFlowPhase}
+      stepperVariant="bulk"
+      footer={bulkFooter}
+      footerNote={
+        bulkFlowPhase === 'review'
+          ? 'Duplicates default to skip. Use Compare on album rows to re-download or exclude tracks.'
+          : undefined
+      }
+    >
+      {!hasToken && bulkFlowPhase !== 'downloading' && (
         <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
           AAC downloads need your media-user-token in Settings.
         </p>
       )}
 
-      <div className="rounded-xl border border-white/10 bg-surface-raised p-4">
-        <label className="text-xs font-medium uppercase tracking-wide text-white/45">Paste links</label>
-        <textarea
-          value={pasteText}
-          onChange={(e) => setPasteText(e.target.value)}
-          disabled={downloading || loadingQueue}
-          rows={4}
-          placeholder={`https://music.apple.com/us/album/worlds/1440857923\nhttps://music.apple.com/us/album/nurture/...\n(one per line)`}
-          className="mt-2 w-full resize-y rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-        />
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={addUrlsFromText}
-            disabled={!pasteText.trim() || downloading || loadingQueue}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium hover:bg-accent-muted disabled:opacity-40"
-          >
-            {loadingQueue ? 'Loading previews…' : 'Add to queue'}
-          </button>
-          {queue.length > 0 && (
+      {(bulkFlowPhase === 'link' || showPasteArea) && (
+        <div className="rounded-xl border border-white/10 bg-surface-raised p-4">
+          <label className="text-xs font-medium uppercase tracking-wide text-white/45">Paste links</label>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            disabled={downloading || loadingQueue}
+            rows={4}
+            placeholder={`https://music.apple.com/us/album/worlds/1440857923\nhttps://music.apple.com/us/album/nurture/...\n(one per line)`}
+            className="mt-2 w-full resize-y rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+          />
+          {bulkFlowPhase !== 'link' && (
             <button
               type="button"
-              onClick={clearQueue}
-              disabled={downloading || loadingQueue}
-              className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 hover:bg-white/5 disabled:opacity-40"
+              onClick={() => setShowPasteArea(false)}
+              className="mt-2 text-xs text-white/45 hover:text-white/70"
             >
-              Clear queue
+              Hide paste area
             </button>
           )}
         </div>
-      </div>
+      )}
 
       {fetchError && (
         <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{fetchError}</p>
@@ -946,8 +1011,9 @@ export default function BulkDownloadQueue({
             {(queueDownloadPlan.stats.tracksSkipped > 0 ||
               queueDownloadPlan.stats.tracksRedownload > 0 ||
               queueDownloadPlan.stats.albumsFullySkipped > 0) &&
-              !downloading && (
-              <p className="mb-3 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+              !downloading &&
+              bulkFlowPhase === 'review' && (
+              <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
                 Download plan: <strong className="font-medium">{queueDownloadPlan.stats.tracksToDownload}</strong> track
                 {queueDownloadPlan.stats.tracksToDownload !== 1 ? 's' : ''} will download
                 {queueDownloadPlan.stats.tracksSkipped > 0 && (
@@ -972,28 +1038,12 @@ export default function BulkDownloadQueue({
                 )}
               </p>
             )}
-            {filterCounts.issues > 0 && !downloading && (
-              <p className="mb-3 rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+            {filterCounts.issues > 0 && !downloading && bulkFlowPhase === 'review' && (
+              <p className="rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
                 {filterCounts.issues} item{filterCounts.issues !== 1 ? 's have' : ' has'} preview errors — use{' '}
                 <strong className="font-medium">Issues</strong> filter, edit the URL, then Save &amp; refetch.
               </p>
             )}
-            <button
-              type="button"
-              onClick={startBulkDownload}
-              disabled={downloading || queueDownloadPlan.entries.length === 0 || loadingQueue}
-              className="w-full rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
-            >
-              {downloading
-                ? `Downloading queue (${queueProgress?.current || 0}/${queueProgress?.total || queueDownloadPlan.stats.urls})…`
-                : queueDownloadPlan.entries.length === 0
-                  ? 'Nothing to download (all skipped)'
-                  : `Download queue · ${queueDownloadPlan.stats.albums} album${queueDownloadPlan.stats.albums !== 1 ? 's' : ''} · ${queueDownloadPlan.stats.tracksToDownload} track${queueDownloadPlan.stats.tracksToDownload !== 1 ? 's' : ''}${queueDownloadPlan.stats.tracksSkipped > 0 ? ` (${queueDownloadPlan.stats.tracksSkipped} skipped)` : ''}`}
-            </button>
-            <p className="mt-2 text-center text-xs text-white/40">
-              Duplicates default to <strong className="font-medium text-white/55">skip</strong>. Use Compare on album
-              rows to re-download or exclude tracks.
-            </p>
           </div>
         </div>
       )}
@@ -1006,11 +1056,11 @@ export default function BulkDownloadQueue({
         onRemoveAlbum={excludeAlbumFromQueue}
       />
 
-      {queue.length === 0 && !loadingQueue && (
+      {queue.length === 0 && !loadingQueue && bulkFlowPhase === 'link' && (
         <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/55">
           Example: paste several album links, then use filters to spot errors or tracks already on disk.
         </p>
       )}
-    </div>
+    </DownloadFlowLayout>
   )
 }

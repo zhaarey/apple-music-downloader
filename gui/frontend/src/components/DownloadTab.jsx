@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DetectURLType, PreviewURL, StartDownloadJob, OpenLogFile, OpenFolder, RevealInFolder, PreflightDownloadJob, PickFolder, CheckTrackDuplicates } from '../wailsjs/go/main/App'
-import { parseJobResult, parseTrackRows, parseYouTubeProgress, jobStatusMeta, trackStatusIcon, trackStatusClass } from '../lib/downloadStatus'
-import { FetchPreviewSkeleton, FetchStatusBanner, YouTubeProgressPanel } from './YouTubeUI'
+import {
+  parseJobResult,
+  parseTrackRows,
+  parseYouTubeProgress,
+  jobStatusMeta,
+  deriveFlowPhase,
+} from '../lib/downloadStatus'
+import { FetchPreviewSkeleton, FetchStatusBanner } from './YouTubeUI'
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
+import YouTubeDeliveryModeSwitch from './YouTubeDeliveryModeSwitch'
+import { youtubeDownloadButtonLabel } from '../lib/youtubeDelivery'
 import SearchTab from './SearchTab'
 import OutputFolderField from './OutputFolderField'
-import ApplePurgePanel from './ApplePurgePanel'
 import BulkDownloadQueue from './BulkDownloadQueue'
+import DownloadFlowLayout from './download/DownloadFlowLayout'
+import TrackStatusPanel from './download/TrackStatusPanel'
 import AppleDownloadModeSwitch from './AppleDownloadModeSwitch'
 import PageShell from './PageShell'
 import { outputFolderKey, outputFolderLabel, outputFolderPath } from '../lib/settings'
@@ -121,6 +130,7 @@ export default function DownloadTab({
   prefillUrl,
   onPrefillConsumed,
   downloading,
+  downloadActiveForThisTab = false,
   onDownloadStart,
   onDownloadEnd,
   engineEvents,
@@ -142,7 +152,7 @@ export default function DownloadTab({
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
   const [jobStarted, setJobStarted] = useState(false)
-  const [saveVideo, setSaveVideo] = useState(false)
+  const [youtubeDeliveryMode, setYoutubeDeliveryMode] = useState('audio')
   const [fetchStep, setFetchStep] = useState(0)
   const [fetchStatus, setFetchStatus] = useState('')
   const [metaByTrack, setMetaByTrack] = useState({})
@@ -221,7 +231,7 @@ export default function DownloadTab({
           preview.url,
           youtubeMode ? 'youtube' : quality,
           selectedTrackNums,
-          saveVideo,
+          youtubeDeliveryMode,
           youtubeMode ? 'youtube' : 'apple',
           youtubeMeta,
           preview,
@@ -243,7 +253,7 @@ export default function DownloadTab({
     quality,
     selected,
     youtubeMode,
-    saveVideo,
+    youtubeDeliveryMode,
     metaByTrack,
     outputFolder,
     duplicateFoldersKey,
@@ -294,10 +304,23 @@ export default function DownloadTab({
   }, [fetching])
 
   useEffect(() => {
-    if (!downloading && jobStarted) {
+    if (!downloadActiveForThisTab && downloading) {
+      setJobStarted(false)
+    }
+  }, [downloadActiveForThisTab, downloading])
+
+  useEffect(() => {
+    if (!downloading && jobStarted && downloadActiveForThisTab) {
       onDownloadEnd?.(parseJobResult(engineEvents))
     }
-  }, [downloading, jobStarted, engineEvents, onDownloadEnd])
+  }, [downloading, jobStarted, engineEvents, onDownloadEnd, downloadActiveForThisTab])
+
+  const resolvedJobResult = jobResult || jobSession
+
+  const flowPhase = useMemo(
+    () => deriveFlowPhase({ preview, jobStarted, downloading, jobResult: resolvedJobResult }),
+    [preview, jobStarted, downloading, resolvedJobResult],
+  )
 
   const resetPreview = ({ clearPipeline = false } = {}) => {
     setPreview(null)
@@ -317,7 +340,7 @@ export default function DownloadTab({
   const startAnotherDownload = () => {
     setUrl('')
     setUrlType('')
-    setSaveVideo(false)
+    setYoutubeDeliveryMode('audio')
     resetPreview({ clearPipeline: true })
   }
 
@@ -431,7 +454,7 @@ export default function DownloadTab({
 
     const sourceMode = youtubeMode ? 'youtube' : 'apple'
     try {
-      const check = await PreflightDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, saveVideo, sourceMode)
+      const check = await PreflightDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, youtubeDeliveryMode, sourceMode)
       if (!check?.ready) {
         setPreflight(check)
         const failed = (check.checks || []).filter((c) => !c.ok && c.blocking).map((c) => c.detail || c.label)
@@ -448,7 +471,7 @@ export default function DownloadTab({
     onDownloadStart?.()
     try {
       const youtubeMeta = youtubeMode ? metaPayload(metaByTrack, selected) : []
-      await StartDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, selectedTrackNums, childURLs, saveVideo, youtubeMeta)
+      await StartDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta)
     } catch (err) {
       setJobStarted(false)
       const msg = typeof err === 'string' ? err : err?.message || String(err)
@@ -458,8 +481,80 @@ export default function DownloadTab({
   }
 
   const selectedCount = selected.size
-  const showProgress = jobStarted && (trackRows.length > 0 || (youtubeMode && downloading))
+  const showTrackPanel =
+    jobStarted &&
+    (downloading || resolvedJobResult) &&
+    (downloadActiveForThisTab || !downloading) &&
+    trackRows.length > 0
   const urlUnknown = urlType === 'Unknown' && url.trim().length > 12 && !youtubeMode
+
+  const flowTitle = youtubeMode ? 'Download from YouTube' : 'Download from Apple Music'
+  const flowSubtitle =
+    flowPhase === 'link'
+      ? youtubeMode
+        ? 'Paste a video or playlist URL — fetch to preview, then download'
+        : embedSearch
+          ? 'Paste a link or pick from search — fetch to preview, then download'
+          : 'Paste a link, fetch to preview, then download'
+      : flowPhase === 'review'
+        ? 'Confirm tracks, quality, and output folder'
+        : flowPhase === 'downloading'
+          ? 'Download in progress — track status updates below'
+          : 'Download finished — open files or start another'
+
+  const backAction =
+    flowPhase === 'review' ? (
+      <button
+        type="button"
+        onClick={() => resetPreview({ clearPipeline: true })}
+        className="text-sm text-white/50 hover:text-white"
+        disabled={downloading}
+      >
+        ← Change link
+      </button>
+    ) : null
+
+  const flowFooter =
+    flowPhase === 'link' ? (
+      <button
+        type="button"
+        onClick={() => fetchPreview()}
+        disabled={!url.trim() || fetching || urlUnknown}
+        aria-busy={fetching}
+        className="w-full rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+      >
+        {fetching ? 'Fetching…' : 'Fetch'}
+      </button>
+    ) : flowPhase === 'review' ? (
+      <button
+        type="button"
+        onClick={startDownload}
+        disabled={downloading || selectedCount === 0}
+        className="w-full rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+      >
+        {youtubeMode
+          ? youtubeDownloadButtonLabel(youtubeDeliveryMode, selectedCount)
+          : `Download ${selectedCount} selected`}
+      </button>
+    ) : flowPhase === 'done' ? (
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={startDownload}
+          disabled={selectedCount === 0}
+          className="flex-1 rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
+        >
+          Download again
+        </button>
+        <button
+          type="button"
+          onClick={startAnotherDownload}
+          className="flex-1 rounded-xl border border-white/15 bg-white/[0.04] py-3 font-semibold text-white/90 hover:bg-white/[0.08]"
+        >
+          {youtubeMode ? 'New link' : 'Start new download'}
+        </button>
+      </div>
+    ) : null
 
   const handleSearchSelect = (searchUrl) => {
     setUrl(searchUrl)
@@ -505,422 +600,362 @@ export default function DownloadTab({
           addUrlRequest={queueAddRequest}
         />
       ) : (
-        <>
-      {embedSearch && !preview && (
-        <SearchTab embedded onPreview={handleSearchSelect} />
-      )}
-
-      {showSourceToggle && (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface-raised p-3">
-        <div>
-          <p className="text-sm font-medium">Source</p>
-          <p className="text-xs text-white/50">
-            {youtubeMode ? 'Download audio from YouTube links (DJ sets, mixes)' : 'Download from Apple Music'}
-          </p>
-        </div>
-        <div className="flex rounded-lg bg-surface p-1">
-          <button
-            type="button"
-            disabled={downloading}
-            onClick={() => setMode(false)}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-              !youtubeMode ? 'bg-accent text-white' : 'text-white/60 hover:text-white'
-            }`}
-          >
-            Apple Music
-          </button>
-          <button
-            type="button"
-            disabled={downloading}
-            onClick={() => setMode(true)}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-              youtubeMode ? 'bg-accent text-white' : 'text-white/60 hover:text-white'
-            }`}
-          >
-            YouTube Audio
-          </button>
-        </div>
-      </div>
-      )}
-
-      {!preview && (
-        <>
-          <div>
-            <h2 className="text-xl font-semibold">
-              {youtubeMode ? 'Download from YouTube' : 'Download from Apple Music'}
-            </h2>
-            <p className="mt-1 text-sm text-white/50">
-              {youtubeMode
-                ? 'Paste a video or playlist URL — audio is saved in the best available quality'
-                : embedSearch
-                  ? 'Paste a link below or pick from search results — fetch to preview, then download'
-                  : 'Paste a link, fetch to preview, then download — success and errors show here when finished'}
-            </p>
-            {!youtubeMode && appleInputMode === 'single' && (
-              <button
-                type="button"
-                disabled={downloading}
-                onClick={() => setAppleInputMode('bulk')}
-                className="mt-2 text-sm font-medium text-accent hover:underline disabled:opacity-40"
-              >
-                Need many albums? Switch to bulk queue →
-              </button>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                value={url}
-                onChange={(e) => {
-                  setUrl(e.target.value)
-                  resetPreview()
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && fetchPreview()}
-                placeholder={
-                  youtubeMode
-                    ? 'https://www.youtube.com/watch?v=... or playlist link'
-                    : 'https://music.apple.com/us/playlist/...'
-                }
-                className="w-full rounded-xl border border-white/10 bg-surface-raised px-4 py-3 pr-24 text-sm focus:border-accent focus:outline-none"
-              />
-              {urlType && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-accent/20 px-2 py-0.5 text-xs text-accent">
-                  {urlType}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => fetchPreview()}
-              disabled={!url.trim() || fetching || urlUnknown}
-              aria-busy={fetching}
-              className="min-w-[6.5rem] rounded-xl bg-accent px-5 py-3 font-medium transition-opacity hover:bg-accent-muted disabled:opacity-40"
-            >
-              {fetching ? 'Fetching…' : 'Fetch'}
-            </button>
-          </div>
-
-          {fetching && (
-            <FetchStatusBanner message={fetchStatus} variant="info" />
+        <DownloadFlowLayout
+          title={flowTitle}
+          subtitle={flowSubtitle}
+          phase={flowPhase}
+          stepperVariant={youtubeMode ? 'youtube' : 'single'}
+          backAction={backAction}
+          footer={flowFooter}
+        >
+          {embedSearch && flowPhase === 'link' && (
+            <SearchTab embedded onPreview={handleSearchSelect} />
           )}
 
-          {fetching && (
-            <FetchPreviewSkeleton step={fetchStep} youtubeMode={youtubeMode || isYouTubeURL(url)} />
-          )}
-
-          {!fetching && fetchError && (
-            <FetchStatusBanner message={fetchError} variant="error" />
-          )}
-
-          {!fetching && !fetchError && youtubeMode ? (
-            <div className="space-y-2">
-              {(!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok)) && (
-                <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
-                  Install <strong>yt-dlp</strong>, <strong>ffmpeg</strong>, and <strong>ffprobe</strong> (essentials build) on PATH or in <code>dist/tools/</code> — see Requirements tab.
+          {showSourceToggle && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface-raised p-3">
+              <div>
+                <p className="text-sm font-medium">Source</p>
+                <p className="text-xs text-white/50">
+                  {youtubeMode ? 'Download audio from YouTube links (DJ sets, mixes)' : 'Download from Apple Music'}
                 </p>
-              )}
-              <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
-                Long DJ sets and live streams are supported. No Apple Music account needed.
-              </p>
+              </div>
+              <div className="flex rounded-lg bg-surface p-1">
+                <button
+                  type="button"
+                  disabled={downloading}
+                  onClick={() => setMode(false)}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                    !youtubeMode ? 'bg-accent text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Apple Music
+                </button>
+                <button
+                  type="button"
+                  disabled={downloading}
+                  onClick={() => setMode(true)}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                    youtubeMode ? 'bg-accent text-white' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  YouTube Audio
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {!hasToken && (
+          )}
+
+          {flowPhase === 'link' && (
+            <>
+              {!youtubeMode && appleInputMode === 'single' && (
+                <button
+                  type="button"
+                  disabled={downloading}
+                  onClick={() => setAppleInputMode('bulk')}
+                  className="text-sm font-medium text-accent hover:underline disabled:opacity-40"
+                >
+                  Need many albums? Switch to bulk queue →
+                </button>
+              )}
+
+              <div className="relative">
+                <input
+                  value={url}
+                  onChange={(e) => {
+                    setUrl(e.target.value)
+                    resetPreview()
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && fetchPreview()}
+                  placeholder={
+                    youtubeMode
+                      ? 'https://www.youtube.com/watch?v=... or playlist link'
+                      : 'https://music.apple.com/us/playlist/...'
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-surface-raised px-4 py-3 pr-24 text-sm focus:border-accent focus:outline-none"
+                />
+                {urlType && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-accent/20 px-2 py-0.5 text-xs text-accent">
+                    {urlType}
+                  </span>
+                )}
+              </div>
+
+              {fetching && <FetchStatusBanner message={fetchStatus} variant="info" />}
+              {fetching && (
+                <FetchPreviewSkeleton step={fetchStep} youtubeMode={youtubeMode || isYouTubeURL(url)} />
+              )}
+              {!fetching && fetchError && <FetchStatusBanner message={fetchError} variant="error" />}
+
+              {!fetching && !fetchError && youtubeMode ? (
+                <div className="space-y-2">
+                  {(!ytDlpOk || !ffmpegOk || deps?.some((d) => d.name === 'ffprobe (YouTube)' && !d.ok)) && (
+                    <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                      Install <strong>yt-dlp</strong>, <strong>ffmpeg</strong>, and <strong>ffprobe</strong> on PATH or in{' '}
+                      <code>dist/tools/</code> — see Requirements tab.
+                    </p>
+                  )}
+                  <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
+                    Long DJ sets and live streams are supported. No Apple Music account needed.
+                  </p>
+                </div>
+              ) : (
+                !fetching &&
+                !fetchError && (
+                  <div className="space-y-2">
+                    {!hasToken && (
+                      <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
+                        {APPLE_SUBSCRIPTION_MSG}
+                      </p>
+                    )}
+                    <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
+                      Paste a link from <strong className="text-white/80">music.apple.com</strong> — songs, albums,
+                      playlists, artists, or music videos.
+                    </p>
+                  </div>
+                )
+              )}
+            </>
+          )}
+
+          {preview && flowPhase !== 'link' && (
+            <>
+              <div className="flex items-center justify-end gap-3">
+                {!youtubeMode && flowPhase === 'review' && (
+                  <button
+                    type="button"
+                    onClick={addPreviewToQueue}
+                    disabled={downloading}
+                    className="text-sm text-accent hover:underline disabled:opacity-40"
+                  >
+                    Add to bulk queue
+                  </button>
+                )}
+                {downloading && (
+                  <span className="rounded-full bg-accent/20 px-3 py-1 text-xs text-accent animate-pulse">
+                    Downloading…
+                  </span>
+                )}
+              </div>
+
+              {flowPhase === 'done' && (
+                <JobStatusBanner
+                  jobResult={resolvedJobResult}
+                  onRevealFile={(path) => RevealInFolder(path)}
+                  onOpenFolder={() => OpenFolder('')}
+                  onOpenLog={() => OpenLogFile()}
+                  onSplitIntoTracks={() => {
+                    const h = resolvedJobResult?.handoff
+                    if (h?.master_path) onSplitIntoTracks?.(h)
+                  }}
+                />
+              )}
+
+              <div className="flex gap-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+                {preview.art_url ? (
+                  <img src={preview.art_url} alt="" className="h-24 w-24 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-surface text-3xl">
+                    ▶
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs uppercase tracking-wide text-accent">{preview.type}</p>
+                  <h3 className="truncate text-lg font-semibold">{preview.title}</h3>
+                  <p className="truncate text-sm text-white/60">{preview.subtitle}</p>
+                  <p className="mt-1 text-xs text-white/40">
+                    {preview.track_count} item{preview.track_count !== 1 ? 's' : ''}
+                    {preview.total_duration ? ` · ${preview.total_duration}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {flowPhase === 'review' && !youtubeMode && (
+                <div>
+                  <p className="mb-2 text-sm text-white/60">Quality</p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {qualityOptions.map((q) => {
+                      const blocked = q.needsWrapper && !wrapperOk
+                      return (
+                        <button
+                          key={q.id}
+                          type="button"
+                          disabled={blocked || downloading}
+                          onClick={() => setQuality(q.id)}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            quality === q.id
+                              ? 'border-accent bg-accent/10'
+                              : blocked
+                                ? 'border-white/5 opacity-40'
+                                : 'border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          <div className="font-medium">{q.label}</div>
+                          <div className="mt-1 text-xs text-white/50">{q.desc}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {!wrapperOk && (quality === 'alac' || quality === 'atmos') && (
+                    <p className="mt-2 text-sm text-yellow-400">
+                      Wrapper not running — check Requirements tab before using Lossless or Atmos.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {flowPhase === 'review' && youtubeMode && (
+                <div className="space-y-3">
+                  <YouTubeDeliveryModeSwitch
+                    value={youtubeDeliveryMode}
+                    onChange={setYoutubeDeliveryMode}
+                    disabled={downloading}
+                  />
+                  <YouTubeMetadataEditor
+                    preview={preview}
+                    selected={selected}
+                    metaByTrack={metaByTrack}
+                    disabled={downloading}
+                    deliveryMode={youtubeDeliveryMode}
+                    onChange={(num, patch) =>
+                      setMetaByTrack((prev) => ({
+                        ...prev,
+                        [num]: { ...prev[num], ...patch },
+                      }))
+                    }
+                    onSharedChange={(patch) =>
+                      setMetaByTrack((prev) => {
+                        const next = { ...prev }
+                        Object.keys(next).forEach((k) => {
+                          if (selected.has(Number(k))) {
+                            next[k] = { ...next[k], ...patch }
+                          }
+                        })
+                        return next
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              {flowPhase === 'review' && duplicateInfo?.existing_count > 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  <p className="font-medium">
+                    {duplicateInfo.existing_count} of {duplicateInfo.selected_count} selected{' '}
+                    {duplicateInfo.existing_count === 1 ? 'track is' : 'tracks are'} already on disk
+                  </p>
+                  <p className="mt-1 text-xs text-amber-100/80">
+                    Existing files are skipped during download.
+                  </p>
+                </div>
+              )}
+
+              {flowPhase === 'review' && checkingDuplicates && !duplicateInfo && preview.can_select_tracks && (
+                <p className="text-xs text-white/40">Checking for existing files…</p>
+              )}
+
+              {flowPhase === 'review' && preview.can_select_tracks && preview.tracks?.length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-surface-raised">
+                  <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                    <span className="text-sm font-medium">
+                      {preview.type === 'Artist'
+                        ? 'Albums & videos'
+                        : preview.type === 'YouTube Playlist'
+                          ? 'Videos'
+                          : 'Tracks'}
+                    </span>
+                    <div className="flex gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setSelected(new Set(preview.tracks.map((t) => t.num)))}
+                        className="text-accent hover:underline"
+                        disabled={downloading}
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(new Set())}
+                        className="text-white/50 hover:underline"
+                        disabled={downloading}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <ul className="max-h-64 divide-y divide-white/5 overflow-y-auto xl:max-h-[min(70vh,36rem)]">
+                    {preview.tracks.map((t) => (
+                      <li key={t.num} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/[0.02]">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(t.num)}
+                          onChange={() => toggleTrack(t.num)}
+                          disabled={downloading}
+                          className="shrink-0"
+                        />
+                        {youtubeMode && t.art_url ? (
+                          <img src={t.art_url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                        ) : (
+                          <span className="w-6 shrink-0 text-right text-xs text-white/40">{t.num}</span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate">{t.name}</p>
+                          <p className="truncate text-xs text-white/40">{t.artist}</p>
+                        </div>
+                        <span className="shrink-0 text-xs text-white/40">{t.duration}</span>
+                        {onDiskByNum[t.num] && (
+                          <button
+                            type="button"
+                            title={onDiskByNum[t.num].existing_path || 'Already on disk'}
+                            onClick={() =>
+                              onDiskByNum[t.num].existing_path && RevealInFolder(onDiskByNum[t.num].existing_path)
+                            }
+                            className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+                          >
+                            On disk
+                          </button>
+                        )}
+                        {t.explicit && <span className="shrink-0 text-xs text-white/50">E</span>}
+                        {t.is_mv && <span className="shrink-0 text-xs text-white/50">MV</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {flowPhase === 'review' && (
+                <OutputFolderField
+                  label={outputFolderLabel(quality, youtubeMode)}
+                  hint={outputFolderHint}
+                  value={outputFolder || preview?.output_folder || ''}
+                  disabled={downloading || !onSettingsChange}
+                  onBrowse={browseOutputFolder}
+                  onOpen={() => outputFolder && OpenFolder(outputFolder)}
+                  onSavePath={saveOutputFolderPath}
+                />
+              )}
+
+              {!youtubeMode && flowPhase === 'review' && quality === 'aac' && !hasToken && (
                 <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
                   {APPLE_SUBSCRIPTION_MSG}
                 </p>
               )}
-              <p className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/60">
-                Paste a link from <strong className="text-white/80">music.apple.com</strong> — songs, albums, playlists, artists, or music videos.
-              </p>
-            </div>
-          )}
-        </>
-      )}
-
-      {preview && (
-        <>
-          <div className="flex items-start justify-between gap-4">
-            <button
-              type="button"
-              onClick={() => resetPreview({ clearPipeline: true })}
-              className="text-sm text-white/50 hover:text-white"
-              disabled={downloading}
-            >
-              ← Change URL
-            </button>
-            <div className="flex items-center gap-3">
-              {!youtubeMode && (
-                <button
-                  type="button"
-                  onClick={addPreviewToQueue}
-                  disabled={downloading}
-                  className="text-sm text-accent hover:underline disabled:opacity-40"
-                >
-                  Add to bulk queue
-                </button>
-              )}
-              {downloading && (
-                <span className="rounded-full bg-accent/20 px-3 py-1 text-xs text-accent animate-pulse">Downloading…</span>
-              )}
-            </div>
-          </div>
-
-          <JobStatusBanner
-            jobResult={jobResult || jobSession}
-            onRevealFile={(path) => RevealInFolder(path)}
-            onOpenFolder={() => OpenFolder('')}
-            onOpenLog={() => OpenLogFile()}
-            onSplitIntoTracks={() => {
-              const h = (jobResult || jobSession)?.handoff
-              if (h?.master_path) onSplitIntoTracks?.(h)
-            }}
-          />
-
-          <div className="flex gap-4 rounded-xl border border-white/10 bg-surface-raised p-4">
-            {preview.art_url ? (
-              <img src={preview.art_url} alt="" className="h-24 w-24 shrink-0 rounded-lg object-cover" />
-            ) : (
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-surface text-3xl">▶</div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-wide text-accent">{preview.type}</p>
-              <h3 className="truncate text-lg font-semibold">{preview.title}</h3>
-              <p className="truncate text-sm text-white/60">{preview.subtitle}</p>
-              <p className="mt-1 text-xs text-white/40">
-                {preview.track_count} item{preview.track_count !== 1 ? 's' : ''}
-                {preview.total_duration ? ` · ${preview.total_duration}` : ''}
-              </p>
-            </div>
-          </div>
-
-          {!youtubeMode && (
-            <div>
-              <p className="mb-2 text-sm text-white/60">Quality</p>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {qualityOptions.map((q) => {
-                  const blocked = q.needsWrapper && !wrapperOk
-                  return (
-                    <button
-                      key={q.id}
-                      type="button"
-                      disabled={blocked || downloading}
-                      onClick={() => setQuality(q.id)}
-                      className={`rounded-xl border p-3 text-left transition ${
-                        quality === q.id
-                          ? 'border-accent bg-accent/10'
-                          : blocked
-                            ? 'border-white/5 opacity-40'
-                            : 'border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="font-medium">{q.label}</div>
-                      <div className="mt-1 text-xs text-white/50">{q.desc}</div>
-                    </button>
-                  )
-                })}
-              </div>
-              {!wrapperOk && (quality === 'alac' || quality === 'atmos') && (
-                <p className="mt-2 text-sm text-yellow-400">
-                  Wrapper not running — check Requirements tab before using Lossless or Atmos.
-                </p>
-              )}
-            </div>
+            </>
           )}
 
-          {youtubeMode && (
-            <div className="space-y-3">
-              <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-white/70">
-                Downloads convert to <strong>AAC 256 kbps</strong> with Apple Music tags · organized in Album folders
-              </p>
-              <YouTubeMetadataEditor
-                preview={preview}
-                selected={selected}
-                metaByTrack={metaByTrack}
-                disabled={downloading}
-                saveVideo={saveVideo}
-                onChange={(num, patch) =>
-                  setMetaByTrack((prev) => ({
-                    ...prev,
-                    [num]: { ...prev[num], ...patch },
-                  }))
-                }
-                onSharedChange={(patch) =>
-                  setMetaByTrack((prev) => {
-                    const next = { ...prev }
-                    Object.keys(next).forEach((k) => {
-                      if (selected.has(Number(k))) {
-                        next[k] = { ...next[k], ...patch }
-                      }
-                    })
-                    return next
-                  })
-                }
-              />
-              <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-surface-raised px-3 py-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={saveVideo}
-                  onChange={(e) => setSaveVideo(e.target.checked)}
-                  disabled={downloading}
-                  className="mt-1 shrink-0"
-                />
-                <span>
-                  <span className="font-medium text-white/90">Also save MP4 video copy</span>
-                  <span className="mt-1 block text-xs text-white/50">
-                    Standalone H.264 MP4 with validated AAC stereo audio and embedded artwork — plays in the iPhone Music app without the separate .m4a file.
-                    Adds extra download and conversion time.
-                  </span>
-                </span>
-              </label>
-            </div>
+          {showTrackPanel && (
+            <TrackStatusPanel
+              trackRows={trackRows}
+              visible
+              downloading={downloading}
+              youtubeProgress={youtubeMode ? youtubeProgress : null}
+            />
           )}
 
-          {duplicateInfo?.existing_count > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              <p className="font-medium">
-                {duplicateInfo.existing_count} of {duplicateInfo.selected_count} selected{' '}
-                {duplicateInfo.existing_count === 1 ? 'track is' : 'tracks are'} already on disk
-              </p>
-              <p className="mt-1 text-xs text-amber-100/80">
-                Checking output folder
-                {(settings?.['duplicate-check-folders']?.length ?? 0) > 0
-                  ? ` plus ${settings['duplicate-check-folders'].length} extra folder(s) from Settings`
-                  : ''}
-                . Existing files are skipped during download.
-              </p>
-            </div>
-          )}
-
-          {checkingDuplicates && !duplicateInfo && preview.can_select_tracks && (
-            <p className="text-xs text-white/40">Checking for existing files…</p>
-          )}
-
-          {preview.can_select_tracks && preview.tracks?.length > 0 && (
-            <div className="rounded-xl border border-white/10 bg-surface-raised">
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <span className="text-sm font-medium">
-                  {preview.type === 'Artist' ? 'Albums & videos' : preview.type === 'YouTube Playlist' ? 'Videos' : 'Tracks'}
-                </span>
-                <div className="flex gap-3 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setSelected(new Set(preview.tracks.map((t) => t.num)))}
-                    className="text-accent hover:underline"
-                    disabled={downloading}
-                  >
-                    Select all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(new Set())}
-                    className="text-white/50 hover:underline"
-                    disabled={downloading}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-              <ul className="max-h-64 divide-y divide-white/5 overflow-y-auto xl:max-h-[min(70vh,36rem)]">
-                {preview.tracks.map((t) => (
-                  <li key={t.num} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/[0.02]">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(t.num)}
-                      onChange={() => toggleTrack(t.num)}
-                      disabled={downloading}
-                      className="shrink-0"
-                    />
-                    {youtubeMode && t.art_url ? (
-                      <img src={t.art_url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
-                    ) : (
-                      <span className="w-6 shrink-0 text-right text-xs text-white/40">{t.num}</span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate">{t.name}</p>
-                      <p className="truncate text-xs text-white/40">{t.artist}</p>
-                    </div>
-                    <span className="shrink-0 text-xs text-white/40">{t.duration}</span>
-                    {onDiskByNum[t.num] && (
-                      <button
-                        type="button"
-                        title={onDiskByNum[t.num].existing_path || 'Already on disk'}
-                        onClick={() => onDiskByNum[t.num].existing_path && RevealInFolder(onDiskByNum[t.num].existing_path)}
-                        className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
-                      >
-                        On disk
-                      </button>
-                    )}
-                    {t.explicit && <span className="shrink-0 text-xs text-white/50">E</span>}
-                    {t.is_mv && <span className="shrink-0 text-xs text-white/50">MV</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {youtubeMode && (downloading || jobStarted) && (
-            <YouTubeProgressPanel progress={youtubeProgress} downloading={downloading} trackRows={trackRows} />
-          )}
-
-          {showProgress && (
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm font-medium">Track status</p>
-                {!downloading && jobResult && (
-                  <span className="text-xs text-white/40">
-                    {trackRows.filter((r) => r.status === 'done' || r.status === 'skipped').length}/{trackRows.length} OK
-                  </span>
-                )}
-              </div>
-              <ul className="max-h-48 space-y-2 overflow-y-auto text-xs">
-                {trackRows.map((r) => (
-                  <li key={r.num} className="rounded-lg bg-white/[0.02] px-2 py-1.5">
-                    <div className="flex items-start gap-2">
-                      <span className={`mt-0.5 w-4 shrink-0 ${trackStatusClass(r.status)}`}>{trackStatusIcon(r.status)}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-white/90">{r.label}</p>
-                        {r.sublabel && <p className="truncate text-[11px] text-white/40">{r.sublabel}</p>}
-                        {r.detail && (
-                          <p className={`mt-0.5 ${trackStatusClass(r.status)}`}>{r.detail}</p>
-                        )}
-                        {youtubeMode && r.status === 'downloading' && r.percent > 0 && (
-                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/30">
-                            <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${r.percent}%` }} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <OutputFolderField
-            label={outputFolderLabel(quality, youtubeMode)}
-            hint={outputFolderHint}
-            value={outputFolder || preview?.output_folder || ''}
-            disabled={downloading || !onSettingsChange}
-            onBrowse={browseOutputFolder}
-            onOpen={() => outputFolder && OpenFolder(outputFolder)}
-            onSavePath={saveOutputFolderPath}
-          />
-
-          {!youtubeMode && platform !== 'darwin' && <ApplePurgePanel compact />}
-
-          {!youtubeMode && quality === 'aac' && !hasToken && (
-            <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-200">
-              {APPLE_SUBSCRIPTION_MSG}
-            </p>
-          )}
-
-          {fetchError && (
+          {fetchError && flowPhase !== 'link' && (
             <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{fetchError}</p>
           )}
 
-          {preflight && !preflight.ready && (
+          {preflight && !preflight.ready && flowPhase === 'review' && (
             <ul className="space-y-1 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-100">
               {(preflight.checks || [])
                 .filter((c) => !c.ok)
@@ -931,46 +966,7 @@ export default function DownloadTab({
                 ))}
             </ul>
           )}
-
-          {jobResult && !downloading ? (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={startDownload}
-                disabled={selectedCount === 0}
-                className="flex-1 rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
-              >
-                Download again
-              </button>
-              <button
-                type="button"
-                onClick={startAnotherDownload}
-                className="flex-1 rounded-xl border border-white/15 bg-white/[0.04] py-3 font-semibold text-white/90 hover:bg-white/[0.08]"
-              >
-                {youtubeMode ? 'Download another video' : 'Download another song'}
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={startDownload}
-              disabled={downloading || selectedCount === 0}
-              className="rounded-xl bg-accent py-3 font-semibold hover:bg-accent-muted disabled:opacity-40"
-            >
-              {downloading
-                ? saveVideo
-                  ? 'Downloading audio + video…'
-                  : 'Downloading…'
-                : youtubeMode
-                  ? saveVideo
-                    ? `Download audio + MP4 (${selectedCount})`
-                    : `Download audio (${selectedCount})`
-                  : `Download ${selectedCount} selected`}
-            </button>
-          )}
-        </>
-      )}
-        </>
+        </DownloadFlowLayout>
       )}
     </PageShell>
   )

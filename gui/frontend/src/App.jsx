@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   GetSettings,
   CheckDependencies,
@@ -132,9 +132,10 @@ export default function App() {
   const [settings, setSettings] = useState(null)
   const [deps, setDeps] = useState([])
   const [logs, setLogs] = useState([])
-  const [engineEvents, setEngineEvents] = useState([])
+  const [jobEvents, setJobEvents] = useState({ apple: [], youtube: [] })
   const [downloading, setDownloading] = useState(false)
   const [downloadJob, setDownloadJob] = useState(null)
+  const activeDownloadSourceRef = useRef(null)
   const [spliceExporting, setSpliceExporting] = useState(false)
   const [prefillUrl, setPrefillUrl] = useState('')
   const [jobSessions, setJobSessions] = useState({ apple: null, youtube: null })
@@ -173,11 +174,18 @@ export default function App() {
     syncBackendJobs()
 
     const offEngine = EventsOn('engine:event', (ev) => {
-      setEngineEvents((prev) => [...prev.slice(-150), ev])
+      const source = activeDownloadSourceRef.current
+      if (source) {
+        setJobEvents((prev) => ({
+          ...prev,
+          [source]: [...(prev[source] || []).slice(-150), ev],
+        }))
+      }
       if (ev?.message) {
         setLogs((prev) => [...prev.slice(-200), { time: new Date().toLocaleTimeString(), msg: ev.message, type: ev.type }])
       }
       if (ev?.type === 'job_complete') {
+        activeDownloadSourceRef.current = null
         setDownloading(false)
         setDownloadJob(null)
       }
@@ -202,9 +210,14 @@ export default function App() {
     }
   }, [syncBackendJobs, spliceEnabled])
 
+  const activeJobEvents = useMemo(() => {
+    if (downloadJob?.source) return jobEvents[downloadJob.source] || []
+    return jobEvents.apple?.length ? jobEvents.apple : jobEvents.youtube || []
+  }, [downloadJob, jobEvents])
+
   const globalProgress = useMemo(
-    () => (downloading ? parseYouTubeProgress(engineEvents) : null),
-    [downloading, engineEvents],
+    () => (downloading ? parseYouTubeProgress(activeJobEvents) : null),
+    [downloading, activeJobEvents],
   )
 
   const refreshDeps = () => CheckDependencies().then(setDeps)
@@ -231,15 +244,18 @@ export default function App() {
   }
 
   const resetDownloadPipeline = () => {
-    setEngineEvents([])
+    setJobEvents({ apple: [], youtube: [] })
     setLogs([])
     setJobSessions({ apple: null, youtube: null })
   }
 
   const handleDownloadStart = (source) => {
+    const src = source || 'apple'
+    activeDownloadSourceRef.current = src
     resetDownloadPipeline()
+    activeDownloadSourceRef.current = src
     setDownloading(true)
-    setDownloadJob({ source: source || 'apple' })
+    setDownloadJob({ source: src })
     setNavBlockHint('')
   }
 
@@ -275,9 +291,10 @@ export default function App() {
     prefillUrl: sourceMode === 'apple' ? prefillUrl : '',
     onPrefillConsumed: () => setPrefillUrl(''),
     downloading,
+    downloadActiveForThisTab: downloading && downloadJob?.source === sourceMode,
     onDownloadStart: () => handleDownloadStart(sourceMode),
     onDownloadEnd: (result) => handleDownloadEnd(result, sourceMode),
-    engineEvents,
+    engineEvents: jobEvents[sourceMode] || [],
     jobSession: jobSessions[sourceMode],
     onClearJobSession: () => setJobSessions((prev) => ({ ...prev, [sourceMode]: null })),
     onResetPipeline: resetDownloadPipeline,
@@ -398,7 +415,7 @@ export default function App() {
         <TabPanel active={tab === 'activity' && isTabEnabled(features, 'activity')}>
           <QueueTab
             logs={logs}
-            engineEvents={engineEvents}
+            engineEvents={activeJobEvents}
             downloading={downloading}
             onCancel={CancelDownload}
             onOpenFolder={() => OpenFolder('')}

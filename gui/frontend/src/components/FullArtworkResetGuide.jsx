@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import ApplePurgePanel from './ApplePurgePanel'
 
 const PC_STEPS = [
   'Quit Apple Music completely (check Task Manager for AppleMusic.exe).',
   'In Apple Music: select all affected albums → right-click → Delete from Library → Keep Files. This removes broken library index entries but keeps your .m4a downloads on disk.',
-  'Run Deep purge PC caches below (or Tag Editor → Clear Apple Music art cache).',
-  'Tag Editor → Sync repair tools → Update album artwork on each album folder (embeds one normalized JPEG per track).',
+  'Tag Editor → Sync repair tools → Clear Apple Music art cache (quit Apple Music first), then Update album artwork on each album folder (embeds one normalized JPEG per track).',
   'Re-import albums: File → Import, or drag each album folder into Apple Music. Confirm Get Info shows artwork on PC before syncing.',
 ]
 
@@ -118,11 +116,6 @@ export default function FullArtworkResetGuide({ platform = 'windows' }) {
               Do these in order. Check off each step as you go.
             </p>
             <Checklist steps={PC_STEPS} checks={pcChecks} onToggle={toggle(setPcChecks)} />
-            {!isMac && (
-              <div className="mt-4">
-                <ApplePurgePanel compact />
-              </div>
-            )}
             {isMac && (
               <p className="mt-3 text-xs text-white/45">
                 On Mac: quit Music.app, delete ~/Library/Caches/com.apple.Music/Artwork, then re-import albums.
