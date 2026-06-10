@@ -277,6 +277,80 @@ export namespace main {
 
 export namespace media {
 	
+	export class AudioTagInfo {
+	    path: string;
+	    title: string;
+	    artist: string;
+	    album: string;
+	    album_artist: string;
+	    genre: string;
+	    year: string;
+	    track_number: number;
+	    track_total: number;
+	    disc_number: number;
+	    disc_total: number;
+	    has_artwork: boolean;
+	    artwork_count: number;
+	    artwork_mime?: string;
+	    artwork_b64?: string;
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AudioTagInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	        this.artist = source["artist"];
+	        this.album = source["album"];
+	        this.album_artist = source["album_artist"];
+	        this.genre = source["genre"];
+	        this.year = source["year"];
+	        this.track_number = source["track_number"];
+	        this.track_total = source["track_total"];
+	        this.disc_number = source["disc_number"];
+	        this.disc_total = source["disc_total"];
+	        this.has_artwork = source["has_artwork"];
+	        this.artwork_count = source["artwork_count"];
+	        this.artwork_mime = source["artwork_mime"];
+	        this.artwork_b64 = source["artwork_b64"];
+	        this.summary = source["summary"];
+	    }
+	}
+	export class AlbumFolderReadResult {
+	    tracks: AudioTagInfo[];
+	    skipped?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AlbumFolderReadResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tracks = this.convertValues(source["tracks"], AudioTagInfo);
+	        this.skipped = source["skipped"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class AlbumPreparePreview {
 	    folder: string;
 	    track_count: number;
@@ -427,48 +501,7 @@ export namespace media {
 	        this.optimized_mime = source["optimized_mime"];
 	    }
 	}
-	export class AudioTagInfo {
-	    path: string;
-	    title: string;
-	    artist: string;
-	    album: string;
-	    album_artist: string;
-	    genre: string;
-	    year: string;
-	    track_number: number;
-	    track_total: number;
-	    disc_number: number;
-	    disc_total: number;
-	    has_artwork: boolean;
-	    artwork_count: number;
-	    artwork_mime?: string;
-	    artwork_b64?: string;
-	    summary: string;
 	
-	    static createFrom(source: any = {}) {
-	        return new AudioTagInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.path = source["path"];
-	        this.title = source["title"];
-	        this.artist = source["artist"];
-	        this.album = source["album"];
-	        this.album_artist = source["album_artist"];
-	        this.genre = source["genre"];
-	        this.year = source["year"];
-	        this.track_number = source["track_number"];
-	        this.track_total = source["track_total"];
-	        this.disc_number = source["disc_number"];
-	        this.disc_total = source["disc_total"];
-	        this.has_artwork = source["has_artwork"];
-	        this.artwork_count = source["artwork_count"];
-	        this.artwork_mime = source["artwork_mime"];
-	        this.artwork_b64 = source["artwork_b64"];
-	        this.summary = source["summary"];
-	    }
-	}
 	export class CacheClearResult {
 	    ok: boolean;
 	    message: string;

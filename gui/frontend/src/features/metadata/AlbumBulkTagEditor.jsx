@@ -141,9 +141,15 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     setClearArtwork(false)
     setSavedFlash(false)
     try {
-      const infos = await TagReadAlbumFolder(path)
-      if (!Array.isArray(infos) || infos.length === 0) {
-        onStatus?.('No .m4a files found in that folder.', 'error')
+      const folderResult = await TagReadAlbumFolder(path)
+      const infos = Array.isArray(folderResult?.tracks)
+        ? folderResult.tracks
+        : Array.isArray(folderResult)
+          ? folderResult
+          : []
+      const skipped = Array.isArray(folderResult?.skipped) ? folderResult.skipped : []
+      if (infos.length === 0) {
+        onStatus?.('No .m4a, .m4b, or .mp4 audio files found in that folder (including subfolders).', 'error')
         return
       }
       const nextTracks = infos.map((info, i) => trackFromInfo(info, i))
@@ -167,7 +173,16 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
           setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
         }
       }
-      onStatus?.(`Loaded ${infos.length} track(s) from album folder.`)
+      if (skipped.length > 0) {
+        const preview = skipped.slice(0, 2).join(' · ')
+        const more = skipped.length > 2 ? ` · +${skipped.length - 2} more` : ''
+        onStatus?.(
+          `Loaded ${infos.length} track(s). ${skipped.length} had unreadable tags (using filename): ${preview}${more}`,
+          'info',
+        )
+      } else {
+        onStatus?.(`Loaded ${infos.length} track(s) from album folder.`)
+      }
     } catch (e) {
       reportFrontendError('AlbumBulkTagEditor.loadFolder', e)
       onStatus?.(formatActionError(e, 'Load album folder'), 'error')
@@ -305,7 +320,8 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
           disc_number: Number(t.disc_number) > 0 ? Number(t.disc_number) : 1,
         })),
       })
-      const infos = await TagReadAlbumFolder(folder)
+      const folderResult = await TagReadAlbumFolder(folder)
+      const infos = Array.isArray(folderResult?.tracks) ? folderResult.tracks : []
       setFileInfos(infos)
       setTracks(infos.map((info, i) => trackFromInfo(info, i)))
       setCoverPath('')

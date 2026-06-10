@@ -138,7 +138,7 @@ export function TagPickAudioFile():Promise<string>;
 
 export function TagPreviewOptimizedArtwork(arg1:string):Promise<media.ArtworkAccentAnalysis>;
 
-export function TagReadAlbumFolder(arg1:string):Promise<Array<media.AudioTagInfo>>;
+export function TagReadAlbumFolder(arg1:string):Promise<media.AlbumFolderReadResult>;
 
 export function TagReadFile(arg1:string):Promise<media.AudioTagInfo>;
 

@@ -391,7 +391,7 @@ export default function App() {
         )}
         <TabPanel active={tab === 'metadata'}>
           <ErrorBoundary name="MetadataTab" title="Tag Editor crashed" onRetry={() => setTab('metadata')}>
-            <MetadataTab platform={platform} />
+            <MetadataTab platform={platform} active={tab === 'metadata'} />
           </ErrorBoundary>
         </TabPanel>
 

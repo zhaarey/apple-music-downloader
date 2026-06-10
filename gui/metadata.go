@@ -188,23 +188,26 @@ func (a *App) TagWriteFile(input media.WriteAudioTagsInput) (media.AudioTagInfo,
 	return media.ReadAudioTags(input.Path)
 }
 
-func (a *App) TagReadAlbumFolder(folder string) ([]media.AudioTagInfo, error) {
+func (a *App) TagReadAlbumFolder(folder string) (result media.AlbumFolderReadResult, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.LogPanic("TagReadAlbumFolder", r)
+			err = fmt.Errorf("failed to read album folder: %v", r)
+			result = media.AlbumFolderReadResult{}
 		}
 	}()
-	if strings.TrimSpace(folder) == "" {
-		return nil, fmt.Errorf("no folder selected")
+	folder = filepath.Clean(strings.TrimSpace(folder))
+	if folder == "" {
+		return result, fmt.Errorf("no folder selected")
 	}
-	infos, err := media.ReadAlbumTags(folder)
+	result, err = media.ReadAlbumTags(folder)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
-	for _, info := range infos {
+	for _, info := range result.Tracks {
 		appstate.RememberRecentFile(info.Path)
 	}
-	return infos, nil
+	return result, nil
 }
 
 func (a *App) TagWriteAlbumBatch(input media.TagAlbumBatchInput) (media.TagAlbumBatchResult, error) {

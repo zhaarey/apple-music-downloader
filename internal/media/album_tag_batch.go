@@ -42,7 +42,17 @@ type TagAlbumBatchResult struct {
 	Summary string   `json:"summary"`
 }
 
-// ListAlbumTagFiles returns .m4a/.m4b paths in a folder (direct files first, else recursive).
+// IsTagAudioExt reports whether ext is supported in the tag editor and album bulk flows.
+func IsTagAudioExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".m4a", ".m4b", ".mp4":
+		return true
+	default:
+		return false
+	}
+}
+
+// ListAlbumTagFiles returns tag-editor audio paths in a folder (direct files first, else recursive).
 func ListAlbumTagFiles(folder string) ([]string, error) {
 	folder = strings.TrimSpace(folder)
 	if folder == "" {
@@ -65,8 +75,7 @@ func ListAlbumTagFiles(folder string) ([]string, error) {
 		if ent.IsDir() {
 			continue
 		}
-		ext := strings.ToLower(filepath.Ext(ent.Name()))
-		if ext == ".m4a" || ext == ".m4b" {
+		if IsTagAudioExt(filepath.Ext(ent.Name())) {
 			direct = append(direct, filepath.Join(folder, ent.Name()))
 		}
 	}
@@ -77,7 +86,7 @@ func ListAlbumTagFiles(folder string) ([]string, error) {
 	return CollectAlbumTracks(folder)
 }
 
-// ListDirectAlbumTagFiles returns .m4a/.m4b files immediately inside folder (not subfolders).
+// ListDirectAlbumTagFiles returns audio files immediately inside folder (not subfolders).
 func ListDirectAlbumTagFiles(folder string) ([]string, error) {
 	folder = strings.TrimSpace(folder)
 	if folder == "" {
@@ -99,8 +108,7 @@ func ListDirectAlbumTagFiles(folder string) ([]string, error) {
 		if ent.IsDir() {
 			continue
 		}
-		ext := strings.ToLower(filepath.Ext(ent.Name()))
-		if ext == ".m4a" || ext == ".m4b" {
+		if IsTagAudioExt(filepath.Ext(ent.Name())) {
 			out = append(out, filepath.Join(folder, ent.Name()))
 		}
 	}
@@ -155,21 +163,36 @@ func describePrepareCoverSource(dir string, tracks []string) string {
 	return "none found — add cover.jpg or embed art before prepare"
 }
 
+// AlbumFolderReadResult is returned when loading an album folder in the tag editor.
+type AlbumFolderReadResult struct {
+	Tracks  []AudioTagInfo `json:"tracks"`
+	Skipped []string       `json:"skipped,omitempty"`
+}
+
 // ReadAlbumTags reads metadata for every audio file in an album folder.
-func ReadAlbumTags(folder string) ([]AudioTagInfo, error) {
+// Tracks with unreadable metadata still appear using filename-derived titles; see Skipped for details.
+func ReadAlbumTags(folder string) (AlbumFolderReadResult, error) {
+	folder = strings.TrimSpace(folder)
+	out := AlbumFolderReadResult{Tracks: []AudioTagInfo{}, Skipped: []string{}}
 	paths, err := ListAlbumTagFiles(folder)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
-	out := make([]AudioTagInfo, 0, len(paths))
+	if len(paths) == 0 {
+		return out, fmt.Errorf(
+			"no .m4a, .m4b, or .mp4 audio files found in %q (checked this folder and subfolders)",
+			filepath.Base(folder),
+		)
+	}
 	for _, p := range paths {
 		info, err := ReadAudioTags(p)
 		if err != nil {
-			return out, fmt.Errorf("%s: %w", p, err)
+			out.Skipped = append(out.Skipped, fmt.Sprintf("%s: %s", filepath.Base(p), err))
+			info = AudioTagInfoFromPath(p)
 		}
-		out = append(out, info)
+		out.Tracks = append(out.Tracks, info)
 	}
-	sortAlbumTagInfos(out)
+	sortAlbumTagInfos(out.Tracks)
 	return out, nil
 }
 

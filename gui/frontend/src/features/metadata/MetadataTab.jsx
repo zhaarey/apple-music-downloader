@@ -103,7 +103,7 @@ function SaveButtonIcon({ saving, saved }) {
   return null
 }
 
-export default function MetadataTab({ platform = 'windows' }) {
+export default function MetadataTab({ platform = 'windows', active = true }) {
   const [editorMode, setEditorMode] = useState('single')
   const [bulkAlbumFolder, setBulkAlbumFolder] = useState('')
   const [tags, setTags] = useState(EMPTY)
@@ -170,41 +170,47 @@ export default function MetadataTab({ platform = 'windows' }) {
     setToast('')
   }, [saving])
 
-  const loadFile = async (path) => {
-    if (!path) return
-    setEditorMode('single')
-    setLoading(true)
-    setSaved(false)
-    setToast('')
-    setCoverPath('')
-    setCoverPreviewURL('')
-    setOptimizedPreviewURL('')
-    setArtworkAnalysis(null)
-    setClearArtwork(false)
-    try {
-      const info = await TagReadFile(path)
-      setFileInfo(info)
-      setTags(tagsFromInfo(info, path))
-      setSyncResult(null)
-      if (info.has_artwork) {
-        const analysis = await loadEmbeddedArtworkAnalysis(path, TagAnalyzeEmbeddedArtwork)
-        setArtworkAnalysis(analysis)
-        setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+  const loadFile = useCallback(
+    async (path) => {
+      if (!path) return
+      setEditorMode('single')
+      setLoading(true)
+      setSaved(false)
+      setToast('')
+      setCoverPath('')
+      setCoverPreviewURL('')
+      setOptimizedPreviewURL('')
+      setArtworkAnalysis(null)
+      setClearArtwork(false)
+      try {
+        const info = await TagReadFile(path)
+        setFileInfo(info)
+        setTags(tagsFromInfo(info, path))
+        setSyncResult(null)
+        if (info.has_artwork) {
+          const analysis = await loadEmbeddedArtworkAnalysis(path, TagAnalyzeEmbeddedArtwork)
+          setArtworkAnalysis(analysis)
+          setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+        }
+        setRecentFiles((prev) => [path, ...prev.filter((p) => p !== path)].slice(0, 15))
+        if (info.artwork_count > 1) {
+          showToast(
+            `Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`,
+            'info',
+          )
+        } else {
+          showToast(info.summary ? `Loaded ${info.summary}` : 'Loaded file metadata')
+        }
+      } catch (e) {
+        reportFrontendError('MetadataTab.loadFile', e)
+        showToast(formatActionError(e, 'Read tags'), 'error')
+        setFileInfo(null)
+      } finally {
+        setLoading(false)
       }
-      setRecentFiles((prev) => [path, ...prev.filter((p) => p !== path)].slice(0, 15))
-      if (info.artwork_count > 1) {
-        showToast(`Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`, 'info')
-      } else {
-        showToast(info.summary ? `Loaded ${info.summary}` : 'Loaded file metadata')
-      }
-    } catch (e) {
-      reportFrontendError('MetadataTab.loadFile', e)
-      showToast(formatActionError(e, 'Read tags'), 'error')
-      setFileInfo(null)
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+    [optimizeArtwork, showToast],
+  )
 
   const pickFile = async () => {
     const path = await TagPickAudioFile()
@@ -216,7 +222,7 @@ export default function MetadataTab({ platform = 'windows' }) {
       await loadFile(path)
       if (message) showToast(message, 'info')
     },
-    [showToast],
+    [loadFile, showToast],
   )
 
   const handleDropAlbumFolder = useCallback(
@@ -237,11 +243,12 @@ export default function MetadataTab({ platform = 'windows' }) {
 
   const dropDisabled = loading || saving || albumBusy
 
-  const { dragOver, dropZoneProps } = useTagEditorDrop({
+  const { dragOver, dropHandlers, dropTargetClassName } = useTagEditorDrop({
     onSingleFile: handleDropSingleFile,
     onAlbumFolder: handleDropAlbumFolder,
     onError: handleDropError,
     disabled: dropDisabled,
+    active,
   })
 
   const refreshArtworkAnalysis = async (path) => {
@@ -367,9 +374,12 @@ export default function MetadataTab({ platform = 'windows' }) {
   return (
     <PageShell
       wide
-      className={`relative transition-colors duration-200 ${dragOver ? 'rounded-xl ring-2 ring-accent/40 ring-inset' : ''}`}
+      {...dropHandlers}
+      className={`${dropTargetClassName} relative transition-colors duration-200 ${
+        dragOver ? 'rounded-xl ring-2 ring-accent/40 ring-inset' : ''
+      }`}
     >
-      <div {...dropZoneProps} className="relative flex flex-col gap-4">
+      <div className="relative flex flex-col gap-4">
       <StatusToast message={toast} variant={toastVariant} onDismiss={dismissToast} duration={4200} />
 
       {dragOver && (

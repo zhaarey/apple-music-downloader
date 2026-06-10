@@ -18,15 +18,17 @@ export default function ArtworkAppleOptions({
   analysis = null,
   className = '',
 }) {
-  const displaySrc = optimizeArtwork && optimizedPreviewSrc ? optimizedPreviewSrc : previewSrc
+  const displaySrc = previewSrc || optimizedPreviewSrc
   const hasArtwork = Boolean(displaySrc)
+  const showOptimizedCompare =
+    optimizeArtwork && optimizedPreviewSrc && previewSrc && optimizedPreviewSrc !== previewSrc
 
   return (
     <section className={`rounded-xl border border-white/10 bg-surface-raised p-4 ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium">Artwork</h3>
-        {optimizeArtwork && optimizedPreviewSrc && previewSrc && optimizedPreviewSrc !== previewSrc && (
-          <span className="rounded bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">Optimized preview</span>
+        {showOptimizedCompare && (
+          <span className="rounded bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">Optimize on save</span>
         )}
       </div>
 
@@ -34,6 +36,16 @@ export default function ArtworkAppleOptions({
         src={displaySrc}
         className="mt-3 flex aspect-square items-center justify-center rounded-lg bg-black/30"
       />
+
+      {showOptimizedCompare && (
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-white/45">After optimize (save preview)</p>
+          <ArtworkPreview
+            src={optimizedPreviewSrc}
+            className="mt-2 flex aspect-square max-h-28 items-center justify-center rounded-md bg-black/30"
+          />
+        </div>
+      )}
 
       <div className="mt-3 flex flex-col gap-2">
         <button

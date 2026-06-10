@@ -113,24 +113,28 @@ func FindAlbumCoverFile(dir string) string {
 }
 
 // ReadEmbeddedCoverRaw returns the primary embedded picture bytes without normalization.
-func ReadEmbeddedCoverRaw(path string) ([]byte, error) {
-	mp4, err := mp4tag.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer mp4.Close()
-	tags, err := mp4.Read()
+func ReadEmbeddedCoverRaw(path string) (data []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("read embedded cover: %v", r)
+			data = nil
+		}
+	}()
+	tags, err := readMP4TagsSafe(path)
 	if err != nil || tags == nil || len(tags.Pictures) == 0 {
+		if err != nil {
+			return nil, err
+		}
 		return nil, os.ErrNotExist
 	}
 	pic := tags.Pictures[0]
 	if len(tags.Pictures) > 1 {
 		pic = tags.Pictures[len(tags.Pictures)-1]
 	}
-	if len(pic.Data) == 0 {
+	if pic == nil || len(pic.Data) == 0 {
 		return nil, os.ErrNotExist
 	}
-	return pic.Data, nil
+	return append([]byte(nil), pic.Data...), nil
 }
 
 // ReadNormalizedEmbeddedCover returns normalized JPEG bytes from a track's primary embedded cover.

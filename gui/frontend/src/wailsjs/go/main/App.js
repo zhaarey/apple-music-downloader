@@ -73,7 +73,9 @@ export const TagResolveDrop = (paths) =>
 export const TagReadFile = (path) => window.go?.main?.App?.TagReadFile?.(path) ?? Promise.resolve({})
 export const TagWriteFile = (input) => window.go?.main?.App?.TagWriteFile?.(input) ?? Promise.resolve({})
 export const TagReadAlbumFolder = (folder) =>
-  window.go?.main?.App?.TagReadAlbumFolder?.(folder) ?? Promise.resolve([])
+  window.go?.main?.App?.TagReadAlbumFolder?.(folder) ??
+  Promise.reject(new Error('TagReadAlbumFolder unavailable — rebuild the app'))
+// Returns { tracks: AudioTagInfo[], skipped?: string[] }
 export const TagWriteAlbumBatch = (input) =>
   window.go?.main?.App?.TagWriteAlbumBatch?.(input) ??
   Promise.resolve({ saved: 0, errors: [], summary: 'Unavailable' })

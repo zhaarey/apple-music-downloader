@@ -35,14 +35,11 @@ type AudioTagInfo struct {
 // ReadAudioTags reads Apple Music–friendly tags from an M4A file.
 func ReadAudioTags(path string) (AudioTagInfo, error) {
 	out := AudioTagInfo{Path: path}
-	mp4, err := mp4tag.Open(path)
+	tags, err := readMP4TagsSafe(path)
 	if err != nil {
-		return out, err
-	}
-	defer mp4.Close()
-
-	tags, err := mp4.Read()
-	if err != nil {
+		if isMissingMetaBoxErr(err) {
+			return out, nil
+		}
 		return out, err
 	}
 	if tags == nil {
@@ -70,7 +67,7 @@ func ReadAudioTags(path string) (AudioTagInfo, error) {
 			idx = len(tags.Pictures) - 1
 		}
 		out.HasArtwork = true
-		out.ArtworkMime = pictureMIME(tags.Pictures[idx].Format)
+		out.ArtworkMime = DetectImageMIME(tags.Pictures[idx].Data, tags.Pictures[idx].Format)
 		out.ArtworkB64 = base64.StdEncoding.EncodeToString(tags.Pictures[idx].Data)
 	}
 
@@ -89,7 +86,36 @@ func ReadAudioTags(path string) (AudioTagInfo, error) {
 	return out, nil
 }
 
+// AudioTagInfoFromPath builds minimal tag info from the file path when mp4tag cannot read the file.
+func AudioTagInfoFromPath(path string) AudioTagInfo {
+	trackNum, title := ParseTrackFilename(path)
+	out := AudioTagInfo{
+		Path:        path,
+		Title:       title,
+		TrackNumber: trackNum,
+		Summary:     title + " · tags could not be read from file",
+	}
+	return out
+}
+
 func pictureMIME(format mp4tag.ImageType) string {
+	return DetectImageMIME(nil, format)
+}
+
+// DetectImageMIME sniffs image bytes so data URLs render with the correct colors in the UI.
+func DetectImageMIME(data []byte, format mp4tag.ImageType) string {
+	if len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
+		return "image/jpeg"
+	}
+	if len(data) >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G' {
+		return "image/png"
+	}
+	if len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a") {
+		return "image/gif"
+	}
+	if len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+		return "image/webp"
+	}
 	if format == mp4tag.ImageTypePNG {
 		return "image/png"
 	}
@@ -205,32 +231,20 @@ func readExistingPictures(path string) ([]*mp4tag.MP4Picture, error) {
 }
 
 func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4tag.MP4Picture, error) {
+	_ = existing
 	wantNew := tags.CoverPath != "" || len(tags.CoverData) > 0 || tags.CoverURL != ""
-	if wantNew {
-		coverData, err := PrepareCoverBytes(tags)
-		if err != nil || len(coverData) == 0 {
-			if err == nil {
-				err = os.ErrNotExist
-			}
-			return nil, fmt.Errorf("artwork: %w", err)
-		}
-		return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: coverData}}, nil
-	}
-	if len(existing) == 0 {
+	if !wantNew {
+		// Metadata-only save: leave embedded artwork bytes untouched (avoids re-reading corrupt covr atoms).
 		return nil, nil
 	}
-	pic := existing[0]
-	if len(existing) > 1 {
-		pic = existing[len(existing)-1]
+	coverData, err := PrepareCoverBytes(tags)
+	if err != nil || len(coverData) == 0 {
+		if err == nil {
+			err = os.ErrNotExist
+		}
+		return nil, fmt.Errorf("artwork: %w", err)
 	}
-	opts := DefaultCoverNormalizeOptions()
-	if tags.CoverOptimize != nil && !*tags.CoverOptimize {
-		opts = LegacyCoverNormalizeOptions()
-	}
-	if normalized, err := NormalizeCoverWithOptions(pic.Data, opts); err == nil && len(normalized) > 0 {
-		return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: normalized}}, nil
-	}
-	return []*mp4tag.MP4Picture{clonePicture(pic)}, nil
+	return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: coverData}}, nil
 }
 
 func buildMP4Tags(tags TrackTags) (*mp4tag.MP4Tags, error) {
@@ -293,11 +307,7 @@ func WriteTrackTags(path string, tags TrackTags) error {
 	if strings.EqualFold(filepath.Ext(path), ".mp4") {
 		return WriteVideoTrackTags("", path, tags)
 	}
-	existing, err := readExistingPictures(path)
-	if err != nil {
-		return err
-	}
-	pictures, err := resolveWritePictures(tags, existing)
+	pictures, err := resolveWritePictures(tags, nil)
 	if err != nil {
 		return err
 	}

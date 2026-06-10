@@ -20,8 +20,7 @@ func CollectAlbumTracks(root string) ([]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".m4a" || ext == ".m4b" {
+		if IsTagAudioExt(filepath.Ext(path)) {
 			out = append(out, path)
 		}
 		return nil
