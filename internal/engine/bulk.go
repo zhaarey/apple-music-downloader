@@ -4,9 +4,10 @@ import "strings"
 
 // BulkQueueEntry is one album/playlist URL in a bulk GUI download with optional track filtering.
 type BulkQueueEntry struct {
-	URL               string `json:"url"`
-	SelectedTrackNums []int  `json:"selected_track_nums"`
-	ForceTrackNums    []int  `json:"force_track_nums"`
+	URL               string             `json:"url"`
+	SelectedTrackNums []int              `json:"selected_track_nums"`
+	ForceTrackNums    []int              `json:"force_track_nums"`
+	TrackURLOverrides []TrackURLOverride `json:"track_url_overrides,omitempty"`
 }
 
 var forceRedownloadNums map[int]bool
@@ -15,6 +16,7 @@ func resetBulkEntryState() {
 	guiSelectedTracks = nil
 	dl_select = false
 	forceRedownloadNums = nil
+	resetTrackURLOverrides()
 }
 
 func applyBulkEntryForURL(urlRaw string, entries []BulkQueueEntry) {
@@ -37,6 +39,7 @@ func applyBulkEntryForURL(urlRaw string, entries []BulkQueueEntry) {
 				forceRedownloadNums[n] = true
 			}
 		}
+		applyTrackURLOverrides(ent.TrackURLOverrides)
 		return
 	}
 }

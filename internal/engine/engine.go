@@ -1785,6 +1785,14 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		}
 		track := &playlist.Tracks[i]
 		track.Codec = Codec
+		if overrideURL, ok := playlistTrackURLOverride(trackNum); ok {
+			if err := applyPlaylistTrackURLOverride(track, overrideURL, token, playlist.Language); err != nil {
+				fmt.Printf("Track %d URL override failed: %v\n", trackNum, err)
+				counter.Total++
+				counter.Error++
+				continue
+			}
+		}
 		if err := preparePlaylistTrackLocation(track, token, storefront, playlist.Language, Codec, albumLocs); err != nil {
 			fmt.Printf("Failed to prepare save location for track %d: %v\n", trackNum, err)
 			counter.Total++

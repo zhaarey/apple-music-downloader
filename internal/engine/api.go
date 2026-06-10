@@ -35,8 +35,9 @@ type RunOptions struct {
 	ChildURLs         []string
 	AllArtistAlbums   bool
 	YouTubeDeliveryMode string // audio, video, both
-	YouTubeMeta       []YouTubeDownloadMeta
-	BulkEntries       []BulkQueueEntry
+	YouTubeMeta         []YouTubeDownloadMeta
+	TrackURLOverrides   []TrackURLOverride
+	BulkEntries         []BulkQueueEntry
 	Debug             bool
 	PrintJSON         bool
 }
@@ -300,6 +301,7 @@ func (e *Engine) StartDownload(opts RunOptions) (err error) {
 	if err := e.applyOptions(opts); err != nil {
 		return err
 	}
+	applyTrackURLOverrides(opts.TrackURLOverrides)
 	if err := e.validateDownload(opts); err != nil {
 		return err
 	}

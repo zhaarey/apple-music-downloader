@@ -9,8 +9,8 @@ export const ResolveSpotifyLink = (url) =>
   Promise.resolve({ items: [], error: 'Spotify matching is not available in this build' })
 export const DetectURLType = (url) => window.go?.main?.App?.DetectURLType?.(url) ?? 'Unknown'
 export const PreviewURL = (url) => window.go?.main?.App?.PreviewURL?.(url) ?? Promise.resolve({ error: 'Preview not available' })
-export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta) =>
-  window.go?.main?.App?.StartDownloadJob?.(url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta) ?? Promise.resolve()
+export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta, trackURLOverrides) =>
+  window.go?.main?.App?.StartDownloadJob?.(url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta, trackURLOverrides) ?? Promise.resolve()
 export const StartDownload = (urls, quality, singleSong, selectTracks, allArtistAlbums) =>
   window.go?.main?.App?.StartDownload?.(urls, quality, singleSong, selectTracks, allArtistAlbums) ?? Promise.resolve()
 export const CancelDownload = () => window.go?.main?.App?.CancelDownload?.() ?? Promise.resolve()

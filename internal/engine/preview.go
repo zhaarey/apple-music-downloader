@@ -83,7 +83,7 @@ func (e *Engine) previewSong(raw, token, lang string, out PreviewResult) Preview
 	out.TrackCount = 1
 	out.CanSelectTracks = false
 	out.OutputFolder = outputFolderForQuality("aac")
-	out.Tracks = []PreviewTrack{trackFromSongData(s, 1)}
+	out.Tracks = []PreviewTrack{trackFromSongData(s, 1, storefront)}
 	out.TotalDuration = formatDuration(s.Attributes.DurationInMillis)
 	return out
 }
@@ -106,7 +106,7 @@ func (e *Engine) previewMusicVideo(raw, token, lang string, out PreviewResult) P
 	out.TrackCount = 1
 	out.CanSelectTracks = false
 	out.OutputFolder = Config.MVSaveFolder
-	t := trackFromSongData(s, 1)
+	t := trackFromSongData(s, 1, storefront)
 	t.IsMV = true
 	t.Type = "music-videos"
 	out.Tracks = []PreviewTrack{t}
@@ -131,7 +131,7 @@ func (e *Engine) previewAlbum(raw, token, lang string, out PreviewResult) Previe
 	out.ArtURL = formatArtworkURL(meta.Attributes.Artwork.URL)
 	out.CanSelectTracks = true
 	out.OutputFolder = outputFolderForQuality("aac")
-	tracks, totalMs := tracksFromRelationship(meta.Relationships.Tracks.Data)
+	tracks, totalMs := tracksFromRelationship(meta.Relationships.Tracks.Data, storefront)
 	out.Tracks = tracks
 	out.TrackCount = len(tracks)
 	out.TotalDuration = formatDuration(totalMs)
@@ -155,7 +155,7 @@ func (e *Engine) previewPlaylist(raw, token, lang string, out PreviewResult) Pre
 	out.ArtURL = formatArtworkURL(meta.Attributes.Artwork.URL)
 	out.CanSelectTracks = true
 	out.OutputFolder = outputFolderForQuality("aac")
-	tracks, totalMs := tracksFromRelationship(meta.Relationships.Tracks.Data)
+	tracks, totalMs := tracksFromRelationship(meta.Relationships.Tracks.Data, storefront)
 	out.Tracks = tracks
 	out.TrackCount = len(tracks)
 	out.TotalDuration = formatDuration(totalMs)
@@ -285,38 +285,68 @@ type catalogArtistResp struct {
 	} `json:"data"`
 }
 
-func trackFromSongData(s ampapi.SongRespData, num int) PreviewTrack {
-	return PreviewTrack{
-		Num:        num,
-		ID:         s.ID,
-		Name:       s.Attributes.Name,
-		Artist:     s.Attributes.ArtistName,
-		Type:       s.Type,
-		Duration:   formatDuration(s.Attributes.DurationInMillis),
-		DurationMs: s.Attributes.DurationInMillis,
-		Explicit:   s.Attributes.ContentRating == "explicit",
-		IsMV:       s.Type == "music-videos",
+func trackFromSongData(s ampapi.SongRespData, num int, storefront string) PreviewTrack {
+	var tr ampapi.TrackRespData
+	if raw, err := json.Marshal(s); err == nil {
+		_ = json.Unmarshal(raw, &tr)
 	}
+	return previewTrackFromRespData(tr, num, storefront)
 }
 
-func tracksFromRelationship(data []ampapi.TrackRespData) ([]PreviewTrack, int) {
+func tracksFromRelationship(data []ampapi.TrackRespData, storefront string) ([]PreviewTrack, int) {
 	tracks := make([]PreviewTrack, 0, len(data))
 	totalMs := 0
 	for i, t := range data {
-		tracks = append(tracks, PreviewTrack{
-			Num:        i + 1,
-			ID:         t.ID,
-			Name:       t.Attributes.Name,
-			Artist:     t.Attributes.ArtistName,
-			Type:       t.Type,
-			Duration:   formatDuration(t.Attributes.DurationInMillis),
-			DurationMs: t.Attributes.DurationInMillis,
-			Explicit:   t.Attributes.ContentRating == "explicit",
-			IsMV:       t.Type == "music-videos",
-		})
+		tracks = append(tracks, previewTrackFromRespData(t, i+1, storefront))
 		totalMs += t.Attributes.DurationInMillis
 	}
 	return tracks, totalMs
+}
+
+func previewTrackFromRespData(t ampapi.TrackRespData, num int, storefront string) PreviewTrack {
+	albumName := t.Attributes.AlbumName
+	albumArtist := t.Attributes.ArtistName
+	artURL := formatArtworkURL(t.Attributes.Artwork.URL)
+	if len(t.Relationships.Albums.Data) > 0 {
+		al := t.Relationships.Albums.Data[0].Attributes
+		if albumName == "" {
+			albumName = al.Name
+		}
+		if al.ArtistName != "" {
+			albumArtist = al.ArtistName
+		}
+		if artURL == "" && al.Artwork.URL != "" {
+			artURL = formatArtworkURL(al.Artwork.URL)
+		}
+	}
+	trackURL := t.Attributes.URL
+	if trackURL == "" && storefront != "" && t.ID != "" {
+		if t.Type == "music-videos" {
+			trackURL = fmt.Sprintf("https://music.apple.com/%s/music-video/%s", storefront, t.ID)
+		} else {
+			trackURL = fmt.Sprintf("https://music.apple.com/%s/song/%s", storefront, t.ID)
+		}
+	}
+	genre := firstGenre(t.Attributes.GenreNames)
+	return PreviewTrack{
+		Num:         num,
+		ID:          t.ID,
+		Name:        t.Attributes.Name,
+		Artist:      t.Attributes.ArtistName,
+		Type:        t.Type,
+		Duration:    formatDuration(t.Attributes.DurationInMillis),
+		DurationMs:  t.Attributes.DurationInMillis,
+		Explicit:    t.Attributes.ContentRating == "explicit",
+		IsMV:        t.Type == "music-videos",
+		URL:         trackURL,
+		ArtURL:      artURL,
+		Album:       albumName,
+		AlbumArtist: albumArtist,
+		Genre:       genre,
+		Year:        releaseYear(t.Attributes.ReleaseDate),
+		TrackNumber: t.Attributes.TrackNumber,
+		DiscNumber:  t.Attributes.DiscNumber,
+	}
 }
 
 func outputFolderForQuality(quality string) string {

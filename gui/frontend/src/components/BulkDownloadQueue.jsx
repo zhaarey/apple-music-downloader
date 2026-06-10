@@ -32,6 +32,7 @@ import DownloadFlowLayout from './download/DownloadFlowLayout'
 import { parseBulkQueueProgress } from '../lib/bulkQueueProgress'
 import { parseJobResult, jobStatusMeta } from '../lib/downloadStatus'
 import { formatActionError } from '../lib/formatActionError'
+import { mergeAppleTrackDisplay } from '../lib/appleTrackPreview'
 import { reportFrontendError } from '../lib/errorReporting'
 
 const CONCURRENCY = 4
@@ -261,13 +262,20 @@ function BulkQueueItemRow({
   showCompare,
   onTrackPolicyChange,
   onSelectAllTracks,
+  onSaveItemTrackUrl,
 }) {
   const badge = statusBadge(item.status, downloading ? dlPhase : null)
   const dupCount = item.duplicateInfo?.existing_count ?? 0
   const selectedCount = item.duplicateInfo?.selected_count ?? 0
   const urlCount = expandQueueItemUrls(item).length
   const isEditing = editingId === item.id
-  const tracks = item.preview?.tracks || []
+  const [editingTrackKey, setEditingTrackKey] = useState(null)
+  const [trackUrlDraft, setTrackUrlDraft] = useState('')
+  const [trackUrlError, setTrackUrlError] = useState('')
+  const [savingTrackKey, setSavingTrackKey] = useState(null)
+
+  const tracks = mergeAppleTrackDisplay(item.preview?.tracks || [], item.trackPatches || {})
+  const allowTrackUrlEdit = item.preview?.type === 'Playlist' || item.preview?.type === 'Album'
   const filteredTracks = filterPreviewTracks(tracks, item.duplicateInfo, trackFilter)
   const missingCount = selectedCount > 0 ? selectedCount - dupCount : 0
   const trackSummary = summarizeItemTracks(item)
@@ -466,42 +474,112 @@ function BulkQueueItemRow({
                   const onDisk = dup?.on_disk
                   const choice = getTrackChoice(item, t.num)
                   const included = choice !== 'skip'
+                  const editKey = `${item.id}-${t.num}`
+                  const isEditingTrack = editingTrackKey === editKey
                   return (
-                    <li key={t.num} className="flex items-center justify-between gap-2 text-white/60">
-                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                        {!downloading && (
-                          <input
-                            type="checkbox"
-                            checked={included}
-                            onChange={() =>
-                              onTrackPolicyChange(item.id, t.num, included ? 'skip' : 'download')
-                            }
-                            className="shrink-0 rounded border-white/20"
-                          />
-                        )}
-                        <span className="truncate">
-                          {t.num}. {t.name}
+                    <li key={t.num} className="space-y-2 text-white/60">
+                      <div className="flex items-start justify-between gap-2">
+                        <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                          {!downloading && (
+                            <input
+                              type="checkbox"
+                              checked={included}
+                              onChange={() =>
+                                onTrackPolicyChange(item.id, t.num, included ? 'skip' : 'download')
+                              }
+                              className="mt-1 shrink-0 rounded border-white/20"
+                            />
+                          )}
+                          {t.art_url ? (
+                            <img src={t.art_url} alt="" className="mt-0.5 h-8 w-8 shrink-0 rounded object-cover" />
+                          ) : null}
+                          <span className="min-w-0">
+                            <span className="block truncate text-white/85">
+                              {t.num}. {t.name}
+                            </span>
+                            <span className="block truncate text-white/45">{t.artist}</span>
+                            {(t.album || t.album_artist) && (
+                              <span className="block truncate text-[10px] text-white/35">
+                                {[t.album, t.album_artist && t.album_artist !== t.artist ? t.album_artist : '']
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          {choice === 'skip' && onDisk && <span className="text-emerald-400">skip</span>}
+                          {choice === 'redownload' && <span className="text-amber-300">re-dl</span>}
+                          {onDisk ? (
+                            <button
+                              type="button"
+                              className="text-emerald-400 hover:underline"
+                              onClick={() => dup?.existing_path && RevealInFolder(dup.existing_path)}
+                            >
+                              on disk
+                            </button>
+                          ) : (
+                            <span className="text-white/35">{choice === 'skip' ? 'skip' : 'missing'}</span>
+                          )}
+                          {allowTrackUrlEdit && !downloading && !isEditingTrack && (
+                            <button
+                              type="button"
+                              className="text-[10px] text-accent hover:underline"
+                              onClick={() => {
+                                setEditingTrackKey(editKey)
+                                setTrackUrlDraft(t.url || '')
+                                setTrackUrlError('')
+                              }}
+                            >
+                              Edit link
+                            </button>
+                          )}
                         </span>
-                      </label>
-                      <span className="flex shrink-0 items-center gap-2">
-                        {choice === 'skip' && onDisk && (
-                          <span className="text-emerald-400">skip</span>
-                        )}
-                        {choice === 'redownload' && (
-                          <span className="text-amber-300">re-dl</span>
-                        )}
-                        {onDisk ? (
-                          <button
-                            type="button"
-                            className="text-emerald-400 hover:underline"
-                            onClick={() => dup?.existing_path && RevealInFolder(dup.existing_path)}
-                          >
-                            on disk
-                          </button>
-                        ) : (
-                          <span className="text-white/35">{choice === 'skip' ? 'skip' : 'missing'}</span>
-                        )}
-                      </span>
+                      </div>
+                      {isEditingTrack && (
+                        <div className="ml-6 space-y-2 rounded-lg border border-white/10 bg-black/30 p-2">
+                          <input
+                            type="url"
+                            value={trackUrlDraft}
+                            onChange={(e) => setTrackUrlDraft(e.target.value)}
+                            placeholder="https://music.apple.com/.../song/..."
+                            className="w-full rounded-md border border-white/15 bg-surface px-2 py-1 text-[11px] focus:border-accent focus:outline-none"
+                            disabled={savingTrackKey === editKey}
+                          />
+                          {trackUrlError && <p className="text-[10px] text-red-300">{trackUrlError}</p>}
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={savingTrackKey === editKey}
+                              onClick={async () => {
+                                setSavingTrackKey(editKey)
+                                const err = await onSaveItemTrackUrl?.(item.id, t.num, trackUrlDraft)
+                                setSavingTrackKey(null)
+                                if (err) {
+                                  setTrackUrlError(err)
+                                  return
+                                }
+                                setEditingTrackKey(null)
+                                setTrackUrlDraft('')
+                              }}
+                              className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-medium hover:bg-accent-muted disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTrackKey(null)
+                                setTrackUrlDraft('')
+                                setTrackUrlError('')
+                              }}
+                              className="rounded-md border border-white/15 px-2 py-0.5 text-[10px] text-white/55"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </li>
                   )
                 })
@@ -638,6 +716,32 @@ export default function BulkDownloadQueue({
     setCompareItemId(item.id)
   }
 
+  const saveItemTrackUrl = async (itemId, num, songUrl) => {
+    try {
+      const res = await PreviewURL(songUrl.trim())
+      if (res?.error) return res.error
+      const song = res.tracks?.[0]
+      if (!song) return 'Could not load song metadata from that link.'
+      setQueue((prev) =>
+        prev.map((q) =>
+          q.id === itemId
+            ? {
+                ...q,
+                trackPatches: {
+                  ...(q.trackPatches || {}),
+                  [num]: { ...song, num, url: songUrl.trim() },
+                },
+              }
+            : q,
+        ),
+      )
+      return null
+    } catch (e) {
+      reportFrontendError('BulkDownloadQueue.saveItemTrackUrl', e)
+      return formatActionError(e, 'Load song link')
+    }
+  }
+
   const duplicateFoldersKey = JSON.stringify(settings?.['duplicate-check-folders'] || [])
 
   const loadPreviews = useCallback(async (items) => {
@@ -661,7 +765,7 @@ export default function BulkDownloadQueue({
           setQueue((prev) =>
             prev.map((q) => {
               if (q.id !== item.id) return q
-              let next = { ...q, status: 'ready', error: '', preview }
+              let next = { ...q, status: 'ready', error: '', preview, originalTracks: preview.tracks || [], trackPatches: {} }
               if (preview.url && preview.url !== q.url) {
                 next.url = preview.url
               }
@@ -1045,6 +1149,7 @@ export default function BulkDownloadQueue({
                   showCompare={queueFilter === 'on_disk' || (item.duplicateInfo?.existing_count ?? 0) > 0}
                   onTrackPolicyChange={handleTrackPolicySave}
                   onSelectAllTracks={setAllTracksIncluded}
+                  onSaveItemTrackUrl={saveItemTrackUrl}
                 />
               ))}
             </ul>

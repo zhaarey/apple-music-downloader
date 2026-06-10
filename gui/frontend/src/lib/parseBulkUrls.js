@@ -1,3 +1,5 @@
+import { mergeAppleTrackDisplay, collectTrackURLOverrides } from './appleTrackPreview'
+
 const APPLE_MUSIC_RE = /https?:\/\/(?:music\.apple\.com|itunes\.apple\.com)\/\S+/gi
 
 /** Split pasted text into unique Apple Music URLs (one per line, comma, or semicolon). */
@@ -31,6 +33,9 @@ export function newQueueItem(url, { selectedNums } = {}) {
     duplicateInfo: null,
     /** @type {Record<number, 'skip'|'download'|'redownload'>} */
     trackPolicy: {},
+    /** @type {Record<number, object>} */
+    trackPatches: {},
+    originalTracks: null,
     excludedFromDownload: false,
     pendingSelectedNums: selectedNums?.length ? [...selectedNums] : null,
   }
@@ -142,11 +147,16 @@ export function buildBulkDownloadEntries(queue) {
     }
 
     stats.albums++
+    const mergedTracks = mergeAppleTrackDisplay(tracks, item.trackPatches)
+    const trackURLOverrides = collectTrackURLOverrides(mergedTracks, item.originalTracks || tracks).filter((o) =>
+      selectedNums.includes(o.num),
+    )
     for (const url of urls) {
       entries.push({
         url: item.preview?.url || item.url,
         selected_track_nums: tracks.length > 0 ? selectedNums : [],
         force_track_nums: forceNums,
+        track_url_overrides: trackURLOverrides,
       })
       stats.urls++
     }

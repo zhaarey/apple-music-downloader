@@ -151,7 +151,7 @@ func (a *App) PreviewURL(url string) engine.PreviewResult {
 	return a.eng.PreviewURL(url)
 }
 
-func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string, youtubeDeliveryMode string, youtubeMeta []engine.YouTubeDownloadMeta) error {
+func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []int, childURLs []string, youtubeDeliveryMode string, youtubeMeta []engine.YouTubeDownloadMeta, trackURLOverrides []engine.TrackURLOverride) error {
 	opts := engine.RunOptions{
 		URLs:                []string{url},
 		Quality:             quality,
@@ -159,6 +159,7 @@ func (a *App) StartDownloadJob(url string, quality string, selectedTrackNums []i
 		ChildURLs:           childURLs,
 		YouTubeDeliveryMode: youtubeDeliveryMode,
 		YouTubeMeta:         youtubeMeta,
+		TrackURLOverrides:   trackURLOverrides,
 	}
 	if err := a.eng.ValidateDownloadRequest(opts); err != nil {
 		return err
@@ -270,7 +271,7 @@ func (a *App) StartDownload(urls []string, quality string, singleSong, selectTra
 	if len(urls) > 0 {
 		url = urls[0]
 	}
-	return a.StartDownloadJob(url, quality, nil, nil, "audio", nil)
+	return a.StartDownloadJob(url, quality, nil, nil, "audio", nil, nil)
 }
 
 func (a *App) CancelDownload() {

@@ -19,10 +19,12 @@ import BulkDownloadQueue from './BulkDownloadQueue'
 import DownloadFlowLayout from './download/DownloadFlowLayout'
 import TrackStatusPanel from './download/TrackStatusPanel'
 import AppleDownloadModeSwitch from './AppleDownloadModeSwitch'
-import PageShell from './PageShell'
+import AppleTrackReviewList from './AppleTrackReviewList'
+import { mergeAppleTrackDisplay, collectTrackURLOverrides } from '../lib/appleTrackPreview'
 import { outputFolderKey, outputFolderLabel, outputFolderPath } from '../lib/settings'
 import { reportFrontendError } from '../lib/errorReporting'
 import { formatActionError } from '../lib/formatActionError'
+import PageShell from './PageShell'
 
 const QUALITIES = [
   { id: 'aac', label: 'AAC', desc: 'Works immediately', needsWrapper: false },
@@ -175,6 +177,8 @@ export default function DownloadTab({
   const [checkingDuplicates, setCheckingDuplicates] = useState(false)
   const [appleInputMode, setAppleInputMode] = useState('single')
   const [queueAddRequest, setQueueAddRequest] = useState(null)
+  const [originalTracks, setOriginalTracks] = useState([])
+  const [trackPatches, setTrackPatches] = useState({})
 
   const youtubeMode = sourceMode ? sourceMode === 'youtube' : Boolean(settings?.['youtube-mode'])
   const showSourceToggle = !sourceMode
@@ -208,10 +212,23 @@ export default function DownloadTab({
     await onSettingsChange({ 'youtube-output-location': mode })
   }
 
+  const displayTracks = useMemo(
+    () => mergeAppleTrackDisplay(preview?.tracks || [], trackPatches),
+    [preview?.tracks, trackPatches],
+  )
+
+  const effectivePreview = useMemo(() => {
+    if (!preview) return null
+    if (!displayTracks.length) return preview
+    return { ...preview, tracks: displayTracks }
+  }, [preview, displayTracks])
+
+  const allowAppleTrackUrlEdit = !youtubeMode && (preview?.type === 'Playlist' || preview?.type === 'Album')
+
   const previewTracks = useMemo(() => {
-    if (!preview?.tracks?.length) return []
-    return preview.tracks.filter((t) => selected.has(t.num))
-  }, [preview, selected])
+    if (!displayTracks.length) return []
+    return displayTracks.filter((t) => selected.has(t.num))
+  }, [displayTracks, selected])
 
   const trackRows = useMemo(
     () => parseTrackRows(previewTracks, engineEvents, jobStarted),
@@ -256,7 +273,7 @@ export default function DownloadTab({
           youtubeDeliveryMode,
           youtubeMode ? 'youtube' : 'apple',
           youtubeMeta,
-          preview,
+          effectivePreview || preview,
         )
         if (!cancelled) setDuplicateInfo(res)
       } catch (e) {
@@ -272,6 +289,8 @@ export default function DownloadTab({
     }
   }, [
     preview,
+    effectivePreview,
+    trackPatches,
     quality,
     selected,
     youtubeMode,
@@ -351,6 +370,8 @@ export default function DownloadTab({
     setFetchStatus('')
     setJobStarted(false)
     setMetaByTrack({})
+    setOriginalTracks([])
+    setTrackPatches({})
     setPreflight(null)
     if (clearPipeline) {
       onResetPipeline?.()
@@ -397,6 +418,8 @@ export default function DownloadTab({
     )
     setPreview(null)
     setSelected(new Set())
+    setOriginalTracks([])
+    setTrackPatches({})
     setDuplicateInfo(null)
     setJobStarted(false)
     onResetPipeline?.()
@@ -413,6 +436,8 @@ export default function DownloadTab({
         return
       }
       setPreview(res)
+      setOriginalTracks(res.tracks || [])
+      setTrackPatches({})
       setSelected(new Set(res.tracks?.map((t) => t.num) || [1]))
       setMetaByTrack(buildMetaFromPreview(res))
       setFetchStatus('')
@@ -432,6 +457,27 @@ export default function DownloadTab({
       else next.add(num)
       return next
     })
+  }
+
+  const saveTrackUrl = async (num, songUrl) => {
+    try {
+      const res = await PreviewURL(songUrl.trim())
+      if (res?.error) return res.error
+      const song = res.tracks?.[0]
+      if (!song) return 'Could not load song metadata from that link.'
+      setTrackPatches((prev) => ({
+        ...prev,
+        [num]: {
+          ...song,
+          num,
+          url: songUrl.trim(),
+        },
+      }))
+      return null
+    } catch (e) {
+      reportFrontendError('DownloadTab.saveTrackUrl', e)
+      return formatActionError(e, 'Load song link')
+    }
   }
 
   const startDownload = async () => {
@@ -493,7 +539,17 @@ export default function DownloadTab({
     onDownloadStart?.()
     try {
       const youtubeMeta = youtubeMode ? metaPayload(metaByTrack, selected) : []
-      await StartDownloadJob(preview.url, youtubeMode ? 'youtube' : quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta)
+      const trackURLOverrides =
+        allowAppleTrackUrlEdit ? collectTrackURLOverrides(displayTracks, originalTracks) : []
+      await StartDownloadJob(
+        preview.url,
+        youtubeMode ? 'youtube' : quality,
+        selectedTrackNums,
+        childURLs,
+        youtubeDeliveryMode,
+        youtubeMeta,
+        trackURLOverrides,
+      )
     } catch (err) {
       setJobStarted(false)
       const msg = typeof err === 'string' ? err : err?.message || String(err)
@@ -905,73 +961,71 @@ export default function DownloadTab({
                 <p className="text-xs text-white/40">Checking for existing files…</p>
               )}
 
-              {flowPhase === 'review' && preview.can_select_tracks && preview.tracks?.length > 0 && (
-                <div className="rounded-xl border border-white/10 bg-surface-raised">
-                  <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                    <span className="text-sm font-medium">
-                      {preview.type === 'Artist'
-                        ? 'Albums & videos'
-                        : preview.type === 'YouTube Playlist'
-                          ? 'Videos'
-                          : 'Tracks'}
-                    </span>
-                    <div className="flex gap-3 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setSelected(new Set(preview.tracks.map((t) => t.num)))}
-                        className="text-accent hover:underline"
-                        disabled={downloading}
-                      >
-                        Select all
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelected(new Set())}
-                        className="text-white/50 hover:underline"
-                        disabled={downloading}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                  <ul className="max-h-64 divide-y divide-white/5 overflow-y-auto xl:max-h-[min(70vh,36rem)]">
-                    {preview.tracks.map((t) => (
-                      <li key={t.num} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/[0.02]">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(t.num)}
-                          onChange={() => toggleTrack(t.num)}
+              {flowPhase === 'review' && preview.can_select_tracks && displayTracks.length > 0 && (
+                youtubeMode ? (
+                  <div className="rounded-xl border border-white/10 bg-surface-raised">
+                    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                      <span className="text-sm font-medium">
+                        {preview.type === 'YouTube Playlist' ? 'Videos' : 'Tracks'}
+                      </span>
+                      <div className="flex gap-3 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setSelected(new Set(displayTracks.map((t) => t.num)))}
+                          className="text-accent hover:underline"
                           disabled={downloading}
-                          className="shrink-0"
-                        />
-                        {youtubeMode && t.art_url ? (
-                          <img src={t.art_url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
-                        ) : (
-                          <span className="w-6 shrink-0 text-right text-xs text-white/40">{t.num}</span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate">{t.name}</p>
-                          <p className="truncate text-xs text-white/40">{t.artist}</p>
-                        </div>
-                        <span className="shrink-0 text-xs text-white/40">{t.duration}</span>
-                        {onDiskByNum[t.num] && (
-                          <button
-                            type="button"
-                            title={onDiskByNum[t.num].existing_path || 'Already on disk'}
-                            onClick={() =>
-                              onDiskByNum[t.num].existing_path && RevealInFolder(onDiskByNum[t.num].existing_path)
-                            }
-                            className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
-                          >
-                            On disk
-                          </button>
-                        )}
-                        {t.explicit && <span className="shrink-0 text-xs text-white/50">E</span>}
-                        {t.is_mv && <span className="shrink-0 text-xs text-white/50">MV</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(new Set())}
+                          className="text-white/50 hover:underline"
+                          disabled={downloading}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    <ul className="max-h-64 divide-y divide-white/5 overflow-y-auto xl:max-h-[min(70vh,36rem)]">
+                      {displayTracks.map((t) => (
+                        <li key={t.num} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/[0.02]">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(t.num)}
+                            onChange={() => toggleTrack(t.num)}
+                            disabled={downloading}
+                            className="shrink-0"
+                          />
+                          {t.art_url ? (
+                            <img src={t.art_url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                          ) : (
+                            <span className="w-6 shrink-0 text-right text-xs text-white/40">{t.num}</span>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate">{t.name}</p>
+                            <p className="truncate text-xs text-white/40">{t.artist}</p>
+                          </div>
+                          <span className="shrink-0 text-xs text-white/40">{t.duration}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <AppleTrackReviewList
+                    tracks={displayTracks}
+                    originalTracks={originalTracks}
+                    selected={selected}
+                    onToggleTrack={toggleTrack}
+                    onSelectAll={() => setSelected(new Set(displayTracks.map((t) => t.num)))}
+                    onClear={() => setSelected(new Set())}
+                    allowUrlEdit={allowAppleTrackUrlEdit}
+                    onSaveTrackUrl={saveTrackUrl}
+                    onDiskByNum={onDiskByNum}
+                    disabled={downloading}
+                    title={preview.type === 'Artist' ? 'Albums & videos' : 'Tracks'}
+                  />
+                )
               )}
 
               {flowPhase === 'review' && (

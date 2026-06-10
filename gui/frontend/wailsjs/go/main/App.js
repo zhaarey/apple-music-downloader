@@ -250,8 +250,8 @@ export function StartDownload(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['StartDownload'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function StartDownloadJob(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function StartDownloadJob(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function TagAnalyzeArtwork(arg1) {
