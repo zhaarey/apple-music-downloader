@@ -462,7 +462,11 @@ export default function App() {
             engineEvents={activeJobEvents}
             downloading={downloading}
             onCancel={CancelDownload}
-            onOpenFolder={() => OpenFolder('')}
+            onOpenFolder={() => {
+              const session = jobSessions[downloadJob?.source] || jobSessions.apple || jobSessions.youtube
+              const p = session?.outputPath || ''
+              OpenFolder(p || '')
+            }}
             jobSession={jobSessions[downloadJob?.source] || jobSessions.apple || jobSessions.youtube}
           />
         </TabPanel>

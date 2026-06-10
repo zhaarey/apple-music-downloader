@@ -52,7 +52,8 @@ explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
 
-#if set true,for playlst,will use songinfo for meta #albumname track disk
+#if set true,for station playlists,will use songinfo for meta #albumname track disk
+# Playlist downloads always save each track under its real artist/album folders and mirror copies into the playlist folder.
 use-songinfo-for-playlist: false
 
 #if set true,will download album cover for playlist

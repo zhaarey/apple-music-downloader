@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	appconfig "main/internal/config"
@@ -289,16 +290,11 @@ func (a *App) PickFolder() (string, error) {
 }
 
 func (a *App) OpenFolder(path string) error {
+	path = strings.TrimSpace(path)
 	if path == "" {
-		cfg := a.eng.GetConfig()
-		if cfg.YouTubeMode && cfg.YouTubeSaveFolder != "" {
-			path = cfg.YouTubeSaveFolder
-		} else {
-			path = cfg.AacSaveFolder
-		}
+		path = a.eng.DefaultOutputFolder()
 	}
-	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(path))
-	return nil
+	return osutil.OpenInFileManager(path)
 }
 
 func (a *App) RevealInFolder(filePath string) error {
@@ -336,8 +332,7 @@ func (a *App) GetLogPath() string {
 }
 
 func (a *App) OpenLogFile() error {
-	runtime.BrowserOpenURL(a.ctx, "file:///"+filepath.ToSlash(logging.Path()))
-	return nil
+	return osutil.RevealInFileManager(logging.Path())
 }
 
 // LogFrontendError records a UI error to the app log file.

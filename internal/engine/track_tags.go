@@ -36,14 +36,24 @@ func trackToMediaTags(track *task.Track, lrc string) media.TrackTags {
 		tags.ContentRating = "clean"
 	}
 
-	if (track.PreType == "playlists" || track.PreType == "stations") && !Config.UseSongInfoForPlaylist {
+	if track.PreType == "playlists" {
+		tags.Album = track.AlbumData.Attributes.Name
+		tags.DiscTotal = int16(track.DiscTotal)
+		tags.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
+		tags.AlbumArtist = track.AlbumData.Attributes.ArtistName
+		tags.Year = releaseYear(track.AlbumData.Attributes.ReleaseDate)
+		tags.Copyright = track.AlbumData.Attributes.Copyright
+		tags.Publisher = track.AlbumData.Attributes.RecordLabel
+		tags.CustomMeta["UPC"] = track.AlbumData.Attributes.Upc
+		tags.CustomMeta["LABEL"] = track.AlbumData.Attributes.RecordLabel
+	} else if track.PreType == "stations" && !Config.UseSongInfoForPlaylist {
 		tags.DiscNumber = 1
 		tags.DiscTotal = 1
 		tags.TrackNumber = int16(track.TaskNum)
 		tags.TrackTotal = int16(track.TaskTotal)
 		tags.Album = track.PlaylistData.Attributes.Name
 		tags.AlbumArtist = track.PlaylistData.Attributes.ArtistName
-	} else if (track.PreType == "playlists" || track.PreType == "stations") && Config.UseSongInfoForPlaylist {
+	} else if track.PreType == "stations" && Config.UseSongInfoForPlaylist {
 		tags.DiscTotal = int16(track.DiscTotal)
 		tags.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
 		tags.AlbumArtist = track.AlbumData.Attributes.ArtistName
@@ -197,14 +207,7 @@ func writeMVTrackTags(mvPath string, track *task.Track, mvInfo *ampapi.MusicVide
 		tags.ContentRating = "clean"
 	}
 	if track != nil {
-		if track.PreType == "playlists" && !Config.UseSongInfoForPlaylist {
-			tags.Album = track.PlaylistData.Attributes.Name
-			tags.AlbumArtist = track.PlaylistData.Attributes.ArtistName
-			tags.TrackNumber = int16(track.TaskNum)
-			tags.TrackTotal = int16(track.TaskTotal)
-			tags.DiscNumber = 1
-			tags.DiscTotal = 1
-		} else if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
+		if track.PreType == "playlists" {
 			tags.Album = track.AlbumData.Attributes.Name
 			tags.AlbumArtist = track.AlbumData.Attributes.ArtistName
 			tags.TrackNumber = int16(track.Resp.Attributes.TrackNumber)
@@ -213,7 +216,7 @@ func writeMVTrackTags(mvPath string, track *task.Track, mvInfo *ampapi.MusicVide
 			tags.DiscTotal = int16(track.DiscTotal)
 			tags.Copyright = track.AlbumData.Attributes.Copyright
 			tags.CustomMeta["UPC"] = track.AlbumData.Attributes.Upc
-		} else if track != nil {
+		} else {
 			tags.Album = track.AlbumData.Attributes.Name
 			tags.AlbumArtist = track.AlbumData.Attributes.ArtistName
 			tags.TrackNumber = int16(track.Resp.Attributes.TrackNumber)

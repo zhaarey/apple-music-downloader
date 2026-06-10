@@ -247,16 +247,7 @@ func planAppleTrackPath(previewType string, preview apple.PreviewResult, track a
 	}
 
 	artistDir := buildArtistDirName(artist)
-	var containerDir string
-	switch previewType {
-	case "Playlist":
-		containerDir = buildPlaylistDirName(preview.Title, artist, quality)
-		if containerDir == "" {
-			containerDir = buildAlbumDirName(album, artist, quality)
-		}
-	default:
-		containerDir = buildAlbumDirName(album, artist, quality)
-	}
+	containerDir := buildAlbumDirName(album, artist, quality)
 
 	basename := buildPreviewSongFilename(track, quality)
 	ext := ".m4a"

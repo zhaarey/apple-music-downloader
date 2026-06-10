@@ -970,8 +970,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		}
 	}
 
-	//提前获取到的播放列表下track所在的专辑信息
-	if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
+	if track.PreType == "playlists" && track.AlbumData.ID == "" {
 		track.GetAlbumData(token)
 	}
 
@@ -1714,11 +1713,7 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		fmt.Println("Failed to write cover.")
 	}
 
-	for i := range playlist.Tracks {
-		playlist.Tracks[i].CoverPath = covPath
-		playlist.Tracks[i].SaveDir = playlistFolderPath
-		playlist.Tracks[i].Codec = Codec
-	}
+	_ = covPath
 
 	if Config.SaveAnimatedArtwork && meta.Data[0].Attributes.EditorialVideo.MotionDetailSquare.Video != "" {
 		fmt.Println("Found Animation Artwork.")
@@ -1777,15 +1772,29 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 
 	selected = resolveTrackSelection(trackTotal, playlist.ShowSelect)
 	startIdx := len(AddedTracks)
+	albumLocs := make(albumLocationCache)
 	for i := range playlist.Tracks {
-		i++
-		if isInArray(okDict[playlistId], i) {
+		trackNum := i + 1
+		if isInArray(okDict[playlistId], trackNum) {
 			counter.Total++
 			counter.Success++
 			continue
 		}
-		if isInArray(selected, i) {
-			ripTrack(&playlist.Tracks[i-1], token, mediaUserToken)
+		if !isInArray(selected, trackNum) {
+			continue
+		}
+		track := &playlist.Tracks[i]
+		track.Codec = Codec
+		if err := preparePlaylistTrackLocation(track, token, storefront, playlist.Language, Codec, albumLocs); err != nil {
+			fmt.Printf("Failed to prepare save location for track %d: %v\n", trackNum, err)
+			counter.Total++
+			counter.Error++
+			continue
+		}
+		beforeAdded := len(AddedTracks)
+		ripTrack(track, token, mediaUserToken)
+		if err := mirrorAddedTrackToPlaylistFolder(playlistFolderPath, track, beforeAdded); err != nil {
+			fmt.Printf("Failed to copy track to playlist folder: %v\n", err)
 		}
 	}
 	if len(AddedTracks) > startIdx {
@@ -2098,14 +2107,7 @@ func mvDownloader(adamID string, saveDir string, token string, storefront string
 	}
 
 	if track != nil {
-		if track.PreType == "playlists" && !Config.UseSongInfoForPlaylist {
-			tags = append(tags, "disk=1/1")
-			tags = append(tags, fmt.Sprintf("album=%s", track.PlaylistData.Attributes.Name))
-			tags = append(tags, fmt.Sprintf("track=%d", track.TaskNum))
-			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", track.TaskNum, track.TaskTotal))
-			tags = append(tags, fmt.Sprintf("album_artist=%s", track.PlaylistData.Attributes.ArtistName))
-			tags = append(tags, fmt.Sprintf("performer=%s", track.Resp.Attributes.ArtistName))
-		} else if track.PreType == "playlists" && Config.UseSongInfoForPlaylist {
+		if track.PreType == "playlists" {
 			tags = append(tags, fmt.Sprintf("album=%s", track.AlbumData.Attributes.Name))
 			tags = append(tags, fmt.Sprintf("disk=%d/%d", track.Resp.Attributes.DiscNumber, track.DiscTotal))
 			tags = append(tags, fmt.Sprintf("track=%d", track.Resp.Attributes.TrackNumber))

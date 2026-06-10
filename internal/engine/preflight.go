@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	appconfig "main/internal/config"
@@ -104,4 +105,28 @@ func noteDownloadOutput(path string) {
 	if path != "" {
 		lastYouTubeOutput = path
 	}
+}
+
+// DefaultOutputFolder returns the best folder to open in the file manager when none is specified.
+func (e *Engine) DefaultOutputFolder() string {
+	if p := lastJobOutputPath(""); p != "" {
+		if st, err := os.Stat(p); err == nil {
+			if st.IsDir() {
+				return p
+			}
+			return filepath.Dir(p)
+		}
+		if filepath.Ext(p) != "" {
+			return filepath.Dir(p)
+		}
+		return p
+	}
+	cfg := e.GetConfig()
+	if strings.TrimSpace(cfg.YouTubeOutputLocation) == "apple-music" {
+		return strings.TrimSpace(cfg.AacSaveFolder)
+	}
+	if yt := strings.TrimSpace(cfg.YouTubeSaveFolder); yt != "" {
+		return yt
+	}
+	return strings.TrimSpace(cfg.AacSaveFolder)
 }

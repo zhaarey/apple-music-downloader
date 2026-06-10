@@ -4,12 +4,10 @@ import {
   PickFolder,
   PreviewPrepareAlbumForSync,
   PrepareAlbumForSync,
-  PrepareLibraryForSync,
-  GetSyncRepairPreparePreview,
   IsAppleMusicRunning,
 } from '../../wailsjs/go/main/App'
 import { useConfirm } from '../../hooks/useConfirm'
-import { confirmAndPrepareAlbum, syncRepairConfirmDetails } from '../../lib/prepareAlbumConfirm'
+import { confirmAndPrepareAlbum } from '../../lib/prepareAlbumConfirm'
 import AppleSyncResetPanel from '../../components/AppleSyncResetPanel'
 
 const MIN_ACTION_MS = 450
@@ -292,46 +290,6 @@ export function SyncTroubleshootingPanel({
     if (folder) await prepareFolderAt(folder)
   }
 
-  const runLibraryPrepare = async () => {
-    setActionFeedback(null)
-    setDoneKey('')
-    try {
-      const preview = await GetSyncRepairPreparePreview()
-      const confirmed = await requestConfirm({
-        title: 'Update artwork for entire library?',
-        message:
-          'Embeds artwork in tracks under your download folders (recursive). Text metadata is preserved; matching tracks are skipped. Does not reset iPhone — delete affected albums on the device before re-syncing.',
-        details: syncRepairConfirmDetails(preview),
-        confirmLabel: preview?.track_count ? `Update ${preview.track_count} track(s)` : 'Update library',
-      })
-      if (!confirmed) {
-        onStatus?.('Library update cancelled.', 'info')
-        return
-      }
-    } catch (e) {
-      onStatus?.(String(e?.message || e), 'error')
-      return
-    }
-
-    setBusy('library')
-    try {
-      const results = await withMinDelay(PrepareLibraryForSync())
-      const errors = (results || []).flatMap((r) => r.errors || [])
-      const summary =
-        errors.length > 0
-          ? `Updated with ${errors.length} issue(s) — review album folders.`
-          : `Updated artwork across ${(results || []).length} folder(s). Re-import in Apple Music, then sync.`
-      showFeedback(errors.length ? 'error' : 'success', errors.length ? 'Library update — issues' : 'Library update — done', summary)
-      onStatus?.(summary, errors.length ? 'error' : 'success')
-      if (!errors.length) markDone('library')
-    } catch (e) {
-      showFeedback('error', 'Library update — failed', String(e?.message || e))
-      onStatus?.(String(e?.message || e), 'error')
-    } finally {
-      setBusy('')
-    }
-  }
-
   const syncHint =
     'Check files first, reset Apple sync after a stuck sync, embed art if needed. Wrong art on iPhone usually means stale entries on the device — delete the album on the phone, then re-sync that album only.'
 
@@ -437,32 +395,6 @@ export function SyncTroubleshootingPanel({
             {renderButtonLabel('prepare', 'Update chosen folder…')}
           </button>
         </div>
-
-        <SectionDivider />
-
-        <details className="rounded-lg border border-white/10 bg-black/10 px-3 py-2.5">
-          <summary className="cursor-pointer text-xs font-medium text-white/65 [&::-webkit-details-marker]:hidden">
-            <span className="inline-flex items-center gap-2">
-              <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white/35">
-                {isWindows ? '4' : '3'}
-              </span>
-              Update entire library
-            </span>
-          </summary>
-          <SectionHint>
-            Same as folder update but across all configured download folders. Does not delete caches or reset iPhone.
-          </SectionHint>
-          <div className="mt-3">
-            <button
-              type="button"
-              disabled={fileChangeBlocked}
-              onClick={runLibraryPrepare}
-              className={`${actionButtonClass({ busy: busy === 'library', done: doneKey === 'library', disabled: fileChangeBlocked && busy !== 'library', danger: true })} px-4 py-2.5 text-sm`}
-            >
-              {renderButtonLabel('library', 'Update entire library')}
-            </button>
-          </div>
-        </details>
 
         <ActionFeedbackBanner feedback={actionFeedback} onDismiss={() => setActionFeedback(null)} />
 

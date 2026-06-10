@@ -780,7 +780,7 @@ export default function DownloadTab({
                 <JobStatusBanner
                   jobResult={resolvedJobResult}
                   onRevealFile={(path) => RevealInFolder(path)}
-                  onOpenFolder={() => OpenFolder('')}
+                  onOpenFolder={() => OpenFolder(outputFolder || preview?.output_folder || '')}
                   onOpenLog={() => OpenLogFile()}
                   onSplitIntoTracks={() => {
                     const h = resolvedJobResult?.handoff
