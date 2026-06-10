@@ -4,10 +4,18 @@ import {
   TagReadAlbumFolder,
   TagWriteAlbumBatch,
   TagLocalFileURL,
+  TagAnalyzeArtwork,
+  TagAnalyzeEmbeddedArtwork,
+  TagFindAlbumCover,
   PickFolder,
   RevealInFolder,
 } from '../../wailsjs/go/main/App'
-import ArtworkEditor from '../../components/ArtworkEditor'
+import ArtworkAppleOptions from '../../components/ArtworkAppleOptions'
+import {
+  loadArtworkAnalysis,
+  loadEmbeddedArtworkAnalysis,
+  optimizedPreviewFromAnalysis,
+} from '../../lib/artworkApple'
 import { useConfirm } from '../../hooks/useConfirm'
 import { bulkSaveArtworkConfirmDetails } from '../../lib/prepareAlbumConfirm'
 import { resolveMediaURL } from '../../lib/resolveMediaURL'
@@ -77,6 +85,10 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [albumDefaultsApplied, setAlbumDefaultsApplied] = useState(false)
+  const [optimizeArtwork, setOptimizeArtwork] = useState(true)
+  const [mp4boxReembed, setMp4boxReembed] = useState(false)
+  const [artworkAnalysis, setArtworkAnalysis] = useState(null)
+  const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')
   const albumDefaultsTimerRef = useRef(null)
 
   useEffect(() => {
@@ -124,6 +136,8 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     setLoading(true)
     setCoverPath('')
     setCoverPreviewURL('')
+    setOptimizedPreviewURL('')
+    setArtworkAnalysis(null)
     setClearArtwork(false)
     setSavedFlash(false)
     try {
@@ -140,6 +154,19 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
       setTracks(nextTracks)
       setAlbum(defaults)
       setSelectedTrackIdx(0)
+      try {
+        const sidecar = await TagFindAlbumCover(path)
+        const analysis = await loadArtworkAnalysis(sidecar, TagAnalyzeArtwork)
+        setArtworkAnalysis(analysis)
+        setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+      } catch {
+        const first = infos.find((i) => i.has_artwork)?.path || infos[0]?.path
+        if (first) {
+          const analysis = await loadEmbeddedArtworkAnalysis(first, TagAnalyzeEmbeddedArtwork)
+          setArtworkAnalysis(analysis)
+          setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+        }
+      }
       onStatus?.(`Loaded ${infos.length} track(s) from album folder.`)
     } catch (e) {
       reportFrontendError('AlbumBulkTagEditor.loadFolder', e)
@@ -161,6 +188,17 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     if (path) await loadFolder(path)
   }
 
+  const refreshArtworkAnalysis = async (path) => {
+    if (!path) {
+      setArtworkAnalysis(null)
+      setOptimizedPreviewURL('')
+      return
+    }
+    const analysis = await loadArtworkAnalysis(path, TagAnalyzeArtwork)
+    setArtworkAnalysis(analysis)
+    setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+  }
+
   const pickArtwork = async () => {
     const path = await TagPickArtworkFile()
     if (!path) return
@@ -169,7 +207,34 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     setSavedFlash(false)
     const url = await Promise.resolve(TagLocalFileURL(path))
     setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
+    await refreshArtworkAnalysis(path)
   }
+
+  const useFolderCover = async () => {
+    if (!folder) return
+    try {
+      const path = await TagFindAlbumCover(folder)
+      setCoverPath(path)
+      setClearArtwork(false)
+      setSavedFlash(false)
+      const url = await Promise.resolve(TagLocalFileURL(path))
+      setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
+      await refreshArtworkAnalysis(path)
+      onStatus?.('Using folder cover.jpg', 'success')
+    } catch (e) {
+      onStatus?.(formatActionError(e, 'Find folder cover'), 'error')
+    }
+  }
+
+  useEffect(() => {
+    if (!coverPath || clearArtwork) return
+    if (optimizeArtwork) {
+      void refreshArtworkAnalysis(coverPath)
+    } else {
+      setOptimizedPreviewURL('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimizeArtwork, coverPath, clearArtwork])
 
   const applyAlbumDefaultsToTracks = () => {
     if (!tracks.length) {
@@ -229,6 +294,9 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
         cover_path: coverPath,
         clear_artwork: clearArtwork,
         sort_tags: true,
+        optimize_artwork: optimizeArtwork,
+        write_cover_sidecar: true,
+        mp4box_reembed: mp4boxReembed,
         tracks: tracks.map((t) => ({
           path: t.path,
           title: t.title,
@@ -242,6 +310,8 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
       setTracks(infos.map((info, i) => trackFromInfo(info, i)))
       setCoverPath('')
       setCoverPreviewURL('')
+      setOptimizedPreviewURL('')
+      setArtworkAnalysis(null)
       setClearArtwork(false)
       setSavedFlash(true)
       setTimeout(() => setSavedFlash(false), 2200)
@@ -333,13 +403,23 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
         className={`grid gap-4 lg:grid-cols-3 ${saving ? 'pointer-events-none opacity-70' : ''}`}
       >
         <div className="space-y-4">
-          <ArtworkEditor
+          <ArtworkAppleOptions
             previewSrc={artworkPreview}
+            optimizedPreviewSrc={optimizedPreviewURL}
+            analysis={artworkAnalysis}
+            optimizeArtwork={optimizeArtwork}
+            onOptimizeArtworkChange={setOptimizeArtwork}
+            mp4boxReembed={mp4boxReembed}
+            onMp4boxReembedChange={setMp4boxReembed}
+            showFolderCover={Boolean(folder)}
+            onUseFolderCover={useFolderCover}
             onReplace={pickArtwork}
             onRemove={() => {
               setClearArtwork(true)
               setCoverPath('')
               setCoverPreviewURL('')
+              setOptimizedPreviewURL('')
+              setArtworkAnalysis(null)
               setSavedFlash(false)
             }}
             disabled={saving}

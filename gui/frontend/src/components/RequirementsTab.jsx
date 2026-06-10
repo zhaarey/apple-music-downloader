@@ -60,9 +60,11 @@ const FEATURES = [
   { feature: 'YouTube audio (DJ sets, mixes)', worksWithoutTools: false, notes: 'Enable YouTube Audio on Download tab. Needs yt-dlp + ffmpeg. No Apple account.' },
 ]
 
+import PageShell from './PageShell'
+
 export default function RequirementsTab({ deps, onRefreshDeps }) {
   return (
-    <div className="mx-auto h-full max-w-content space-y-4 overflow-y-auto pb-8">
+    <PageShell wide>
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h2 className="text-xl font-semibold">Build and tool requirements</h2>
         <p className="mt-1 text-sm text-white/60">
@@ -153,6 +155,6 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 .\\scripts\\build-windows.ps1 -SkipInstaller`}
         </pre>
       </section>
-    </div>
+    </PageShell>
   )
 }

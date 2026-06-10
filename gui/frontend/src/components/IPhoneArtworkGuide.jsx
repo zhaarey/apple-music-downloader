@@ -178,7 +178,7 @@ export default function IPhoneArtworkGuide({ platform = 'windows' }) {
         : 'border-sky-500/30 bg-sky-500/10 text-sky-100'
 
   return (
-    <section className="mt-4 rounded-xl border border-sky-500/25 bg-sky-500/[0.04] p-4">
+    <section className="rounded-xl border border-sky-500/25 bg-sky-500/[0.04] p-4">
       {ConfirmDialogSlot}
 
       <div className="flex items-start justify-between gap-3">

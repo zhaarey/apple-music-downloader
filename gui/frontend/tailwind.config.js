@@ -30,7 +30,8 @@ export default {
         apple: 'cubic-bezier(0.2, 0, 0, 1)',
       },
       maxWidth: {
-        content: '72rem', // 1152px — main tab column on desktop
+        content: '72rem', // 1152px — comfortable reading width
+        wide: '90rem', // 1440px — settings / download on large monitors
       },
     },
   },

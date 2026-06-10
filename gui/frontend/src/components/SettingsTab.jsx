@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { OpenLogFile, OpenConfigFolder } from '../wailsjs/go/main/App'
 import IPhoneArtworkGuide from './IPhoneArtworkGuide'
 import FullArtworkResetGuide from './FullArtworkResetGuide'
+import PageShell from './PageShell'
+
+const sectionClass = 'space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4'
 
 export default function SettingsTab({
   settings,
@@ -45,18 +48,21 @@ export default function SettingsTab({
     : 'Config is saved to your AppData folder'
 
   return (
-    <div className="mx-auto h-full max-w-content overflow-y-auto">
-      <h2 className="text-xl font-semibold">Settings</h2>
-      <p className="mt-1 text-sm text-white/50">{configDirHint}</p>
-      <button
-        type="button"
-        onClick={() => OpenConfigFolder()}
-        className="mt-2 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
-      >
-        Open config folder
-      </button>
+    <PageShell wide>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold">Settings</h2>
+        <p className="mt-1 text-sm text-white/50">{configDirHint}</p>
+        <button
+          type="button"
+          onClick={() => OpenConfigFolder()}
+          className="mt-2 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+        >
+          Open config folder
+        </button>
+      </div>
 
-      <section className="mt-6 space-y-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+      <section className={`${sectionClass} space-y-4`}>
         <h3 className="font-medium">Account</h3>
         <label className="block text-xs text-white/50">Storefront</label>
         <input
@@ -74,7 +80,7 @@ export default function SettingsTab({
         />
       </section>
 
-      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={`${sectionClass} lg:col-span-2`}>
         <h3 className="font-medium">Output folders</h3>
         <p className="text-xs text-white/50">
           Downloads save as Artist → Album → track files. Browse saves immediately; typed paths need Save settings.
@@ -105,7 +111,7 @@ export default function SettingsTab({
         ))}
       </section>
 
-      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={sectionClass}>
         <h3 className="font-medium">Duplicate detection</h3>
         <p className="text-xs text-white/50">
           Extra folders to scan before download (in addition to the output folder above). Useful if you moved
@@ -163,10 +169,7 @@ export default function SettingsTab({
         </div>
       </section>
 
-      <IPhoneArtworkGuide platform={platform} />
-      <FullArtworkResetGuide platform={platform} />
-
-      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={sectionClass}>
         <h3 className="font-medium">Library organization</h3>
         <p className="text-xs text-white/50">
           Saves as Artist → Album → track files. Embedded tags help Apple Music / iTunes match your library.
@@ -216,7 +219,7 @@ export default function SettingsTab({
         </label>
       </section>
 
-      <section className="mt-4 space-y-2 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={`${sectionClass} space-y-2`}>
         <h3 className="font-medium">Cover & lyrics</h3>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={!!cfg['embed-cover']} onChange={(e) => update('embed-cover', e.target.checked)} />
@@ -235,7 +238,7 @@ export default function SettingsTab({
         </select>
       </section>
 
-      <section className="mt-4 space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={sectionClass}>
         <h3 className="font-medium">YouTube audio</h3>
         <p className="text-xs text-white/50">
           Used when YouTube Audio mode is enabled on the Download tab. Requires yt-dlp and ffmpeg.
@@ -276,7 +279,7 @@ export default function SettingsTab({
         </div>
       </section>
 
-      <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={sectionClass}>
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
@@ -315,7 +318,7 @@ export default function SettingsTab({
         )}
       </section>
 
-      <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={sectionClass}>
         <div className="flex items-center justify-between">
           <h3 className="font-medium">Dependencies</h3>
           <button onClick={onRefreshDeps} className="text-sm text-accent hover:underline">
@@ -337,7 +340,7 @@ export default function SettingsTab({
         </p>
       </section>
 
-      <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+      <section className={sectionClass}>
         <h3 className="font-medium">Diagnostics</h3>
         <p className="mt-1 text-xs text-white/50">
           If the app crashes or a download fails, open the log file for full details.
@@ -348,7 +351,7 @@ export default function SettingsTab({
       </section>
 
       {activityLogs.length > 0 && (
-        <section className="mt-4 rounded-xl border border-white/10 bg-surface-raised p-4">
+        <section className={`${sectionClass} lg:col-span-2`}>
           <h3 className="font-medium">Recent activity</h3>
           <p className="mt-1 text-xs text-white/50">Latest download and engine messages from this session.</p>
           <ul className="mt-3 max-h-48 space-y-1 overflow-y-auto font-mono text-xs text-white/60">
@@ -364,7 +367,12 @@ export default function SettingsTab({
         </section>
       )}
 
-      <div className="mt-6 flex gap-3 pb-8">
+      <div className="flex flex-col gap-4 lg:col-span-2">
+        <IPhoneArtworkGuide platform={platform} />
+        <FullArtworkResetGuide platform={platform} />
+      </div>
+
+      <div className="flex flex-wrap gap-3 lg:col-span-2">
         <button onClick={save} className="rounded-xl bg-accent px-6 py-2 font-medium">
           {saved ? 'Saved!' : 'Save settings'}
         </button>
@@ -379,6 +387,7 @@ export default function SettingsTab({
           </button>
         )}
       </div>
-    </div>
+      </div>
+    </PageShell>
   )
 }

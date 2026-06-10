@@ -124,11 +124,19 @@ export function StartDownload(arg1:Array<string>,arg2:string,arg3:boolean,arg4:b
 
 export function StartDownloadJob(arg1:string,arg2:string,arg3:Array<number>,arg4:Array<string>,arg5:boolean,arg6:Array<youtube.DownloadMeta>):Promise<void>;
 
+export function TagAnalyzeArtwork(arg1:string):Promise<media.ArtworkAccentAnalysis>;
+
+export function TagAnalyzeEmbeddedArtwork(arg1:string):Promise<media.ArtworkAccentAnalysis>;
+
+export function TagFindAlbumCover(arg1:string):Promise<string>;
+
 export function TagLocalFileURL(arg1:string):Promise<string>;
 
 export function TagPickArtworkFile():Promise<string>;
 
 export function TagPickAudioFile():Promise<string>;
+
+export function TagPreviewOptimizedArtwork(arg1:string):Promise<media.ArtworkAccentAnalysis>;
 
 export function TagReadAlbumFolder(arg1:string):Promise<Array<media.AudioTagInfo>>;
 

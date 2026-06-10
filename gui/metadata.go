@@ -109,6 +109,37 @@ func (a *App) TagPickArtworkFile() (string, error) {
 	})
 }
 
+func (a *App) TagFindAlbumCover(folder string) (string, error) {
+	folder = strings.TrimSpace(folder)
+	if folder == "" {
+		return "", fmt.Errorf("no folder path")
+	}
+	if sidecar := media.FindAlbumCoverFile(folder); sidecar != "" {
+		return sidecar, nil
+	}
+	return "", fmt.Errorf("no cover.jpg or folder.jpg in this folder")
+}
+
+func (a *App) TagAnalyzeArtwork(path string) (media.ArtworkAccentAnalysis, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return media.ArtworkAccentAnalysis{}, fmt.Errorf("no image path")
+	}
+	return media.AnalyzeArtworkFilePath(path, true)
+}
+
+func (a *App) TagAnalyzeEmbeddedArtwork(audioPath string) (media.ArtworkAccentAnalysis, error) {
+	audioPath = strings.TrimSpace(audioPath)
+	if audioPath == "" {
+		return media.ArtworkAccentAnalysis{}, fmt.Errorf("no audio path")
+	}
+	return media.AnalyzeEmbeddedArtworkAccent(audioPath, true)
+}
+
+func (a *App) TagPreviewOptimizedArtwork(path string) (media.ArtworkAccentAnalysis, error) {
+	return a.TagAnalyzeArtwork(path)
+}
+
 func (a *App) TagReadFile(path string) (media.AudioTagInfo, error) {
 	defer func() {
 		if r := recover(); r != nil {

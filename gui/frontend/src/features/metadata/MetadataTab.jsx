@@ -5,12 +5,21 @@ import {
   TagReadFile,
   TagWriteFile,
   TagLocalFileURL,
+  TagAnalyzeArtwork,
+  TagAnalyzeEmbeddedArtwork,
+  TagFindAlbumCover,
   ValidateIPhoneSync,
   RevealInFolder,
   GetRecentFiles,
 } from '../../wailsjs/go/main/App'
 
-import ArtworkEditor from '../../components/ArtworkEditor'
+import ArtworkAppleOptions from '../../components/ArtworkAppleOptions'
+import {
+  loadArtworkAnalysis,
+  loadEmbeddedArtworkAnalysis,
+  optimizedPreviewFromAnalysis,
+} from '../../lib/artworkApple'
+import PageShell from '../../components/PageShell'
 import StatusToast from '../../components/StatusToast'
 import SyncValidationPanel, { SyncTroubleshootingPanel } from './SyncValidationPanel'
 import AlbumBulkTagEditor from './AlbumBulkTagEditor'
@@ -113,6 +122,10 @@ export default function MetadataTab({ platform = 'windows' }) {
   const [recentFiles, setRecentFiles] = useState([])
   const [albumLoadRequest, setAlbumLoadRequest] = useState(null)
   const [albumBusy, setAlbumBusy] = useState(false)
+  const [optimizeArtwork, setOptimizeArtwork] = useState(true)
+  const [mp4boxReembed, setMp4boxReembed] = useState(false)
+  const [artworkAnalysis, setArtworkAnalysis] = useState(null)
+  const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')
 
   useEffect(() => {
     GetRecentFiles()
@@ -132,12 +145,24 @@ export default function MetadataTab({ platform = 'windows' }) {
     [fileInfo, coverPreviewURL, clearArtwork],
   )
 
+  useEffect(() => {
+    if (!coverPath || clearArtwork) return
+    if (optimizeArtwork) {
+      void refreshArtworkAnalysis(coverPath)
+    } else {
+      setOptimizedPreviewURL('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- coverPath drives re-analysis
+  }, [optimizeArtwork, coverPath, clearArtwork])
+
   const clearFile = useCallback(() => {
     if (saving) return
     setTags(EMPTY)
     setFileInfo(null)
     setCoverPath('')
     setCoverPreviewURL('')
+    setOptimizedPreviewURL('')
+    setArtworkAnalysis(null)
     setClearArtwork(false)
     setSaved(false)
     setSyncResult(null)
@@ -153,12 +178,19 @@ export default function MetadataTab({ platform = 'windows' }) {
     setToast('')
     setCoverPath('')
     setCoverPreviewURL('')
+    setOptimizedPreviewURL('')
+    setArtworkAnalysis(null)
     setClearArtwork(false)
     try {
       const info = await TagReadFile(path)
       setFileInfo(info)
       setTags(tagsFromInfo(info, path))
       setSyncResult(null)
+      if (info.has_artwork) {
+        const analysis = await loadEmbeddedArtworkAnalysis(path, TagAnalyzeEmbeddedArtwork)
+        setArtworkAnalysis(analysis)
+        setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+      }
       setRecentFiles((prev) => [path, ...prev.filter((p) => p !== path)].slice(0, 15))
       if (info.artwork_count > 1) {
         showToast(`Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`, 'info')
@@ -212,6 +244,17 @@ export default function MetadataTab({ platform = 'windows' }) {
     disabled: dropDisabled,
   })
 
+  const refreshArtworkAnalysis = async (path) => {
+    if (!path) {
+      setArtworkAnalysis(null)
+      setOptimizedPreviewURL('')
+      return
+    }
+    const analysis = await loadArtworkAnalysis(path, TagAnalyzeArtwork)
+    setArtworkAnalysis(analysis)
+    setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+  }
+
   const pickArtwork = async () => {
     const path = await TagPickArtworkFile()
     if (path) {
@@ -220,6 +263,24 @@ export default function MetadataTab({ platform = 'windows' }) {
       setSaved(false)
       const url = await Promise.resolve(TagLocalFileURL(path))
       setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
+      await refreshArtworkAnalysis(path)
+    }
+  }
+
+  const useFolderCover = async () => {
+    const folder = tags.path ? albumFolder(tags.path) : ''
+    if (!folder) return
+    try {
+      const path = await TagFindAlbumCover(folder)
+      setCoverPath(path)
+      setClearArtwork(false)
+      setSaved(false)
+      const url = await Promise.resolve(TagLocalFileURL(path))
+      setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
+      await refreshArtworkAnalysis(path)
+      showToast('Using folder cover.jpg', 'success')
+    } catch (e) {
+      showToast(formatActionError(e, 'Find folder cover'), 'error')
     }
   }
 
@@ -274,11 +335,16 @@ export default function MetadataTab({ platform = 'windows' }) {
         cover_path: coverPath,
         clear_artwork: clearArtwork,
         sort_tags: true,
+        optimize_artwork: optimizeArtwork,
+        write_cover_sidecar: true,
+        mp4box_reembed: mp4boxReembed,
       })
       setFileInfo(updated)
       setTags(tagsFromInfo(updated, tags.path))
       setCoverPath('')
       setCoverPreviewURL('')
+      setOptimizedPreviewURL('')
+      setArtworkAnalysis(null)
       setClearArtwork(false)
       setSaved(true)
       const validation = await ValidateIPhoneSync(tags.path)
@@ -299,12 +365,11 @@ export default function MetadataTab({ platform = 'windows' }) {
     editorMode === 'single' && tags.path ? albumFolder(tags.path) : editorMode === 'album' ? bulkAlbumFolder : ''
 
   return (
-    <div
-      className={`relative mx-auto flex h-full max-w-content flex-col gap-4 overflow-y-auto pb-4 transition-colors duration-200 ${
-        dragOver ? 'rounded-xl ring-2 ring-accent/40 ring-inset' : ''
-      }`}
-      {...dropZoneProps}
+    <PageShell
+      wide
+      className={`relative transition-colors duration-200 ${dragOver ? 'rounded-xl ring-2 ring-accent/40 ring-inset' : ''}`}
     >
+      <div {...dropZoneProps} className="relative flex flex-col gap-4">
       <StatusToast message={toast} variant={toastVariant} onDismiss={dismissToast} duration={4200} />
 
       {dragOver && (
@@ -440,13 +505,23 @@ export default function MetadataTab({ platform = 'windows' }) {
             saving ? 'pointer-events-none opacity-70' : 'opacity-100'
           }`}
         >
-          <ArtworkEditor
+          <ArtworkAppleOptions
             previewSrc={artworkPreview}
+            optimizedPreviewSrc={optimizedPreviewURL}
+            analysis={artworkAnalysis}
+            optimizeArtwork={optimizeArtwork}
+            onOptimizeArtworkChange={setOptimizeArtwork}
+            mp4boxReembed={mp4boxReembed}
+            onMp4boxReembedChange={setMp4boxReembed}
+            showFolderCover={Boolean(tags.path && albumFolder(tags.path))}
+            onUseFolderCover={useFolderCover}
             onReplace={pickArtwork}
             onRemove={() => {
               setClearArtwork(true)
               setCoverPath('')
               setCoverPreviewURL('')
+              setOptimizedPreviewURL('')
+              setArtworkAnalysis(null)
               setSaved(false)
             }}
             disabled={saving}
@@ -517,6 +592,7 @@ export default function MetadataTab({ platform = 'windows' }) {
         folderResult={folderSyncResult}
         onFolderResult={setFolderSyncResult}
       />
-    </div>
+      </div>
+    </PageShell>
   )
 }

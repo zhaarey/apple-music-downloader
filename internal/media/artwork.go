@@ -1,15 +1,12 @@
 package media
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"image"
-	"image/jpeg"
 	_ "image/jpeg"
 	_ "image/png"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,48 +24,9 @@ var albumCoverNames = []string{"cover.jpg", "cover.jpeg", "cover.png", "folder.j
 
 const coverJPEGQuality = 90
 
-// NormalizeCoverForApple resizes oversized images and encodes as JPEG for iOS Music / iCloud sync.
+// NormalizeCoverForApple prepares artwork for iOS Music sync (square crop, trim, JPEG).
 func NormalizeCoverForApple(data []byte) ([]byte, error) {
-	if len(data) == 0 {
-		return nil, fmt.Errorf("empty cover data")
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("decode cover: %w", err)
-	}
-	bounds := img.Bounds()
-	w, h := bounds.Dx(), bounds.Dy()
-	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("invalid cover dimensions")
-	}
-
-	scale := 1.0
-	maxEdge := math.Max(float64(w), float64(h))
-	target := float64(TargetCoverEdgePx)
-	if maxEdge > MaxCoverEdgePx {
-		scale = MaxCoverEdgePx / maxEdge
-	} else if maxEdge > target {
-		scale = target / maxEdge
-	}
-
-	var out image.Image = img
-	if scale < 1.0 {
-		nw := int(math.Round(float64(w) * scale))
-		nh := int(math.Round(float64(h) * scale))
-		if nw < 1 {
-			nw = 1
-		}
-		if nh < 1 {
-			nh = 1
-		}
-		out = resizeNearest(img, nw, nh)
-	}
-
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, out, &jpeg.Options{Quality: coverJPEGQuality}); err != nil {
-		return nil, fmt.Errorf("encode cover jpeg: %w", err)
-	}
-	return buf.Bytes(), nil
+	return NormalizeCoverWithOptions(data, DefaultCoverNormalizeOptions())
 }
 
 func resizeNearest(src image.Image, width, height int) *image.RGBA {
@@ -91,7 +49,24 @@ func PrepareCoverBytes(tags TrackTags) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NormalizeCoverForApple(raw)
+	opts := DefaultCoverNormalizeOptions()
+	if tags.CoverOptimize != nil && !*tags.CoverOptimize {
+		opts = LegacyCoverNormalizeOptions()
+	}
+	return NormalizeCoverWithOptions(raw, opts)
+}
+
+// WriteCoverSidecarForDir writes normalized cover.jpg beside album tracks.
+func WriteCoverSidecarForDir(dir string, coverJPEG []byte) (string, error) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" || len(coverJPEG) == 0 {
+		return "", fmt.Errorf("missing folder or cover data")
+	}
+	sidecar := filepath.Join(dir, "cover.jpg")
+	if err := os.WriteFile(sidecar, coverJPEG, 0644); err != nil {
+		return "", err
+	}
+	return sidecar, nil
 }
 
 // PrepareCoverFile normalizes cover bytes and writes a temp JPEG for ffmpeg attachment.
@@ -137,8 +112,8 @@ func FindAlbumCoverFile(dir string) string {
 	return ""
 }
 
-// ReadNormalizedEmbeddedCover returns normalized JPEG bytes from a track's primary embedded cover.
-func ReadNormalizedEmbeddedCover(path string) ([]byte, error) {
+// ReadEmbeddedCoverRaw returns the primary embedded picture bytes without normalization.
+func ReadEmbeddedCoverRaw(path string) ([]byte, error) {
 	mp4, err := mp4tag.Open(path)
 	if err != nil {
 		return nil, err
@@ -152,7 +127,19 @@ func ReadNormalizedEmbeddedCover(path string) ([]byte, error) {
 	if len(tags.Pictures) > 1 {
 		pic = tags.Pictures[len(tags.Pictures)-1]
 	}
-	return NormalizeCoverForApple(pic.Data)
+	if len(pic.Data) == 0 {
+		return nil, os.ErrNotExist
+	}
+	return pic.Data, nil
+}
+
+// ReadNormalizedEmbeddedCover returns normalized JPEG bytes from a track's primary embedded cover.
+func ReadNormalizedEmbeddedCover(path string) ([]byte, error) {
+	raw, err := ReadEmbeddedCoverRaw(path)
+	if err != nil {
+		return nil, err
+	}
+	return NormalizeCoverForApple(raw)
 }
 
 // TrackArtworkAlreadyPrepared reports whether the file already has the target cover as a single JPEG.

@@ -19,6 +19,7 @@ import {
   EventsOn,
 } from '../../wailsjs/go/main/App'
 import ArtworkEditor from '../../components/ArtworkEditor'
+import PageShell from '../../components/PageShell'
 import WaveformEditor from './WaveformEditor'
 import TrackPreview from './TrackPreview'
 import { resolveMediaURL } from '../../lib/resolveMediaURL'
@@ -429,7 +430,7 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto">
+    <PageShell wide>
       <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
         <h2 className="text-xl font-semibold">Split mix</h2>
         <p className="mt-1 text-sm text-white/50">
@@ -800,6 +801,6 @@ export default function SpliceTab({ handoff, onHandoffConsumed }) {
           <p className="mt-1 text-xs text-red-200/70">See Activity → log file or %APPDATA%\AuraAudioDownloader\logs\app.log for details.</p>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

@@ -234,6 +234,18 @@ export function StartDownloadJob(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['StartDownloadJob'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
+export function TagAnalyzeArtwork(arg1) {
+  return window['go']['main']['App']['TagAnalyzeArtwork'](arg1);
+}
+
+export function TagAnalyzeEmbeddedArtwork(arg1) {
+  return window['go']['main']['App']['TagAnalyzeEmbeddedArtwork'](arg1);
+}
+
+export function TagFindAlbumCover(arg1) {
+  return window['go']['main']['App']['TagFindAlbumCover'](arg1);
+}
+
 export function TagLocalFileURL(arg1) {
   return window['go']['main']['App']['TagLocalFileURL'](arg1);
 }
@@ -244,6 +256,10 @@ export function TagPickArtworkFile() {
 
 export function TagPickAudioFile() {
   return window['go']['main']['App']['TagPickAudioFile']();
+}
+
+export function TagPreviewOptimizedArtwork(arg1) {
+  return window['go']['main']['App']['TagPreviewOptimizedArtwork'](arg1);
 }
 
 export function TagReadAlbumFolder(arg1) {

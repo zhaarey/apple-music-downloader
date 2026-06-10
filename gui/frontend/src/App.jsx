@@ -68,7 +68,10 @@ function TabButton({ tab, active, onClick, badge, disabled, title }) {
 
 function TabPanel({ active, children }) {
   return (
-    <div className={`h-full min-h-0 ${active ? 'block' : 'hidden'}`} aria-hidden={!active}>
+    <div
+      className={`min-h-0 flex-1 flex-col overflow-hidden ${active ? 'flex' : 'hidden'}`}
+      aria-hidden={!active}
+    >
       {children}
     </div>
   )
@@ -312,16 +315,16 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-surface">
-      <header className="flex items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-surface">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-lg font-bold">♫</div>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight">Aura Audio Downloader</h1>
+            <h1 className="text-base font-semibold tracking-tight sm:text-lg">Aura Audio Downloader</h1>
             <p className="truncate text-xs text-white/50">{features.tagline}</p>
           </div>
         </div>
-        <nav className="flex shrink-0 items-center gap-3">
+        <nav className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:justify-start sm:gap-3">
           <div className="flex gap-1 rounded-xl bg-surface-raised p-1">
             {features.workflowTabs.map((t) => (
               <TabButton
@@ -367,7 +370,7 @@ export default function App() {
         <p className="border-b border-yellow-500/20 bg-yellow-500/10 px-6 py-2 text-sm text-yellow-200">{navBlockHint}</p>
       )}
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-6">
         <TabPanel active={tab === 'apple'}>
           <DownloadTab {...makeDownloadTabProps('apple')} />
         </TabPanel>
@@ -392,7 +395,7 @@ export default function App() {
           </ErrorBoundary>
         </TabPanel>
 
-        {tab === 'activity' && isTabEnabled(features, 'activity') && (
+        <TabPanel active={tab === 'activity' && isTabEnabled(features, 'activity')}>
           <QueueTab
             logs={logs}
             engineEvents={engineEvents}
@@ -401,11 +404,11 @@ export default function App() {
             onOpenFolder={() => OpenFolder('')}
             jobSession={jobSessions[downloadJob?.source] || jobSessions.apple || jobSessions.youtube}
           />
-        )}
-        {tab === 'requirements' && isTabEnabled(features, 'requirements') && (
+        </TabPanel>
+        <TabPanel active={tab === 'requirements' && isTabEnabled(features, 'requirements')}>
           <RequirementsTab deps={deps} onRefreshDeps={refreshDeps} />
-        )}
-        {tab === 'settings' && (
+        </TabPanel>
+        <TabPanel active={tab === 'settings'}>
           <SettingsTab
             settings={settings}
             deps={deps}
@@ -417,7 +420,7 @@ export default function App() {
             onShowWizard={features.showWizard ? () => setShowWizard(true) : undefined}
             onShowSetupChecklist={features.showSetupChecklist ? () => setShowSetupChecklist(true) : undefined}
           />
-        )}
+        </TabPanel>
       </main>
     </div>
   )

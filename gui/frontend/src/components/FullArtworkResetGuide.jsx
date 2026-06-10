@@ -75,7 +75,7 @@ export default function FullArtworkResetGuide({ platform = 'windows' }) {
   }
 
   return (
-    <section className="mt-4 rounded-xl border border-red-500/20 bg-red-500/[0.03] p-4">
+    <section className="rounded-xl border border-red-500/20 bg-red-500/[0.03] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-medium text-white/90">Full artwork reset (nuclear option)</h3>

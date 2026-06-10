@@ -26,10 +26,13 @@ type TagAlbumBatchInput struct {
 	Year         string               `json:"year"`
 	TrackTotal   int16                `json:"track_total"`
 	DiscTotal    int16                `json:"disc_total"`
-	CoverPath    string               `json:"cover_path"`
-	ClearArtwork bool                 `json:"clear_artwork"`
-	SortTags     bool                 `json:"sort_tags"`
-	Tracks       []TagAlbumTrackInput `json:"tracks"`
+	CoverPath         string               `json:"cover_path"`
+	ClearArtwork      bool                 `json:"clear_artwork"`
+	SortTags          bool                 `json:"sort_tags"`
+	OptimizeArtwork   *bool                `json:"optimize_artwork"`
+	WriteCoverSidecar *bool                `json:"write_cover_sidecar"`
+	Mp4boxReembed     bool                 `json:"mp4box_reembed"`
+	Tracks            []TagAlbumTrackInput `json:"tracks"`
 }
 
 // TagAlbumBatchResult reports batch write outcome.
@@ -203,6 +206,8 @@ func WriteAlbumBatch(input TagAlbumBatchInput) TagAlbumBatchResult {
 		sortTags = true
 	}
 	coverPath := strings.TrimSpace(input.CoverPath)
+	optimize := boolOrDefault(input.OptimizeArtwork, true)
+	writeSidecar := boolOrDefault(input.WriteCoverSidecar, true)
 
 	for _, tr := range input.Tracks {
 		if strings.TrimSpace(tr.Path) == "" {
@@ -221,20 +226,23 @@ func WriteAlbumBatch(input TagAlbumBatchInput) TagAlbumBatchResult {
 			artist = strings.TrimSpace(input.AlbumArtist)
 		}
 		writeIn := WriteAudioTagsInput{
-			Path:        tr.Path,
-			Title:       tr.Title,
-			Artist:      artist,
-			Album:       input.Album,
-			AlbumArtist: input.AlbumArtist,
-			Genre:       input.Genre,
-			Year:        input.Year,
-			TrackNumber: trackNum,
-			TrackTotal:  trackTotal,
-			DiscNumber:  discNum,
-			DiscTotal:   discTotal,
-			CoverPath:   coverPath,
-			ClearArtwork: input.ClearArtwork,
-			SortTags:    sortTags,
+			Path:              tr.Path,
+			Title:             tr.Title,
+			Artist:            artist,
+			Album:             input.Album,
+			AlbumArtist:       input.AlbumArtist,
+			Genre:             input.Genre,
+			Year:              input.Year,
+			TrackNumber:       trackNum,
+			TrackTotal:        trackTotal,
+			DiscNumber:        discNum,
+			DiscTotal:         discTotal,
+			CoverPath:         coverPath,
+			ClearArtwork:      input.ClearArtwork,
+			SortTags:          sortTags,
+			OptimizeArtwork:   &optimize,
+			WriteCoverSidecar: boolPtr(false),
+			Mp4boxReembed:     input.Mp4boxReembed,
 		}
 		if err := WriteAudioTags(writeIn); err != nil {
 			out.Errors = append(out.Errors, fmt.Sprintf("%s: %v", tr.Path, err))
@@ -242,10 +250,31 @@ func WriteAlbumBatch(input TagAlbumBatchInput) TagAlbumBatchResult {
 		}
 		out.Saved++
 	}
+	if coverPath != "" && writeSidecar && out.Saved > 0 {
+		folder := strings.TrimSpace(input.Folder)
+		if folder == "" && len(input.Tracks) > 0 {
+			folder = filepath.Dir(input.Tracks[0].Path)
+		}
+		if folder != "" {
+			if data, err := os.ReadFile(coverPath); err == nil {
+				opts := DefaultCoverNormalizeOptions()
+				if !optimize {
+					opts = LegacyCoverNormalizeOptions()
+				}
+				if norm, err := NormalizeCoverWithOptions(data, opts); err == nil {
+					_, _ = WriteCoverSidecarForDir(folder, norm)
+				}
+			}
+		}
+	}
 	if len(out.Errors) == 0 {
 		out.Summary = fmt.Sprintf("Saved tags on %d track(s).", out.Saved)
 	} else {
 		out.Summary = fmt.Sprintf("Saved %d track(s) with %d error(s).", out.Saved, len(out.Errors))
 	}
 	return out
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

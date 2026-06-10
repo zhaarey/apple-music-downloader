@@ -8,6 +8,7 @@ import OutputFolderField from './OutputFolderField'
 import ApplePurgePanel from './ApplePurgePanel'
 import BulkDownloadQueue from './BulkDownloadQueue'
 import AppleDownloadModeSwitch from './AppleDownloadModeSwitch'
+import PageShell from './PageShell'
 import { outputFolderKey, outputFolderLabel, outputFolderPath } from '../lib/settings'
 import { reportFrontendError } from '../lib/errorReporting'
 import { formatActionError } from '../lib/formatActionError'
@@ -466,7 +467,7 @@ export default function DownloadTab({
   const showBulkMode = !youtubeMode && appleInputMode === 'bulk'
 
   return (
-    <div className="mx-auto flex h-full max-w-content flex-col gap-4 overflow-y-auto pb-4">
+    <PageShell wide>
       {!youtubeMode && (
         <AppleDownloadModeSwitch
           mode={appleInputMode}
@@ -809,7 +810,7 @@ export default function DownloadTab({
                   </button>
                 </div>
               </div>
-              <ul className="max-h-64 divide-y divide-white/5 overflow-y-auto">
+              <ul className="max-h-64 divide-y divide-white/5 overflow-y-auto xl:max-h-[min(70vh,36rem)]">
                 {preview.tracks.map((t) => (
                   <li key={t.num} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/[0.02]">
                     <input
@@ -959,6 +960,6 @@ export default function DownloadTab({
       )}
         </>
       )}
-    </div>
+    </PageShell>
   )
 }

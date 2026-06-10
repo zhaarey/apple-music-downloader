@@ -8,7 +8,10 @@ body {
 }
 
 #root {
+  display: flex;
   height: 100vh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .tag-editor-drop-target {

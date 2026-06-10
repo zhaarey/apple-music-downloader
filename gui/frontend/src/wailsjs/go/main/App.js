@@ -59,6 +59,15 @@ export const SpliceMasterAudioURL = (path) =>
 
 export const TagPickAudioFile = () => window.go?.main?.App?.TagPickAudioFile?.() ?? Promise.resolve('')
 export const TagPickArtworkFile = () => window.go?.main?.App?.TagPickArtworkFile?.() ?? Promise.resolve('')
+export const TagFindAlbumCover = (folder) =>
+  window.go?.main?.App?.TagFindAlbumCover?.(folder) ?? Promise.reject(new Error('TagFindAlbumCover unavailable'))
+export const TagAnalyzeArtwork = (path) =>
+  window.go?.main?.App?.TagAnalyzeArtwork?.(path) ?? Promise.resolve({ warnings: [], accent_ready: false })
+export const TagAnalyzeEmbeddedArtwork = (audioPath) =>
+  window.go?.main?.App?.TagAnalyzeEmbeddedArtwork?.(audioPath) ??
+  Promise.resolve({ warnings: [], accent_ready: false })
+export const TagPreviewOptimizedArtwork = (path) =>
+  window.go?.main?.App?.TagPreviewOptimizedArtwork?.(path) ?? Promise.resolve({ warnings: [], accent_ready: false })
 export const TagResolveDrop = (paths) =>
   window.go?.main?.App?.TagResolveDrop?.(paths) ?? Promise.reject(new Error('TagResolveDrop unavailable'))
 export const TagReadFile = (path) => window.go?.main?.App?.TagReadFile?.(path) ?? Promise.resolve({})

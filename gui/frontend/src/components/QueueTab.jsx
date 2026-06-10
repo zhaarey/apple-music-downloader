@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { parseJobResult, sliceEventsForCurrentJob, jobStatusMeta, trackStatusIcon } from '../lib/downloadStatus'
 import { parseBulkQueueProgress } from '../lib/bulkQueueProgress'
+import PageShell from './PageShell'
 
 export default function QueueTab({ logs, engineEvents, downloading, onCancel, onOpenFolder, jobSession }) {
   const jobResult = useMemo(() => jobSession || parseJobResult(engineEvents), [jobSession, engineEvents])
@@ -22,7 +23,7 @@ export default function QueueTab({ logs, engineEvents, downloading, onCancel, on
   }, [engineEvents])
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <PageShell wide>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Activity</h2>
@@ -100,6 +101,6 @@ export default function QueueTab({ logs, engineEvents, downloading, onCancel, on
           ))
         )}
       </div>
-    </div>
+    </PageShell>
   )
 }

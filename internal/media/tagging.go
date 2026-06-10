@@ -109,33 +109,57 @@ type WriteAudioTagsInput struct {
 	TrackTotal  int16  `json:"track_total"`
 	DiscNumber  int16  `json:"disc_number"`
 	DiscTotal   int16  `json:"disc_total"`
-	CoverPath   string `json:"cover_path"`
-	ClearArtwork bool  `json:"clear_artwork"`
-	SortTags    bool   `json:"sort_tags"`
+	CoverPath        string `json:"cover_path"`
+	ClearArtwork     bool   `json:"clear_artwork"`
+	SortTags         bool   `json:"sort_tags"`
+	OptimizeArtwork  *bool  `json:"optimize_artwork"`
+	WriteCoverSidecar *bool `json:"write_cover_sidecar"`
+	Mp4boxReembed    bool   `json:"mp4box_reembed"`
+}
+
+func boolOrDefault(ptr *bool, def bool) bool {
+	if ptr == nil {
+		return def
+	}
+	return *ptr
 }
 
 // WriteAudioTags applies metadata to an existing M4A file.
 func WriteAudioTags(input WriteAudioTagsInput) error {
+	optimize := boolOrDefault(input.OptimizeArtwork, true)
+	writeSidecar := boolOrDefault(input.WriteCoverSidecar, true)
 	tags := TrackTags{
-		Title:       input.Title,
-		Artist:      input.Artist,
-		Album:       input.Album,
-		AlbumArtist: input.AlbumArtist,
-		Genre:       input.Genre,
-		Year:        input.Year,
-		TrackNumber: input.TrackNumber,
-		TrackTotal:  input.TrackTotal,
-		DiscNumber:  input.DiscNumber,
-		DiscTotal:   input.DiscTotal,
-		CoverPath:   strings.TrimSpace(input.CoverPath),
-		SortTags:    input.SortTags,
+		Title:           input.Title,
+		Artist:          input.Artist,
+		Album:           input.Album,
+		AlbumArtist:     input.AlbumArtist,
+		Genre:           input.Genre,
+		Year:            input.Year,
+		TrackNumber:     input.TrackNumber,
+		TrackTotal:      input.TrackTotal,
+		DiscNumber:      input.DiscNumber,
+		DiscTotal:       input.DiscTotal,
+		CoverPath:       strings.TrimSpace(input.CoverPath),
+		SortTags:        input.SortTags,
+		CoverOptimize:   &optimize,
+		Mp4boxReembed:   input.Mp4boxReembed,
+		WriteCoverSidecar: writeSidecar,
 	}
 	if input.ClearArtwork {
 		tags.CoverPath = ""
 		tags.CoverData = nil
 		return writeTrackTagsClearArt(input.Path, tags)
 	}
-	return WriteTrackTags(input.Path, tags)
+	newCover := tags.CoverPath != ""
+	if err := WriteTrackTags(input.Path, tags); err != nil {
+		return err
+	}
+	if newCover && writeSidecar {
+		if cover, err := PrepareCoverBytes(tags); err == nil && len(cover) > 0 {
+			_, _ = WriteCoverSidecarForDir(filepath.Dir(input.Path), cover)
+		}
+	}
+	return nil
 }
 
 func writeTrackTagsClearArt(path string, tags TrackTags) error {
@@ -199,7 +223,11 @@ func resolveWritePictures(tags TrackTags, existing []*mp4tag.MP4Picture) ([]*mp4
 	if len(existing) > 1 {
 		pic = existing[len(existing)-1]
 	}
-	if normalized, err := NormalizeCoverForApple(pic.Data); err == nil && len(normalized) > 0 {
+	opts := DefaultCoverNormalizeOptions()
+	if tags.CoverOptimize != nil && !*tags.CoverOptimize {
+		opts = LegacyCoverNormalizeOptions()
+	}
+	if normalized, err := NormalizeCoverWithOptions(pic.Data, opts); err == nil && len(normalized) > 0 {
 		return []*mp4tag.MP4Picture{{Format: mp4tag.ImageTypeJPEG, Data: normalized}}, nil
 	}
 	return []*mp4tag.MP4Picture{clonePicture(pic)}, nil
@@ -253,8 +281,11 @@ type TrackTags struct {
 	CoverPath      string
 	CoverURL       string
 	CoverData      []byte
-	CoverMIME      string
-	RequireCover   bool
+	CoverMIME         string
+	RequireCover      bool
+	CoverOptimize     *bool
+	Mp4boxReembed     bool
+	WriteCoverSidecar bool
 }
 
 // WriteTrackTags applies metadata to an existing audio or video file.
@@ -277,7 +308,15 @@ func WriteTrackTags(path string, tags TrackTags) error {
 	if err != nil {
 		return err
 	}
-	return writeMP4Tags(path, t, pictures)
+	if err := writeMP4Tags(path, t, pictures); err != nil {
+		return err
+	}
+	if tags.Mp4boxReembed && len(pictures) > 0 && len(pictures[0].Data) > 0 {
+		if err := ReembedCoverMP4Box(path, pictures[0].Data); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func resolveCover(tags TrackTags) ([]byte, string, error) {

@@ -36,8 +36,8 @@ func main() {
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:     "Aura Audio Downloader",
-		Width:     1100,
-		Height:    720,
+		Width:     1280,
+		Height:    800,
 		MinWidth:  900,
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{

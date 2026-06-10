@@ -145,6 +145,31 @@ func artworkChecks(path string, tags AudioTagInfo) []SyncCheck {
 	}
 
 	checks = append(checks, artworkDimensionDetail(tags.Path))
+	checks = append(checks, accentUIChecks(tags.Path)...)
+	return checks
+}
+
+func accentUIChecks(path string) []SyncCheck {
+	checks := []SyncCheck{}
+	norm, err := ReadNormalizedEmbeddedCover(path)
+	if err != nil || len(norm) == 0 {
+		return checks
+	}
+	analysis, err := AnalyzeArtworkAccent(norm, false)
+	if err != nil {
+		return checks
+	}
+	if analysis.AccentReady {
+		checks = append(checks, check("accent_ui", "iOS album accent colors", true,
+			"Saturation and contrast look suitable for dynamic album backgrounds", "pass"))
+		return checks
+	}
+	detail := analysis.Summary
+	if len(analysis.Warnings) > 0 {
+		detail = analysis.Warnings[0]
+	}
+	checks = append(checks, check("accent_ui", "iOS album accent colors", false,
+		detail+" — use Tag Editor optimize when replacing art", "warn"))
 	return checks
 }
 

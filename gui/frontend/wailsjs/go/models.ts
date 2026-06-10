@@ -395,6 +395,38 @@ export namespace media {
 		    return a;
 		}
 	}
+	export class ArtworkAccentAnalysis {
+	    width: number;
+	    height: number;
+	    is_square: boolean;
+	    min_edge_px: number;
+	    avg_saturation: number;
+	    avg_luminance: number;
+	    accent_ready: boolean;
+	    warnings: string[];
+	    summary: string;
+	    optimized_b64?: string;
+	    optimized_mime?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ArtworkAccentAnalysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.is_square = source["is_square"];
+	        this.min_edge_px = source["min_edge_px"];
+	        this.avg_saturation = source["avg_saturation"];
+	        this.avg_luminance = source["avg_luminance"];
+	        this.accent_ready = source["accent_ready"];
+	        this.warnings = source["warnings"];
+	        this.summary = source["summary"];
+	        this.optimized_b64 = source["optimized_b64"];
+	        this.optimized_mime = source["optimized_mime"];
+	    }
+	}
 	export class AudioTagInfo {
 	    path: string;
 	    title: string;
@@ -663,6 +695,9 @@ export namespace media {
 	    cover_path: string;
 	    clear_artwork: boolean;
 	    sort_tags: boolean;
+	    optimize_artwork?: boolean;
+	    write_cover_sidecar?: boolean;
+	    mp4box_reembed: boolean;
 	    tracks: TagAlbumTrackInput[];
 	
 	    static createFrom(source: any = {}) {
@@ -681,6 +716,9 @@ export namespace media {
 	        this.cover_path = source["cover_path"];
 	        this.clear_artwork = source["clear_artwork"];
 	        this.sort_tags = source["sort_tags"];
+	        this.optimize_artwork = source["optimize_artwork"];
+	        this.write_cover_sidecar = source["write_cover_sidecar"];
+	        this.mp4box_reembed = source["mp4box_reembed"];
 	        this.tracks = this.convertValues(source["tracks"], TagAlbumTrackInput);
 	    }
 	
@@ -734,6 +772,9 @@ export namespace media {
 	    cover_path: string;
 	    clear_artwork: boolean;
 	    sort_tags: boolean;
+	    optimize_artwork?: boolean;
+	    write_cover_sidecar?: boolean;
+	    mp4box_reembed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new WriteAudioTagsInput(source);
@@ -755,6 +796,9 @@ export namespace media {
 	        this.cover_path = source["cover_path"];
 	        this.clear_artwork = source["clear_artwork"];
 	        this.sort_tags = source["sort_tags"];
+	        this.optimize_artwork = source["optimize_artwork"];
+	        this.write_cover_sidecar = source["write_cover_sidecar"];
+	        this.mp4box_reembed = source["mp4box_reembed"];
 	    }
 	}
 
