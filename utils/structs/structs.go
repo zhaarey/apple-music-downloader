@@ -56,7 +56,10 @@ type ConfigSet struct {
 	ExitOnError                bool   `yaml:"exit-on-error" json:"exit-on-error"`
 	YouTubeMode                bool   `yaml:"youtube-mode" json:"youtube-mode"`
 	YtDlpPath                  string `yaml:"yt-dlp-path" json:"yt-dlp-path"`
+	YouTubeOutputLocation      string `yaml:"youtube-output-location" json:"youtube-output-location"`
 	YouTubeSaveFolder          string   `yaml:"youtube-save-folder" json:"youtube-save-folder"`
+	SpotifyClientID            string   `yaml:"spotify-client-id" json:"spotify-client-id"`
+	SpotifyClientSecret        string   `yaml:"spotify-client-secret" json:"spotify-client-secret"`
 	DuplicateCheckFolders      []string `yaml:"duplicate-check-folders" json:"duplicate-check-folders"`
 }
 

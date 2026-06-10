@@ -70,6 +70,8 @@ export function PreviewPrepareAlbumForSync(arg1:string):Promise<media.AlbumPrepa
 
 export function PreviewURL(arg1:string):Promise<apple.PreviewResult>;
 
+export function ResolveSpotifyLink(arg1:string):Promise<engine.SpotifyResolveResult>;
+
 export function RevealInFolder(arg1:string):Promise<void>;
 
 export function RunAppleMusicDeepPurge(arg1:boolean):Promise<media.ApplePurgeResult>;

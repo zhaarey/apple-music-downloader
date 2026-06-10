@@ -276,7 +276,8 @@ func DefaultConfig() structs.ConfigSet {
 		MVMax:                2160,
 		FFmpegPath:           FFmpegPath(""),
 		YtDlpPath:            YtDlpPath(""),
-		YouTubeSaveFolder:    filepath.Join(home, "Music", "YouTube Downloads"),
+		YouTubeOutputLocation: "separate",
+		YouTubeSaveFolder:     filepath.Join(home, "Music", "YouTube Downloads"),
 	}
 	normalize(&cfg)
 	return cfg
@@ -312,7 +313,16 @@ func normalize(cfg *structs.ConfigSet) {
 	cfg.AtmosSaveFolder = strings.TrimSpace(cfg.AtmosSaveFolder)
 	cfg.AacSaveFolder = strings.TrimSpace(cfg.AacSaveFolder)
 	cfg.MVSaveFolder = strings.TrimSpace(cfg.MVSaveFolder)
+	cfg.YouTubeOutputLocation = strings.TrimSpace(cfg.YouTubeOutputLocation)
 	cfg.YouTubeSaveFolder = strings.TrimSpace(cfg.YouTubeSaveFolder)
+	cfg.SpotifyClientID = strings.TrimSpace(cfg.SpotifyClientID)
+	cfg.SpotifyClientSecret = strings.TrimSpace(cfg.SpotifyClientSecret)
+	if cfg.YouTubeOutputLocation == "" {
+		cfg.YouTubeOutputLocation = "separate"
+	}
+	if cfg.YouTubeOutputLocation != "apple-music" && cfg.YouTubeOutputLocation != "separate" {
+		cfg.YouTubeOutputLocation = "separate"
+	}
 	if cfg.AlacSaveFolder == "" {
 		cfg.AlacSaveFolder = "AM-DL downloads"
 	}
@@ -367,9 +377,6 @@ func normalize(cfg *structs.ConfigSet) {
 	}
 	cfg.FFmpegPath = FFmpegPath(cfg.FFmpegPath)
 	cfg.YtDlpPath = YtDlpPath(cfg.YtDlpPath)
-	if cfg.YouTubeSaveFolder == "" {
-		cfg.YouTubeSaveFolder = cfg.AacSaveFolder
-	}
 	cfg.DuplicateCheckFolders = normalizeFolderList(cfg.DuplicateCheckFolders)
 }
 

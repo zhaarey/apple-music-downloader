@@ -129,6 +129,10 @@ func (a *App) Search(queryType, query string, offset int) map[string]interface{}
 	return map[string]interface{}{"hits": hits, "hasNext": hasNext}
 }
 
+func (a *App) ResolveSpotifyLink(raw string) engine.SpotifyResolveResult {
+	return a.eng.ResolveSpotifyLink(raw)
+}
+
 func (a *App) DetectURLType(url string) string {
 	return a.eng.DetectURLType(url)
 }

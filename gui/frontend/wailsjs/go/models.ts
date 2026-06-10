@@ -251,6 +251,122 @@ export namespace engine {
 		    return a;
 		}
 	}
+	export class SearchHit {
+	    type: string;
+	    name: string;
+	    detail: string;
+	    url: string;
+	    id: string;
+	    art_url?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchHit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.name = source["name"];
+	        this.detail = source["detail"];
+	        this.url = source["url"];
+	        this.id = source["id"];
+	        this.art_url = source["art_url"];
+	    }
+	}
+	export class SpotifyMatchItem {
+	    spotify_title: string;
+	    spotify_artist: string;
+	    spotify_album?: string;
+	    spotify_isrc?: string;
+	    match_status: string;
+	    match_method?: string;
+	    score: number;
+	    apple_hit?: SearchHit;
+	    alternatives?: SearchHit[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SpotifyMatchItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.spotify_title = source["spotify_title"];
+	        this.spotify_artist = source["spotify_artist"];
+	        this.spotify_album = source["spotify_album"];
+	        this.spotify_isrc = source["spotify_isrc"];
+	        this.match_status = source["match_status"];
+	        this.match_method = source["match_method"];
+	        this.score = source["score"];
+	        this.apple_hit = this.convertValues(source["apple_hit"], SearchHit);
+	        this.alternatives = this.convertValues(source["alternatives"], SearchHit);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SpotifyResolveResult {
+	    source_kind: string;
+	    source_title: string;
+	    source_url: string;
+	    track_count: number;
+	    matched: number;
+	    isrc_matched: number;
+	    uncertain: number;
+	    missing: number;
+	    items: SpotifyMatchItem[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpotifyResolveResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source_kind = source["source_kind"];
+	        this.source_title = source["source_title"];
+	        this.source_url = source["source_url"];
+	        this.track_count = source["track_count"];
+	        this.matched = source["matched"];
+	        this.isrc_matched = source["isrc_matched"];
+	        this.uncertain = source["uncertain"];
+	        this.missing = source["missing"];
+	        this.items = this.convertValues(source["items"], SpotifyMatchItem);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -1113,7 +1229,10 @@ export namespace structs {
 	    "exit-on-error": boolean;
 	    "youtube-mode": boolean;
 	    "yt-dlp-path": string;
+	    "youtube-output-location": string;
 	    "youtube-save-folder": string;
+	    "spotify-client-id": string;
+	    "spotify-client-secret": string;
 	    "duplicate-check-folders": string[];
 	
 	    static createFrom(source: any = {}) {
@@ -1177,7 +1296,10 @@ export namespace structs {
 	        this["exit-on-error"] = source["exit-on-error"];
 	        this["youtube-mode"] = source["youtube-mode"];
 	        this["yt-dlp-path"] = source["yt-dlp-path"];
+	        this["youtube-output-location"] = source["youtube-output-location"];
 	        this["youtube-save-folder"] = source["youtube-save-folder"];
+	        this["spotify-client-id"] = source["spotify-client-id"];
+	        this["spotify-client-secret"] = source["spotify-client-secret"];
 	        this["duplicate-check-folders"] = source["duplicate-check-folders"];
 	    }
 	}

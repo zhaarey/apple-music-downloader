@@ -288,6 +288,7 @@ export default function App() {
     settings,
     deps,
     platform,
+    onOpenSettings: () => navigateTab('settings'),
     prefillUrl: sourceMode === 'apple' ? prefillUrl : '',
     onPrefillConsumed: () => setPrefillUrl(''),
     downloading,

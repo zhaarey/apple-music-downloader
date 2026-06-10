@@ -5,7 +5,9 @@ export default function AppleDownloadModeSwitch({ mode, onChange, disabled }) {
         <div>
           <p className="text-sm font-semibold text-white">Add links</p>
           <p className="mt-0.5 text-xs text-white/55">
-            One album at a time, or paste many URLs and download them as a queue.
+            {mode === 'bulk'
+              ? 'Migrate Spotify playlists or paste many Apple Music links — match, queue, download.'
+              : 'One album or playlist at a time from an Apple Music link.'}
           </p>
         </div>
         <div className="flex shrink-0 rounded-lg bg-black/30 p-1 ring-1 ring-white/10">
@@ -31,7 +33,7 @@ export default function AppleDownloadModeSwitch({ mode, onChange, disabled }) {
                 : 'text-white/60 hover:text-white disabled:opacity-40'
             }`}
           >
-            Bulk queue
+            Bulk queue · Spotify
           </button>
         </div>
       </div>

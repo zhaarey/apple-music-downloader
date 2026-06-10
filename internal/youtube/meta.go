@@ -171,11 +171,17 @@ func MetaByNum(metas []DownloadMeta) map[int]DownloadMeta {
 }
 
 func OutputDir(cfg structs.ConfigSet) string {
-	dir := cfg.YouTubeSaveFolder
-	if dir == "" {
-		dir = cfg.AacSaveFolder
+	if cfg.YouTubeOutputLocation == "apple-music" {
+		dir := strings.TrimSpace(cfg.AacSaveFolder)
+		if dir != "" {
+			return dir
+		}
 	}
-	return dir
+	dir := strings.TrimSpace(cfg.YouTubeSaveFolder)
+	if dir != "" {
+		return dir
+	}
+	return strings.TrimSpace(cfg.AacSaveFolder)
 }
 
 func FFmpegArgs(cfg structs.ConfigSet) []string {

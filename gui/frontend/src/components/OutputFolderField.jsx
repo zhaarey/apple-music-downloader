@@ -5,6 +5,7 @@ export default function OutputFolderField({
   hint = '',
   value = '',
   disabled = false,
+  readOnly = false,
   onBrowse,
   onOpen,
   onSavePath,
@@ -14,6 +15,7 @@ export default function OutputFolderField({
   const display = editing ? draft : value
 
   const startEdit = () => {
+    if (readOnly) return
     setDraft(value || '')
     setEditing(true)
   }
@@ -56,7 +58,7 @@ export default function OutputFolderField({
       </div>
       <input
         value={display}
-        readOnly={!editing}
+        readOnly={readOnly || !editing}
         disabled={disabled}
         onFocus={startEdit}
         onChange={(e) => setDraft(e.target.value)}

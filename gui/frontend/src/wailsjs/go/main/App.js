@@ -4,6 +4,9 @@ export const GetSettings = () => window.go?.main?.App?.GetSettings?.() ?? Promis
 export const SaveSettings = (cfg) => window.go?.main?.App?.SaveSettings?.(cfg) ?? Promise.resolve()
 export const CheckDependencies = () => window.go?.main?.App?.CheckDependencies?.() ?? Promise.resolve([])
 export const Search = (type, query, offset) => window.go?.main?.App?.Search?.(type, query, offset) ?? Promise.resolve({ hits: [], hasNext: false })
+export const ResolveSpotifyLink = (url) =>
+  window.go?.main?.App?.ResolveSpotifyLink?.(url) ??
+  Promise.resolve({ items: [], error: 'Spotify matching is not available in this build' })
 export const DetectURLType = (url) => window.go?.main?.App?.DetectURLType?.(url) ?? 'Unknown'
 export const PreviewURL = (url) => window.go?.main?.App?.PreviewURL?.(url) ?? Promise.resolve({ error: 'Preview not available' })
 export const StartDownloadJob = (url, quality, selectedTrackNums, childURLs, youtubeDeliveryMode, youtubeMeta) =>

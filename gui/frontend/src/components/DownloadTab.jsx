@@ -10,8 +10,10 @@ import {
 import { FetchPreviewSkeleton, FetchStatusBanner } from './YouTubeUI'
 import YouTubeMetadataEditor, { buildMetaFromPreview, metaPayload } from './YouTubeMetadataEditor'
 import YouTubeDeliveryModeSwitch from './YouTubeDeliveryModeSwitch'
+import YouTubeOutputLocationSwitch from './YouTubeOutputLocationSwitch'
+import { youtubeOutputLocation, youtubeOutputFolderHint } from '../lib/youtubeOutput'
 import { youtubeDownloadButtonLabel } from '../lib/youtubeDelivery'
-import SearchTab from './SearchTab'
+import CatalogLookupPanel from './CatalogLookupPanel'
 import OutputFolderField from './OutputFolderField'
 import BulkDownloadQueue from './BulkDownloadQueue'
 import DownloadFlowLayout from './download/DownloadFlowLayout'
@@ -65,7 +67,7 @@ function outputFolderForQuality(settings, quality, youtubeMode) {
 async function saveOutputFolder(settings, onSettingsChange, quality, youtubeMode, path) {
   const trimmed = String(path || '').trim()
   if (!trimmed || !onSettingsChange) return
-  const key = outputFolderKey(quality, youtubeMode)
+  const key = outputFolderKey(quality, youtubeMode, settings)
   await onSettingsChange({ [key]: trimmed })
 }
 
@@ -139,6 +141,7 @@ export default function DownloadTab({
   onResetPipeline,
   onSettingsChange,
   onSplitIntoTracks,
+  onOpenSettings,
   sourceMode,
   platform = 'windows',
   showAppleSearch = true,
@@ -171,10 +174,13 @@ export default function DownloadTab({
   const wrapperOk = deps?.some((d) => d.name?.includes('wrapper') && d.ok)
   const hasToken = (settings?.['media-user-token'] || '').length > 50
   const outputFolder = outputFolderForQuality(settings, quality, youtubeMode)
-  const outputFolderHint =
-    !youtubeMode && quality !== 'aac'
+  const ytOutputLocation = youtubeOutputLocation(settings)
+  const outputFolderHint = youtubeMode
+    ? youtubeOutputFolderHint(settings)
+    : quality !== 'aac'
       ? 'Uses the AAC folder if this quality-specific path is empty. Change all folders in Settings.'
       : 'Also editable in Settings → Output folders.'
+  const youtubeOutputReadOnly = youtubeMode && ytOutputLocation === 'apple-music'
 
   const browseOutputFolder = async () => {
     const path = await PickFolder()
@@ -184,6 +190,11 @@ export default function DownloadTab({
 
   const saveOutputFolderPath = async (path) => {
     await saveOutputFolder(settings, onSettingsChange, quality, youtubeMode, path)
+  }
+
+  const saveYouTubeOutputLocation = async (mode) => {
+    if (!onSettingsChange) return
+    await onSettingsChange({ 'youtube-output-location': mode })
   }
 
   const previewTracks = useMemo(() => {
@@ -494,7 +505,7 @@ export default function DownloadTab({
       ? youtubeMode
         ? 'Paste a video or playlist URL — fetch to preview, then download'
         : embedSearch
-          ? 'Paste a link or pick from search — fetch to preview, then download'
+          ? 'Search, paste Apple Music or Spotify — fetch to preview, then download'
           : 'Paste a link, fetch to preview, then download'
       : flowPhase === 'review'
         ? 'Confirm tracks, quality, and output folder'
@@ -593,6 +604,7 @@ export default function DownloadTab({
           downloading={downloading}
           jobStarted={jobStarted}
           engineEvents={engineEvents}
+          onOpenSettings={onOpenSettings}
           onDownloadStart={() => {
             setJobStarted(true)
             onDownloadStart?.()
@@ -611,7 +623,13 @@ export default function DownloadTab({
           footer={flowFooter}
         >
           {embedSearch && flowPhase === 'link' && (
-            <SearchTab embedded onPreview={handleSearchSelect} />
+            <CatalogLookupPanel
+              disabled={downloading || fetching}
+              onSelectAppleUrl={handleSearchSelect}
+              settings={settings}
+              onOpenSettings={onOpenSettings}
+              showSearchTypes
+            />
           )}
 
           {showSourceToggle && (
@@ -656,7 +674,7 @@ export default function DownloadTab({
                   onClick={() => setAppleInputMode('bulk')}
                   className="text-sm font-medium text-accent hover:underline disabled:opacity-40"
                 >
-                  Need many albums? Switch to bulk queue →
+                  Migrating from Spotify? Switch to bulk queue →
                 </button>
               )}
 
@@ -807,6 +825,11 @@ export default function DownloadTab({
 
               {flowPhase === 'review' && youtubeMode && (
                 <div className="space-y-3">
+                  <YouTubeOutputLocationSwitch
+                    value={ytOutputLocation}
+                    onChange={saveYouTubeOutputLocation}
+                    disabled={downloading || !onSettingsChange}
+                  />
                   <YouTubeDeliveryModeSwitch
                     value={youtubeDeliveryMode}
                     onChange={setYoutubeDeliveryMode}
@@ -926,13 +949,14 @@ export default function DownloadTab({
 
               {flowPhase === 'review' && (
                 <OutputFolderField
-                  label={outputFolderLabel(quality, youtubeMode)}
+                  label={outputFolderLabel(quality, youtubeMode, settings)}
                   hint={outputFolderHint}
                   value={outputFolder || preview?.output_folder || ''}
                   disabled={downloading || !onSettingsChange}
-                  onBrowse={browseOutputFolder}
+                  readOnly={youtubeOutputReadOnly}
+                  onBrowse={youtubeOutputReadOnly ? undefined : browseOutputFolder}
                   onOpen={() => outputFolder && OpenFolder(outputFolder)}
-                  onSavePath={saveOutputFolderPath}
+                  onSavePath={youtubeOutputReadOnly ? undefined : saveOutputFolderPath}
                 />
               )}
 

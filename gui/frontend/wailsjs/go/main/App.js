@@ -126,6 +126,10 @@ export function PreviewURL(arg1) {
   return window['go']['main']['App']['PreviewURL'](arg1);
 }
 
+export function ResolveSpotifyLink(arg1) {
+  return window['go']['main']['App']['ResolveSpotifyLink'](arg1);
+}
+
 export function RevealInFolder(arg1) {
   return window['go']['main']['App']['RevealInFolder'](arg1);
 }

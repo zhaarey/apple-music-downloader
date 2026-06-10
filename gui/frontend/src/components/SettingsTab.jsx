@@ -3,6 +3,8 @@ import { OpenLogFile, OpenConfigFolder } from '../wailsjs/go/main/App'
 import IPhoneArtworkGuide from './IPhoneArtworkGuide'
 import FullArtworkResetGuide from './FullArtworkResetGuide'
 import PageShell from './PageShell'
+import YouTubeOutputLocationSwitch from './YouTubeOutputLocationSwitch'
+import { youtubeOutputLocation } from '../lib/youtubeOutput'
 
 const sectionClass = 'space-y-3 rounded-xl border border-white/10 bg-surface-raised p-4'
 
@@ -239,9 +241,50 @@ export default function SettingsTab({
       </section>
 
       <section className={sectionClass}>
-        <h3 className="font-medium">YouTube audio</h3>
+        <h3 className="font-medium">Spotify playlist migration</h3>
         <p className="text-xs text-white/50">
-          Used when YouTube Audio mode is enabled on the Download tab. Requires yt-dlp and ffmpeg.
+          One-time setup to read public Spotify playlists and match songs on Apple Music (ISRC when available).
+        </p>
+        <ol className="mt-2 space-y-2 text-xs text-white/55">
+          <li>
+            <span className="font-medium text-white/75">1.</span> Create a free app at{' '}
+            <a href="https://developer.spotify.com/dashboard" className="text-accent hover:underline" target="_blank" rel="noreferrer">
+              developer.spotify.com
+            </a>
+          </li>
+          <li>
+            <span className="font-medium text-white/75">2.</span> Copy Client ID and Client secret below
+          </li>
+          <li>
+            <span className="font-medium text-white/75">3.</span> On Spotify, make each playlist public (⋯ → Make public)
+          </li>
+          <li>
+            <span className="font-medium text-white/75">4.</span> Apple Music tab → Bulk queue → paste playlist link
+          </li>
+        </ol>
+        <div>
+          <label className="text-xs text-white/50">Client ID</label>
+          <input
+            value={cfg['spotify-client-id'] || ''}
+            onChange={(e) => update('spotify-client-id', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm font-mono"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-white/50">Client secret</label>
+          <input
+            type="password"
+            value={cfg['spotify-client-secret'] || ''}
+            onChange={(e) => update('spotify-client-secret', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm font-mono"
+          />
+        </div>
+      </section>
+
+      <section className={sectionClass}>
+        <h3 className="font-medium">YouTube downloads</h3>
+        <p className="text-xs text-white/50">
+          Used on the YouTube tab for audio, video, or both. Requires yt-dlp and ffmpeg.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -251,23 +294,41 @@ export default function SettingsTab({
           />
           Default to YouTube mode on launch
         </label>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-xs text-white/50">YouTube download folder</label>
-            <input
-              value={cfg['youtube-save-folder'] || ''}
-              onChange={(e) => update('youtube-save-folder', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm"
-            />
+        <YouTubeOutputLocationSwitch
+          value={youtubeOutputLocation(cfg)}
+          onChange={async (mode) => {
+            update('youtube-output-location', mode)
+            await onSave({ 'youtube-output-location': mode })
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2000)
+          }}
+        />
+        {youtubeOutputLocation(cfg) === 'separate' ? (
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs text-white/50">Separate YouTube folder</label>
+              <input
+                value={cfg['youtube-save-folder'] || ''}
+                onChange={(e) => update('youtube-save-folder', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => pickFolder('youtube-save-folder')}
+              className="mt-5 rounded-lg bg-surface px-3 text-sm hover:bg-surface-hover"
+            >
+              Browse
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => pickFolder('youtube-save-folder')}
-            className="mt-5 rounded-lg bg-surface px-3 text-sm hover:bg-surface-hover"
-          >
-            Browse
-          </button>
-        </div>
+        ) : (
+          <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white/60">
+            <p className="text-xs text-white/45">Apple Music download folder (AAC / default)</p>
+            <p className="mt-1 truncate font-mono text-white/80" title={cfg['aac-save-folder'] || ''}>
+              {cfg['aac-save-folder'] || 'Not set — configure under Output folders above'}
+            </p>
+          </div>
+        )}
         <div>
           <label className="text-xs text-white/50">yt-dlp path (optional)</label>
           <input
