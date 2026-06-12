@@ -9,7 +9,7 @@ save-artist-cover: false
 save-animated-artwork: false    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
 embed-cover: true
-cover-size: 5000x5000
+cover-size: 3000x3000
 cover-format: jpg       #jpg png or original
 tag-sort-order: true
 tag-itunes-id: true
@@ -52,7 +52,8 @@ explicit-choice : "[E]"
 clean-choice : "[C]"
 apple-master-choice : "[M]"
 
-#if set true,for playlst,will use songinfo for meta #albumname track disk
+#if set true,for station playlists,will use songinfo for meta #albumname track disk
+# Playlist downloads always save each track under its real artist/album folders and mirror copies into the playlist folder.
 use-songinfo-for-playlist: false
 
 #if set true,will download album cover for playlist

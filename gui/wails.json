@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "AuraAudioDownloader",
+  "outputfilename": "AuraAudioDownloader",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Aura Audio Downloader"
+  },
+  "info": {
+    "companyName": "Aura Audio Downloader",
+    "productName": "Aura Audio Downloader",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "Download Apple Music, YouTube audio, and split DJ sets into tracks"
+  }
+}

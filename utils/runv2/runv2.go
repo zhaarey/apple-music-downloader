@@ -23,6 +23,10 @@ import (
 const prefetchKey = "skd://itunes.apple.com/P000000000/s1/e1"
 var ErrTimeout = errors.New("response timed out")
 
+type ProgressReporter interface {
+	Report(phase string, current, total int64)
+}
+
 type TimedResponseBody struct {
 	timeout   time.Duration
 	timer     *time.Timer
@@ -43,7 +47,11 @@ func (b *TimedResponseBody) Read(p []byte) (int, error) {
 }
 
 
-func Run(adamId string, playlistUrl string, outfile string, Config structs.ConfigSet) error {
+func Run(adamId string, playlistUrl string, outfile string, Config structs.ConfigSet, reporter ...ProgressReporter) error {
+	var progress ProgressReporter
+	if len(reporter) > 0 {
+		progress = reporter[0]
+	}
 	var err error
 	var optstimeout uint
 	optstimeout = 0
@@ -157,7 +165,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	//fmt.Print("Decrypting...\n")
 	defer Close(conn)
 
-	err = downloadAndDecryptFile(conn, body, outfile, adamId, segments, totalLen, Config)
+	err = downloadAndDecryptFile(conn, body, outfile, adamId, segments, totalLen, Config, progress)
 	if err != nil {
 		return err
 	}
@@ -166,7 +174,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 }
 
 func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
-	adamId string, playlistSegments []*m3u8.MediaSegment, totalLen int64, Config structs.ConfigSet) error {
+	adamId string, playlistSegments []*m3u8.MediaSegment, totalLen int64, Config structs.ConfigSet, reporter ProgressReporter) error {
 	var buffer bytes.Buffer
 	var outBuf *bufio.Writer
 	MaxMemorySize := int64(Config.MaxMemoryLimit * 1024 * 1024)
@@ -267,6 +275,9 @@ func downloadAndDecryptFile(conn io.ReadWriter, in io.Reader, outfile string,
 			return err
 		}
 		bar.Add64(int64(rawoffset))
+		if reporter != nil && totalLen > 0 {
+			reporter.Report("decrypt", int64(offset), totalLen)
+		}
 	}
 	err = outBuf.Flush()
 	if err != nil {
