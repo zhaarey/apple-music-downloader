@@ -42,7 +42,7 @@ func GetToken() (string, error) {
 		return "", err
 	}
 
-	regex = regexp.MustCompile(`eyJh([^"]*)`)
+	regex = regexp.MustCompile(`eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+`)
 	token := regex.FindString(string(body))
 
 	return token, nil
