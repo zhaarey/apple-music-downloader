@@ -671,7 +671,10 @@ func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) (
 	}
 	switch targetFmt {
 	case "flac":
-		args = append(args, "-c:a", "flac")
+		// Map all streams and copy the embedded cover (attached_pic) so album
+		// art survives the ALAC(.m4a) -> FLAC transcode. Without -map 0 / -c:v copy
+		// ffmpeg only keeps the audio stream and the artwork is silently dropped.
+		args = append(args, "-map", "0", "-c:a", "flac", "-c:v", "copy", "-disposition:v", "attached_pic")
 	case "mp3":
 		// VBR quality 2 ~ high quality
 		args = append(args, "-c:a", "libmp3lame", "-qscale:a", "2")
