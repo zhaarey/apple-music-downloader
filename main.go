@@ -76,8 +76,27 @@ func loadConfig() error {
 	if err != nil {
 		return err
 	}
+	err = yaml.Unmarshal(data, &Config)
+	if err != nil {
+		return err
+	}
 	if len(Config.Storefront) != 2 {
 		Config.Storefront = "us"
+	}
+	if Config.AlacMax == 0 {
+		Config.AlacMax = 192000
+	}
+
+	if Config.AtmosMax == 0 {
+		Config.AtmosMax = 2768
+	}
+
+	if Config.AacType == "" {
+		Config.AacType = "aac-lc"
+	}
+
+	if Config.MVAudioType == "" {
+		Config.MVAudioType = "atmos"
 	}
 	return nil
 }
@@ -2539,6 +2558,22 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 		return "", "", nil
 	}
 	var Quality string
+	fmt.Printf("%+v\n", Config)
+	fmt.Println("===== SELECTOR =====")
+	for _, variant := range master.Variants {
+		fmt.Printf("Codec=%q Audio=%q AvgBW=%d BW=%d\n",
+			variant.Codecs,
+			variant.Audio,
+			variant.AverageBandwidth,
+			variant.Bandwidth,
+		)
+	}
+	fmt.Printf("dl_atmos=%v dl_aac=%v AlacMax=%d\n",
+		dl_atmos,
+		dl_aac,
+		Config.AlacMax,
+	)
+	fmt.Println("====================")
 	for _, variant := range master.Variants {
 		if dl_atmos {
 			if variant.Codecs == "ec-3" && strings.Contains(variant.Audio, "atmos") {
@@ -2601,11 +2636,23 @@ func extractMedia(b string, more_mode bool) (string, string, error) {
 			}
 		} else {
 			if variant.Codecs == "alac" {
+				fmt.Println("MATCH ALAC:", variant.Audio)
+
 				split := strings.Split(variant.Audio, "-")
+				fmt.Println(split)
+
 				length := len(split)
+				fmt.Println("SampleRate =", split[length-2])
+				fmt.Println("BitDepth   =", split[length-1])
+				fmt.Println("AlacMax    =", Config.AlacMax)
+
 				length_int, err := strconv.Atoi(split[length-2])
 				if err != nil {
 					return "", "", err
+				}
+				max := Config.AlacMax
+				if max == 0 {
+					max = 192000
 				}
 				if length_int <= Config.AlacMax {
 					if !debug_mode && !more_mode {
