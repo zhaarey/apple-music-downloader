@@ -189,7 +189,7 @@ func (a *App) TagReadFile(path string) (media.AudioTagInfo, error) {
 	if ext != ".m4a" && ext != ".mp4" && ext != ".m4b" {
 		return media.AudioTagInfo{}, fmt.Errorf("unsupported file type %s (use .m4a)", ext)
 	}
-	tags, err := media.ReadAudioTags(path)
+	tags, err := media.ReadAudioTagsWithProbe(a.eng.GetConfig().FFmpegPath, path)
 	if err != nil {
 		return media.AudioTagInfo{}, err
 	}
@@ -221,7 +221,7 @@ func (a *App) TagWriteFile(input media.WriteAudioTagsInput) (media.AudioTagInfo,
 	}
 	logging.Info("TagWriteFile updated %s", outPath)
 	appstate.RememberRecentFile(outPath)
-	tags, err := media.ReadAudioTags(outPath)
+	tags, err := media.ReadAudioTagsWithProbe(a.eng.GetConfig().FFmpegPath, outPath)
 	if err != nil {
 		return media.AudioTagInfo{}, err
 	}

@@ -38,20 +38,28 @@ type AudioTagInfo struct {
 	DurationLabel  string `json:"duration_label,omitempty"`
 	AppleVideoReady bool  `json:"apple_video_ready,omitempty"`
 	AppleVideoDetail string `json:"apple_video_detail,omitempty"`
+	TagsPartial     bool   `json:"tags_partial,omitempty"`
+	TagsWarning     string `json:"tags_warning,omitempty"`
 }
 
 // ReadAudioTags reads Apple Music–friendly tags from an M4A file.
+// Damaged/malformed iTunes atoms fall back to ffprobe + filename instead of failing hard.
 func ReadAudioTags(path string) (AudioTagInfo, error) {
+	return ReadAudioTagsWithProbe("", path)
+}
+
+// ReadAudioTagsWithProbe is like ReadAudioTags but uses ffmpegConfigured for ffprobe fallback.
+func ReadAudioTagsWithProbe(ffmpegConfigured, path string) (AudioTagInfo, error) {
 	out := AudioTagInfo{Path: path}
 	tags, err := readMP4TagsSafe(path)
 	if err != nil {
-		if isMissingMetaBoxErr(err) {
-			return out, nil
+		if isRecoverableMP4TagReadErr(err) {
+			return readAudioTagsFallback(ffmpegConfigured, path, err), nil
 		}
 		return out, err
 	}
 	if tags == nil {
-		return out, nil
+		return readAudioTagsFallback(ffmpegConfigured, path, nil), nil
 	}
 
 	out.Title = strings.TrimSpace(tags.Title)
@@ -68,15 +76,24 @@ func ReadAudioTags(path string) (AudioTagInfo, error) {
 	out.DiscNumber = tags.DiscNumber
 	out.DiscTotal = tags.DiscTotal
 
-	if len(tags.Pictures) > 0 && len(tags.Pictures[0].Data) > 0 {
-		out.ArtworkCount = len(tags.Pictures)
+	if len(tags.Pictures) > 0 {
 		idx := 0
 		if len(tags.Pictures) > 1 {
 			idx = len(tags.Pictures) - 1
 		}
-		out.HasArtwork = true
-		out.ArtworkMime = DetectImageMIME(tags.Pictures[idx].Data, tags.Pictures[idx].Format)
-		out.ArtworkB64 = base64.StdEncoding.EncodeToString(tags.Pictures[idx].Data)
+		pic := tags.Pictures[idx]
+		// Skip absurdly large covers that would freeze the UI / OOM the webview.
+		const maxArtPreview = 12 << 20 // 12 MiB
+		if pic != nil && len(pic.Data) > 0 && len(pic.Data) <= maxArtPreview {
+			out.ArtworkCount = len(tags.Pictures)
+			out.HasArtwork = true
+			out.ArtworkMime = DetectImageMIME(pic.Data, pic.Format)
+			out.ArtworkB64 = base64.StdEncoding.EncodeToString(pic.Data)
+		} else if pic != nil && len(pic.Data) > maxArtPreview {
+			out.ArtworkCount = len(tags.Pictures)
+			out.HasArtwork = true
+			out.TagsWarning = "Embedded artwork is very large — preview skipped. Re-save with optimized JPEG for Apple Music."
+		}
 	}
 
 	title := out.Title
@@ -289,7 +306,15 @@ func writeTrackTagsAt(src, dst string, tags TrackTags, isVideo bool) error {
 			return fmt.Errorf("copy for save as: %w", err)
 		}
 	}
-	return WriteTrackTags(dst, tags)
+	err := WriteTrackTags(dst, tags)
+	if err == nil {
+		return nil
+	}
+	if !isCorruptMP4TagErr(err) && !isMissingMetaBoxErr(err) && !strings.Contains(strings.ToLower(err.Error()), "box not present") {
+		return err
+	}
+	// Damaged ilst/meta: remux then rewrite.
+	return RepairAndWriteTrackTags("", dst, tags)
 }
 
 func writeTrackTagsClearArtAt(src, dst string, tags TrackTags, isVideo bool) error {
@@ -332,7 +357,7 @@ func clonePicture(p *mp4tag.MP4Picture) *mp4tag.MP4Picture {
 func readExistingPictures(path string) ([]*mp4tag.MP4Picture, error) {
 	existing, err := readMP4TagsSafe(path)
 	if err != nil {
-		if isMissingMetaBoxErr(err) {
+		if isRecoverableMP4TagReadErr(err) {
 			return nil, nil
 		}
 		return nil, err

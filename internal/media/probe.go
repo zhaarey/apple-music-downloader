@@ -19,7 +19,8 @@ type SourceInfo struct {
 }
 
 type ffprobeFormat struct {
-	Duration string `json:"duration"`
+	Duration string            `json:"duration"`
+	Tags     map[string]string `json:"tags"`
 }
 
 type ffprobeStream struct {

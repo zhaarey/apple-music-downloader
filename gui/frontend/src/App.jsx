@@ -23,6 +23,7 @@ import SettingsTab from './components/SettingsTab'
 import RequirementsTab from './components/RequirementsTab'
 import SpliceTab from './features/splice/SpliceTab'
 import TrimTab from './features/trim/TrimTab'
+import ConvertTab from './features/convert/ConvertTab'
 import MetadataTab from './features/metadata/MetadataTab'
 import ErrorBoundary from './components/ErrorBoundary'
 import { parseYouTubeProgress } from './lib/downloadStatus'
@@ -149,6 +150,7 @@ export default function App() {
   const [spliceHandoff, setSpliceHandoff] = useState(null)
   const [trimHandoff, setTrimHandoff] = useState(null)
   const [trimExporting, setTrimExporting] = useState(false)
+  const [tagEditorHandoff, setTagEditorHandoff] = useState(null)
   const [navBlockHint, setNavBlockHint] = useState('')
 
   const spliceEnabled = isTabEnabled(features, 'splice')
@@ -313,6 +315,12 @@ export default function App() {
     navigateTab('trim')
   }
 
+  const openTagEditorWithHandoff = (path) => {
+    if (!path) return
+    setTagEditorHandoff(path)
+    navigateTab('metadata')
+  }
+
   const makeDownloadTabProps = (sourceMode) => ({
     settings,
     deps,
@@ -446,11 +454,20 @@ export default function App() {
             </ErrorBoundary>
           </TabPanel>
         )}
+        {isTabEnabled(features, 'convert') && (
+          <TabPanel active={tab === 'convert'}>
+            <ErrorBoundary name="ConvertTab" title="Convert tab crashed" onRetry={() => setTab('convert')}>
+              <ConvertTab onOpenInTagEditor={openTagEditorWithHandoff} />
+            </ErrorBoundary>
+          </TabPanel>
+        )}
         <TabPanel active={tab === 'metadata'}>
           <ErrorBoundary name="MetadataTab" title="Tag Editor crashed" onRetry={() => setTab('metadata')}>
             <MetadataTab
               platform={platform}
               active={tab === 'metadata'}
+              handoff={tagEditorHandoff}
+              onHandoffConsumed={() => setTagEditorHandoff(null)}
               onOpenInTrim={trimEnabled ? openTrimWithHandoff : undefined}
             />
           </ErrorBoundary>

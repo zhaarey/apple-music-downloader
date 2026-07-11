@@ -428,24 +428,6 @@ export namespace main {
 
 export namespace media {
 	
-	export class ConvertToAACResult {
-	    source_path: string;
-	    output_path: string;
-	    encoder: string;
-	    summary: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ConvertToAACResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.source_path = source["source_path"];
-	        this.output_path = source["output_path"];
-	        this.encoder = source["encoder"];
-	        this.summary = source["summary"];
-	    }
-	}
 	export class AudioTagInfo {
 	    path: string;
 	    title: string;
@@ -471,6 +453,8 @@ export namespace media {
 	    duration_label?: string;
 	    apple_video_ready?: boolean;
 	    apple_video_detail?: string;
+	    tags_partial?: boolean;
+	    tags_warning?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AudioTagInfo(source);
@@ -502,6 +486,8 @@ export namespace media {
 	        this.duration_label = source["duration_label"];
 	        this.apple_video_ready = source["apple_video_ready"];
 	        this.apple_video_detail = source["apple_video_detail"];
+	        this.tags_partial = source["tags_partial"];
+	        this.tags_warning = source["tags_warning"];
 	    }
 	}
 	export class AlbumFolderReadResult {
@@ -729,6 +715,24 @@ export namespace media {
 	        this.cleared = source["cleared"];
 	        this.errors = source["errors"];
 	        this.platform = source["platform"];
+	    }
+	}
+	export class ConvertToAACResult {
+	    source_path: string;
+	    output_path: string;
+	    encoder: string;
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConvertToAACResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source_path = source["source_path"];
+	        this.output_path = source["output_path"];
+	        this.encoder = source["encoder"];
+	        this.summary = source["summary"];
 	    }
 	}
 	export class SyncValidationResult {

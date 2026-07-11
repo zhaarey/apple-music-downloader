@@ -4,6 +4,7 @@ const WINDOWS = {
     { id: 'youtube', label: 'YouTube' },
     { id: 'splice', label: 'Split mix' },
     { id: 'trim', label: 'Trim' },
+    { id: 'convert', label: 'Convert' },
     { id: 'metadata', label: 'Tag Editor' },
   ],
   utilityTabs: [
@@ -11,14 +12,14 @@ const WINDOWS = {
     { id: 'requirements', label: 'Requirements' },
     { id: 'settings', label: 'Settings' },
   ],
-  multitaskTabs: new Set(['activity', 'splice', 'trim', 'metadata', 'requirements', 'settings']),
+  multitaskTabs: new Set(['activity', 'splice', 'trim', 'convert', 'metadata', 'requirements', 'settings']),
   showWizard: true,
   showSetupChecklist: false,
   showActivityLogInSettings: false,
   showAppleSearch: true,
   showSplitHandoff: true,
   showLosslessQualities: false,
-  tagline: 'Download · split · trim · tag for Apple Music',
+  tagline: 'Download · split · trim · convert · tag for Apple Music',
 }
 
 const DARWIN = {
@@ -26,17 +27,18 @@ const DARWIN = {
     { id: 'apple', label: 'Apple Music' },
     { id: 'youtube', label: 'YouTube' },
     { id: 'trim', label: 'Trim' },
+    { id: 'convert', label: 'Convert' },
     { id: 'metadata', label: 'Tag Editor' },
   ],
   utilityTabs: [{ id: 'settings', label: 'Settings' }],
-  multitaskTabs: new Set(['trim', 'metadata', 'settings']),
+  multitaskTabs: new Set(['trim', 'convert', 'metadata', 'settings']),
   showWizard: false,
   showSetupChecklist: true,
   showActivityLogInSettings: true,
   showAppleSearch: false,
   showSplitHandoff: false,
   showLosslessQualities: false,
-  tagline: 'Download · trim · tag for Apple Music',
+  tagline: 'Download · trim · convert · tag for Apple Music',
 }
 
 export function featuresForPlatform(goos) {

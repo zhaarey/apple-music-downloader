@@ -143,11 +143,11 @@ export function TagAnalyzeEmbeddedArtwork(arg1:string):Promise<media.ArtworkAcce
 
 export function TagApplyOptimizedArtwork(arg1:string,arg2:string):Promise<media.PreparedArtworkResult>;
 
+export function TagConvertToAppleAAC(arg1:string,arg2:string):Promise<media.ConvertToAACResult>;
+
 export function TagFindAlbumCover(arg1:string):Promise<string>;
 
 export function TagLocalFileURL(arg1:string):Promise<string>;
-
-export function TagConvertToAppleAAC(arg1:string,arg2:string):Promise<media.ConvertToAACResult>;
 
 export function TagPickArtworkFile():Promise<string>;
 

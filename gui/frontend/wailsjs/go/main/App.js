@@ -270,16 +270,16 @@ export function TagApplyOptimizedArtwork(arg1, arg2) {
   return window['go']['main']['App']['TagApplyOptimizedArtwork'](arg1, arg2);
 }
 
+export function TagConvertToAppleAAC(arg1, arg2) {
+  return window['go']['main']['App']['TagConvertToAppleAAC'](arg1, arg2);
+}
+
 export function TagFindAlbumCover(arg1) {
   return window['go']['main']['App']['TagFindAlbumCover'](arg1);
 }
 
 export function TagLocalFileURL(arg1) {
   return window['go']['main']['App']['TagLocalFileURL'](arg1);
-}
-
-export function TagConvertToAppleAAC(arg1, arg2) {
-  return window['go']['main']['App']['TagConvertToAppleAAC'](arg1, arg2);
 }
 
 export function TagPickArtworkFile() {

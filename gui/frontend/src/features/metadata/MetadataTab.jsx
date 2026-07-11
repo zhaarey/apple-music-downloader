@@ -11,7 +11,6 @@ import {
   TagFindAlbumCover,
   ValidateIPhoneSync,
   RevealInFolder,
-  GetRecentFiles,
 } from '../../wailsjs/go/main/App'
 
 import ArtworkAppleOptions from '../../components/ArtworkAppleOptions'
@@ -25,7 +24,6 @@ import StatusToast from '../../components/StatusToast'
 import SyncValidationPanel, { SyncTroubleshootingPanel } from './SyncValidationPanel'
 import AlbumBulkTagEditor from './AlbumBulkTagEditor'
 import VideoTagInfoPanel from './VideoTagInfoPanel'
-import ConvertToAACPanel from './ConvertToAACPanel'
 import { useTagEditorDrop } from '../../hooks/useTagEditorDrop'
 import { resolveMediaURL } from '../../lib/resolveMediaURL'
 import { formatActionError } from '../../lib/formatActionError'
@@ -110,7 +108,13 @@ function SaveButtonIcon({ saving, saved }) {
   return null
 }
 
-export default function MetadataTab({ platform = 'windows', active = true, onOpenInTrim }) {
+export default function MetadataTab({
+  platform = 'windows',
+  active = true,
+  handoff,
+  onHandoffConsumed,
+  onOpenInTrim,
+}) {
   const [editorMode, setEditorMode] = useState('single')
   const [bulkAlbumFolder, setBulkAlbumFolder] = useState('')
   const [tags, setTags] = useState(EMPTY)
@@ -126,7 +130,6 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
   const [syncResult, setSyncResult] = useState(null)
   const [folderSyncResult, setFolderSyncResult] = useState(null)
   const [validating, setValidating] = useState(false)
-  const [recentFiles, setRecentFiles] = useState([])
   const [albumLoadRequest, setAlbumLoadRequest] = useState(null)
   const [albumBusy, setAlbumBusy] = useState(false)
   const [optimizeArtwork, setOptimizeArtwork] = useState(false)
@@ -134,13 +137,6 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
   const [artworkAnalysis, setArtworkAnalysis] = useState(null)
   const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')
   const [folderCoverPath, setFolderCoverPath] = useState('')
-  const [convertOpen, setConvertOpen] = useState(false)
-
-  useEffect(() => {
-    GetRecentFiles()
-      .then((paths) => setRecentFiles(Array.isArray(paths) ? paths : []))
-      .catch(() => setRecentFiles([]))
-  }, [])
 
   const dismissToast = useCallback(() => setToast(''), [])
 
@@ -215,8 +211,9 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
           setArtworkAnalysis(analysis)
           setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
         }
-        setRecentFiles((prev) => [path, ...prev.filter((p) => p !== path)].slice(0, 15))
-        if (info.artwork_count > 1) {
+        if (info.tags_warning) {
+          showToast(info.tags_warning, 'info')
+        } else if (info.artwork_count > 1) {
           showToast(
             `Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`,
             'info',
@@ -241,6 +238,12 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
     },
     [optimizeArtwork, showToast],
   )
+
+  useEffect(() => {
+    if (!handoff) return
+    void loadFile(handoff)
+    onHandoffConsumed?.()
+  }, [handoff, loadFile, onHandoffConsumed])
 
   const pickFile = async () => {
     const path = await TagPickAudioFile()
@@ -411,7 +414,6 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
       setArtworkAnalysis(null)
       setClearArtwork(false)
       setSaved(true)
-      setRecentFiles((prev) => [savedPath, ...prev.filter((p) => p !== savedPath)].slice(0, 15))
       const validation = await ValidateIPhoneSync(savedPath)
       setSyncResult(validation)
       const saveLabel = outputPath ? `Saved as ${basename(savedPath)}` : 'Tags saved'
@@ -473,7 +475,7 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
         <h2 className="text-xl font-semibold">Tag Editor</h2>
         <p className="mt-1 text-sm text-white/50">
           Edit title, album, track numbers, and artwork on local M4A and MP4 music videos before syncing to Apple Music.
-          Convert MP3/FLAC/WAV and other formats to AAC first if needed. Drag and drop a file or folder anywhere here.
+          Need AAC first? Use the Convert tab. Drag and drop a file or folder anywhere here.
         </p>
         <div className="mt-4 inline-flex rounded-lg border border-white/10 bg-black/20 p-0.5">
           <button
@@ -575,44 +577,9 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
         )}
       </section>
 
-      <ConvertToAACPanel
-        open={convertOpen}
-        onToggle={() => setConvertOpen((v) => !v)}
-        disabled={loading || saving || albumBusy}
-        onConverted={async (res) => {
-          setEditorMode('single')
-          setConvertOpen(false)
-          await loadFile(res.output_path)
-          showToast(res.summary || 'Converted to AAC 256 kbps — ready to tag and import.')
-        }}
-      />
-
       {!tags.path && editorMode === 'single' ? (
-        <div className="flex flex-1 flex-col gap-4">
-          {recentFiles.length > 0 && (
-            <section className="rounded-xl border border-white/10 bg-surface-raised p-4">
-              <h3 className="text-sm font-medium">Recent files</h3>
-              <ul className="mt-3 space-y-1">
-                {recentFiles.map((path) => (
-                  <li key={path}>
-                    <button
-                      type="button"
-                      onClick={() => loadFile(path)}
-                      disabled={loading}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-white/5 disabled:opacity-50"
-                      title={path}
-                    >
-                      <span className="truncate">{basename(path)}</span>
-                      <span className="shrink-0 text-xs text-white/40">Open</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/45">
-            Open an .m4a or .mp4 file, or drag one here. Drop a folder (or several tracks from the same album) for bulk edit.
-          </div>
+        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/45">
+          Open an .m4a or .mp4 file, or drag one here. Drop a folder (or several tracks from the same album) for bulk edit.
         </div>
       ) : editorMode === 'album' ? (
         <AlbumBulkTagEditor
