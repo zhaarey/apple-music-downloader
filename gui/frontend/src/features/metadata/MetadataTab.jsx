@@ -25,6 +25,7 @@ import StatusToast from '../../components/StatusToast'
 import SyncValidationPanel, { SyncTroubleshootingPanel } from './SyncValidationPanel'
 import AlbumBulkTagEditor from './AlbumBulkTagEditor'
 import VideoTagInfoPanel from './VideoTagInfoPanel'
+import ConvertToAACPanel from './ConvertToAACPanel'
 import { useTagEditorDrop } from '../../hooks/useTagEditorDrop'
 import { resolveMediaURL } from '../../lib/resolveMediaURL'
 import { formatActionError } from '../../lib/formatActionError'
@@ -132,6 +133,8 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
   const [mp4boxReembed, setMp4boxReembed] = useState(false)
   const [artworkAnalysis, setArtworkAnalysis] = useState(null)
   const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')
+  const [folderCoverPath, setFolderCoverPath] = useState('')
+  const [convertOpen, setConvertOpen] = useState(false)
 
   useEffect(() => {
     GetRecentFiles()
@@ -169,6 +172,7 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
     setCoverPreviewURL('')
     setOptimizedPreviewURL('')
     setArtworkAnalysis(null)
+    setFolderCoverPath('')
     setClearArtwork(false)
     setSaved(false)
     setSyncResult(null)
@@ -187,12 +191,25 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
       setCoverPreviewURL('')
       setOptimizedPreviewURL('')
       setArtworkAnalysis(null)
+      setFolderCoverPath('')
       setClearArtwork(false)
       try {
         const info = await TagReadFile(path)
         setFileInfo(info)
         setTags(tagsFromInfo(info, path))
         setSyncResult(null)
+
+        const folder = albumFolder(path)
+        let detectedFolderCover = ''
+        if (folder) {
+          try {
+            detectedFolderCover = await TagFindAlbumCover(folder)
+            setFolderCoverPath(detectedFolderCover || '')
+          } catch {
+            setFolderCoverPath('')
+          }
+        }
+
         if (info.has_artwork) {
           const analysis = await loadEmbeddedArtworkAnalysis(path, TagAnalyzeEmbeddedArtwork)
           setArtworkAnalysis(analysis)
@@ -202,6 +219,13 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
         if (info.artwork_count > 1) {
           showToast(
             `Found ${info.artwork_count} embedded covers — save once to keep a single artwork for Apple Music.`,
+            'info',
+          )
+        } else if (!info.has_artwork) {
+          showToast(
+            detectedFolderCover
+              ? 'No cover embedded in this file — choose an image or use the folder cover, then Save.'
+              : 'No cover embedded in this file — choose an artwork image, then Save to embed it.',
             'info',
           )
         } else {
@@ -268,15 +292,24 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
     setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
   }
 
+  const applyCoverPath = async (path, { toastMessage } = {}) => {
+    if (!path) return false
+    setCoverPath(path)
+    setClearArtwork(false)
+    setSaved(false)
+    const url = await Promise.resolve(TagLocalFileURL(path))
+    setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
+    await refreshArtworkAnalysis(path)
+    if (toastMessage) showToast(toastMessage, 'success')
+    return true
+  }
+
   const pickArtwork = async () => {
     const path = await TagPickArtworkFile()
     if (path) {
-      setCoverPath(path)
-      setClearArtwork(false)
-      setSaved(false)
-      const url = await Promise.resolve(TagLocalFileURL(path))
-      setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
-      await refreshArtworkAnalysis(path)
+      await applyCoverPath(path, {
+        toastMessage: 'Artwork selected — click Save to embed it into this file.',
+      })
     }
   }
 
@@ -284,16 +317,29 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
     const folder = tags.path ? albumFolder(tags.path) : ''
     if (!folder) return
     try {
-      const path = await TagFindAlbumCover(folder)
-      setCoverPath(path)
-      setClearArtwork(false)
-      setSaved(false)
-      const url = await Promise.resolve(TagLocalFileURL(path))
-      setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
-      await refreshArtworkAnalysis(path)
-      showToast('Using folder cover.jpg', 'success')
+      const path = folderCoverPath || (await TagFindAlbumCover(folder))
+      setFolderCoverPath(path)
+      await applyCoverPath(path, {
+        toastMessage: `Using ${basename(path)} — click Save to embed it into this file.`,
+      })
     } catch (e) {
       showToast(formatActionError(e, 'Find folder cover'), 'error')
+    }
+  }
+
+  const clearPendingArtwork = () => {
+    setCoverPath('')
+    setCoverPreviewURL('')
+    setOptimizedPreviewURL('')
+    setClearArtwork(false)
+    setSaved(false)
+    if (fileInfo?.has_artwork && tags.path) {
+      void loadEmbeddedArtworkAnalysis(tags.path, TagAnalyzeEmbeddedArtwork).then((analysis) => {
+        setArtworkAnalysis(analysis)
+        setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
+      })
+    } else {
+      setArtworkAnalysis(null)
     }
   }
 
@@ -383,6 +429,14 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
 
   const save = () => persistTags('')
 
+  const embedAndSave = () => {
+    if (!coverPath) {
+      showToast('Choose an artwork image first.', 'info')
+      return
+    }
+    void persistTags('')
+  }
+
   const saveAs = async () => {
     if (!tags.path || saving) return
     const dest = await TagPickSaveMediaFile(tags.path)
@@ -419,7 +473,7 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
         <h2 className="text-xl font-semibold">Tag Editor</h2>
         <p className="mt-1 text-sm text-white/50">
           Edit title, album, track numbers, and artwork on local M4A and MP4 music videos before syncing to Apple Music.
-          Drag and drop a file or folder anywhere here.
+          Convert MP3/FLAC/WAV and other formats to AAC first if needed. Drag and drop a file or folder anywhere here.
         </p>
         <div className="mt-4 inline-flex rounded-lg border border-white/10 bg-black/20 p-0.5">
           <button
@@ -510,10 +564,28 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
         )}
         {editorMode === 'single' && syncResult && tags.path && (
           <div className="mt-4">
-            <SyncValidationPanel result={syncResult} />
+            <SyncValidationPanel
+              result={syncResult}
+              folderCoverAvailable={Boolean(folderCoverPath)}
+              fixingArtwork={saving}
+              onFixMissingArtwork={pickArtwork}
+              onUseFolderCover={folderCoverPath ? useFolderCover : undefined}
+            />
           </div>
         )}
       </section>
+
+      <ConvertToAACPanel
+        open={convertOpen}
+        onToggle={() => setConvertOpen((v) => !v)}
+        disabled={loading || saving || albumBusy}
+        onConverted={async (res) => {
+          setEditorMode('single')
+          setConvertOpen(false)
+          await loadFile(res.output_path)
+          showToast(res.summary || 'Converted to AAC 256 kbps — ready to tag and import.')
+        }}
+      />
 
       {!tags.path && editorMode === 'single' ? (
         <div className="flex flex-1 flex-col gap-4">
@@ -567,7 +639,14 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
               onMp4boxReembedChange={setMp4boxReembed}
               showMp4boxReembed={!isVideo}
               showFolderCover={Boolean(tags.path && albumFolder(tags.path))}
+              folderCoverAvailable={Boolean(folderCoverPath)}
+              folderCoverName={folderCoverPath ? basename(folderCoverPath) : 'cover.jpg'}
+              hasEmbeddedArtwork={Boolean(fileInfo?.has_artwork) && !clearArtwork}
+              pendingCoverPath={coverPath}
+              embedding={saving}
               onUseFolderCover={useFolderCover}
+              onEmbedAndSave={embedAndSave}
+              onClearPending={clearPendingArtwork}
               onReplace={pickArtwork}
               onRemove={() => {
                 setClearArtwork(true)
@@ -639,7 +718,15 @@ export default function MetadataTab({ platform = 'windows', active = true, onOpe
                   }`}
                 >
                   <SaveButtonIcon saving={saving} saved={saved} />
-                  {saved ? 'Saved' : saving ? 'Saving…' : 'Save to current file'}
+                  {saved
+                    ? 'Saved'
+                    : saving
+                      ? 'Saving…'
+                      : coverPath
+                        ? 'Save & embed artwork'
+                        : clearArtwork
+                          ? 'Save & remove artwork'
+                          : 'Save to current file'}
                 </button>
                 <button
                   type="button"

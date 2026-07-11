@@ -72,6 +72,13 @@ export const TrimIsExporting = () => window.go?.main?.App?.TrimIsExporting?.() ?
 export const TrimSuggestPath = (path) => window.go?.main?.App?.TrimSuggestPath?.(path) ?? Promise.resolve('')
 
 export const TagPickAudioFile = () => window.go?.main?.App?.TagPickAudioFile?.() ?? Promise.resolve('')
+export const TagPickConvertSourceFile = () =>
+  window.go?.main?.App?.TagPickConvertSourceFile?.() ?? Promise.resolve('')
+export const TagPickConvertOutputFile = (sourcePath) =>
+  window.go?.main?.App?.TagPickConvertOutputFile?.(sourcePath) ?? Promise.resolve('')
+export const TagConvertToAppleAAC = (sourcePath, outputPath) =>
+  window.go?.main?.App?.TagConvertToAppleAAC?.(sourcePath, outputPath) ??
+  Promise.reject(new Error('TagConvertToAppleAAC unavailable — rebuild the app'))
 export const TagPickSaveMediaFile = (sourcePath) =>
   window.go?.main?.App?.TagPickSaveMediaFile?.(sourcePath) ?? Promise.resolve('')
 export const TagPickArtworkFile = () => window.go?.main?.App?.TagPickArtworkFile?.() ?? Promise.resolve('')

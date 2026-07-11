@@ -428,6 +428,24 @@ export namespace main {
 
 export namespace media {
 	
+	export class ConvertToAACResult {
+	    source_path: string;
+	    output_path: string;
+	    encoder: string;
+	    summary: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConvertToAACResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source_path = source["source_path"];
+	        this.output_path = source["output_path"];
+	        this.encoder = source["encoder"];
+	        this.summary = source["summary"];
+	    }
+	}
 	export class AudioTagInfo {
 	    path: string;
 	    title: string;

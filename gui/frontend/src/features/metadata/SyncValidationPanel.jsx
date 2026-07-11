@@ -112,8 +112,20 @@ function SectionDivider() {
   return <div className="mt-5 border-t border-white/[0.06] first:hidden" />
 }
 
-export default function SyncValidationPanel({ result, compact = false }) {
+function isArtworkCheck(check) {
+  return check?.id === 'embedded_art' || check?.id === 'sidecar_only'
+}
+
+export default function SyncValidationPanel({
+  result,
+  compact = false,
+  onFixMissingArtwork,
+  onUseFolderCover,
+  folderCoverAvailable = false,
+  fixingArtwork = false,
+}) {
   if (!result) return null
+  const artworkFail = (result.checks || []).find((c) => isArtworkCheck(c) && !c.pass)
   return (
     <div
       className={`rounded-xl border p-4 ${
@@ -136,6 +148,36 @@ export default function SyncValidationPanel({ result, compact = false }) {
             </li>
           ))}
         </ul>
+      )}
+      {artworkFail && (onFixMissingArtwork || onUseFolderCover) && (
+        <div className="mt-3 rounded-lg border border-yellow-500/25 bg-black/20 px-3 py-2.5">
+          <p className="text-xs font-medium text-yellow-100/90">Fix in Tag Editor</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-white/55">
+            Choose an image and Save to embed artwork into this file. Folder art alone will not sync to iPhone.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {onFixMissingArtwork && (
+              <button
+                type="button"
+                disabled={fixingArtwork}
+                onClick={onFixMissingArtwork}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+              >
+                Choose artwork image…
+              </button>
+            )}
+            {folderCoverAvailable && onUseFolderCover && (
+              <button
+                type="button"
+                disabled={fixingArtwork}
+                onClick={onUseFolderCover}
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs hover:bg-white/5 disabled:opacity-50"
+              >
+                Use folder cover
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

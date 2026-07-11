@@ -278,12 +278,24 @@ export function TagLocalFileURL(arg1) {
   return window['go']['main']['App']['TagLocalFileURL'](arg1);
 }
 
+export function TagConvertToAppleAAC(arg1, arg2) {
+  return window['go']['main']['App']['TagConvertToAppleAAC'](arg1, arg2);
+}
+
 export function TagPickArtworkFile() {
   return window['go']['main']['App']['TagPickArtworkFile']();
 }
 
 export function TagPickAudioFile() {
   return window['go']['main']['App']['TagPickAudioFile']();
+}
+
+export function TagPickConvertOutputFile(arg1) {
+  return window['go']['main']['App']['TagPickConvertOutputFile'](arg1);
+}
+
+export function TagPickConvertSourceFile() {
+  return window['go']['main']['App']['TagPickConvertSourceFile']();
 }
 
 export function TagPickSaveMediaFile(arg1) {

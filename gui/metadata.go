@@ -279,3 +279,46 @@ func (a *App) TagWriteAlbumBatch(input media.TagAlbumBatchInput) (media.TagAlbum
 func (a *App) TagLocalFileURL(path string) string {
 	return localMediaURL(path)
 }
+
+func (a *App) TagPickConvertSourceFile() (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select audio to convert for Apple Music",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Common audio", Pattern: "*.mp3;*.flac;*.wav;*.aiff;*.aif;*.ogg;*.opus;*.wma;*.m4a;*.aac;*.mp4;*.m4b;*.caf"},
+			{DisplayName: "All files", Pattern: "*.*"},
+		},
+	})
+}
+
+func (a *App) TagPickConvertOutputFile(sourcePath string) (string, error) {
+	sourcePath = strings.TrimSpace(sourcePath)
+	defaultName := "audio.m4a"
+	if sourcePath != "" {
+		defaultName = filepath.Base(media.DefaultAppleAACOutputPath(sourcePath))
+	}
+	return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "Save AAC M4A as",
+		DefaultFilename: defaultName,
+		Filters: []runtime.FileFilter{
+			{DisplayName: "AAC audio (M4A)", Pattern: "*.m4a"},
+		},
+	})
+}
+
+// TagConvertToAppleAAC re-encodes a common audio file to AAC-LC 256 kbps M4A for Apple Music import.
+func (a *App) TagConvertToAppleAAC(sourcePath, outputPath string) (media.ConvertToAACResult, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.LogPanic("TagConvertToAppleAAC", r)
+		}
+	}()
+	sourcePath = strings.TrimSpace(sourcePath)
+	outputPath = strings.TrimSpace(outputPath)
+	res, err := media.ConvertFileToAppleAAC(a.eng.GetConfig().FFmpegPath, sourcePath, outputPath)
+	if err != nil {
+		return res, err
+	}
+	logging.Info("TagConvertToAppleAAC %s -> %s", sourcePath, res.OutputPath)
+	appstate.RememberRecentFile(res.OutputPath)
+	return res, nil
+}

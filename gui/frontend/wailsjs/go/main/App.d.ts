@@ -147,9 +147,15 @@ export function TagFindAlbumCover(arg1:string):Promise<string>;
 
 export function TagLocalFileURL(arg1:string):Promise<string>;
 
+export function TagConvertToAppleAAC(arg1:string,arg2:string):Promise<media.ConvertToAACResult>;
+
 export function TagPickArtworkFile():Promise<string>;
 
 export function TagPickAudioFile():Promise<string>;
+
+export function TagPickConvertOutputFile(arg1:string):Promise<string>;
+
+export function TagPickConvertSourceFile():Promise<string>;
 
 export function TagPickSaveMediaFile(arg1:string):Promise<string>;
 

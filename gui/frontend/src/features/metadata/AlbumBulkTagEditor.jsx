@@ -89,6 +89,7 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
   const [mp4boxReembed, setMp4boxReembed] = useState(false)
   const [artworkAnalysis, setArtworkAnalysis] = useState(null)
   const [optimizedPreviewURL, setOptimizedPreviewURL] = useState('')
+  const [folderCoverPath, setFolderCoverPath] = useState('')
   const albumDefaultsTimerRef = useRef(null)
 
   useEffect(() => {
@@ -111,6 +112,16 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     if (coverPreviewURL) return coverPreviewURL
     return artworkFromTracks(fileInfos)
   }, [clearArtwork, coverPreviewURL, fileInfos])
+
+  const tracksMissingArt = useMemo(
+    () => tracks.filter((t) => !t.has_artwork).length,
+    [tracks],
+  )
+
+  const hasAnyEmbeddedArt = useMemo(
+    () => tracks.some((t) => t.has_artwork) && !clearArtwork,
+    [tracks, clearArtwork],
+  )
 
   const updateAlbum = (key, value) => {
     setAlbum((a) => ({ ...a, [key]: value }))
@@ -138,6 +149,7 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     setCoverPreviewURL('')
     setOptimizedPreviewURL('')
     setArtworkAnalysis(null)
+    setFolderCoverPath('')
     setClearArtwork(false)
     setSavedFlash(false)
     try {
@@ -160,12 +172,16 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
       setTracks(nextTracks)
       setAlbum(defaults)
       setSelectedTrackIdx(0)
+
+      let sidecar = ''
       try {
-        const sidecar = await TagFindAlbumCover(path)
+        sidecar = await TagFindAlbumCover(path)
+        setFolderCoverPath(sidecar)
         const analysis = await loadArtworkAnalysis(sidecar, TagAnalyzeArtwork)
         setArtworkAnalysis(analysis)
         setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
       } catch {
+        setFolderCoverPath('')
         const first = infos.find((i) => i.has_artwork)?.path || infos[0]?.path
         if (first) {
           const analysis = await loadEmbeddedArtworkAnalysis(first, TagAnalyzeEmbeddedArtwork)
@@ -173,11 +189,18 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
           setOptimizedPreviewURL(optimizeArtwork ? optimizedPreviewFromAnalysis(analysis) : '')
         }
       }
+
+      const missingArt = nextTracks.filter((t) => !t.has_artwork).length
       if (skipped.length > 0) {
         const preview = skipped.slice(0, 2).join(' · ')
         const more = skipped.length > 2 ? ` · +${skipped.length - 2} more` : ''
         onStatus?.(
           `Loaded ${infos.length} track(s). ${skipped.length} had unreadable tags (using filename): ${preview}${more}`,
+          'info',
+        )
+      } else if (missingArt > 0) {
+        onStatus?.(
+          `${missingArt} of ${infos.length} track(s) have no embedded cover — choose an image, then Save all to embed it.`,
           'info',
         )
       } else {
@@ -223,22 +246,33 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     const url = await Promise.resolve(TagLocalFileURL(path))
     setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
     await refreshArtworkAnalysis(path)
+    onStatus?.('Artwork selected — click Save all to embed it on every track.', 'success')
   }
 
   const useFolderCover = async () => {
     if (!folder) return
     try {
-      const path = await TagFindAlbumCover(folder)
+      const path = folderCoverPath || (await TagFindAlbumCover(folder))
+      setFolderCoverPath(path)
       setCoverPath(path)
       setClearArtwork(false)
       setSavedFlash(false)
       const url = await Promise.resolve(TagLocalFileURL(path))
       setCoverPreviewURL(typeof url === 'string' ? resolveMediaURL(url) : '')
       await refreshArtworkAnalysis(path)
-      onStatus?.('Using folder cover.jpg', 'success')
+      onStatus?.(`Using ${basename(path)} — click Save all to embed it on every track.`, 'success')
     } catch (e) {
       onStatus?.(formatActionError(e, 'Find folder cover'), 'error')
     }
+  }
+
+  const clearPendingArtwork = () => {
+    setCoverPath('')
+    setCoverPreviewURL('')
+    setOptimizedPreviewURL('')
+    setClearArtwork(false)
+    setSavedFlash(false)
+    setArtworkAnalysis(null)
   }
 
   useEffect(() => {
@@ -350,6 +384,10 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
     setTracks([])
     setFileInfos([])
     setSelectedTrackIdx(-1)
+    setCoverPath('')
+    setCoverPreviewURL('')
+    setFolderCoverPath('')
+    setClearArtwork(false)
   }
 
   if (!folder) {
@@ -428,7 +466,15 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
             mp4boxReembed={mp4boxReembed}
             onMp4boxReembedChange={setMp4boxReembed}
             showFolderCover={Boolean(folder)}
+            folderCoverAvailable={Boolean(folderCoverPath)}
+            folderCoverName={folderCoverPath ? basename(folderCoverPath) : 'cover.jpg'}
+            hasEmbeddedArtwork={tracksMissingArt === 0 && hasAnyEmbeddedArt}
+            forceMissingArtwork={tracksMissingArt > 0 && !coverPath && !clearArtwork}
+            pendingCoverPath={coverPath}
+            embedding={saving}
             onUseFolderCover={useFolderCover}
+            onEmbedAndSave={coverPath ? saveAll : undefined}
+            onClearPending={clearPendingArtwork}
             onReplace={pickArtwork}
             onRemove={() => {
               setClearArtwork(true)
@@ -500,6 +546,7 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
               <thead className="sticky top-0 bg-surface-raised text-xs text-white/45">
                 <tr>
                   <th className="py-1 pr-2">#</th>
+                  <th className="py-1 pr-2">Art</th>
                   <th className="py-1 pr-2">Title</th>
                   <th className="py-1 pr-2">Artist</th>
                   <th className="py-1">Trk</th>
@@ -513,6 +560,25 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
                     onClick={() => setSelectedTrackIdx(i)}
                   >
                     <td className="py-1.5 pr-2 text-white/50">{i + 1}</td>
+                    <td className="py-1.5 pr-2">
+                      {coverPath && !clearArtwork ? (
+                        <span className="text-[10px] font-medium text-accent" title="Will embed on save">
+                          →
+                        </span>
+                      ) : clearArtwork ? (
+                        <span className="text-[10px] text-red-300" title="Will remove on save">
+                          ×
+                        </span>
+                      ) : t.has_artwork ? (
+                        <span className="text-[10px] text-green-400" title="Embedded">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-yellow-300" title="No embedded cover">
+                          !
+                        </span>
+                      )}
+                    </td>
                     <td className="py-1.5 pr-2">
                       <input
                         value={t.title || ''}
@@ -599,7 +665,7 @@ export default function AlbumBulkTagEditor({ onStatus, onFolderChange, loadReque
             : 'bg-accent text-white hover:bg-accent/90'
         }`}
       >
-        {savedFlash ? 'Saved all tracks' : saving ? 'Saving all tracks…' : `Save all ${tracks.length} tracks`}
+        {savedFlash ? 'Saved all tracks' : saving ? 'Saving all tracks…' : coverPath ? `Save all ${tracks.length} tracks & embed artwork` : `Save all ${tracks.length} tracks`}
       </button>
     </div>
   )

@@ -28,7 +28,7 @@ function usePreloadedSrc(src) {
   return displaySrc
 }
 
-export default function ArtworkPreview({ src, className = '' }) {
+export default function ArtworkPreview({ src, className = '', emptyLabel = '' }) {
   const displaySrc = usePreloadedSrc(src)
   const [visible, setVisible] = useState(!!displaySrc)
 
@@ -44,12 +44,13 @@ export default function ArtworkPreview({ src, className = '' }) {
   return (
     <div className={`relative overflow-hidden ${className}`}>
       <div
-        className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ease-out ${
+        className={`absolute inset-0 flex flex-col items-center justify-center gap-2 px-3 transition-opacity duration-300 ease-out ${
           displaySrc ? 'opacity-0' : visible ? 'opacity-100' : 'opacity-0'
         }`}
         aria-hidden={!!displaySrc}
       >
         <span className="text-4xl text-white/20">♫</span>
+        {emptyLabel ? <span className="text-center text-[11px] leading-snug text-white/40">{emptyLabel}</span> : null}
       </div>
       {displaySrc && (
         <img
