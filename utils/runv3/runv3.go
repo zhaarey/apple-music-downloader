@@ -102,6 +102,40 @@ func AfterRequest(response *resty.Response) ([]byte, error) {
 	return license, nil
 }
 
+func getPlaybackHeaders(authtoken string, mutoken string) map[string]string {
+	headers := map[string]string{
+		"User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+		"Origin":             "https://music.apple.com",
+		"Referer":            "https://music.apple.com/",
+		"Accept":             "application/vnd.apple.mpegurl,application/x-mpegURL,text/plain;q=0.8,*/*;q=0.5",
+		"X-Apple-Store-Front": "143441-1,25",
+	}
+	if mutoken != "" {
+		headers["x-apple-music-user-token"] = mutoken
+		headers["Media-User-Token"] = mutoken
+	}
+	return headers
+}
+
+func getURLWithHeaders(url string, authtoken string, mutoken string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range getPlaybackHeaders(authtoken, mutoken) {
+		req.Header.Set(key, value)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed with status %s", resp.Status)
+	}
+	return io.ReadAll(resp.Body)
+}
+
 func GetWebplayback(adamId string, authtoken string, mutoken string, mvmode bool) (string, string, string, error) {
 	url := "https://play.music.apple.com/WebObjects/MZPlay.woa/wa/webPlayback"
 	postData := map[string]string{
@@ -169,6 +203,47 @@ type Songlist struct {
 		} `json:"assets"`
 	} `json:"songList"`
 	Status int `json:"status"`
+}
+
+func ResolveStationVariantPlaylist(masterURL string, authtoken string, mutoken string) (string, error) {
+	body, err := getURLWithHeaders(masterURL, authtoken, mutoken)
+	if err != nil {
+		return "", err
+	}
+	masterString := string(body)
+	from, listType, err := m3u8.DecodeFrom(strings.NewReader(masterString), true)
+	if err != nil {
+		return "", err
+	}
+	if listType != m3u8.MASTER {
+		return masterURL, nil
+	}
+	masterPlaylist := from.(*m3u8.MasterPlaylist)
+	var preferred string
+	for _, variant := range masterPlaylist.Variants {
+		if variant == nil {
+			continue
+		}
+		uri := variant.URI
+		if strings.Contains(uri, "256") || strings.Contains(uri, "256_6") {
+			preferred = uri
+			break
+		}
+		if preferred == "" {
+			preferred = uri
+		}
+	}
+	if preferred == "" {
+		return masterURL, nil
+	}
+	if strings.HasPrefix(preferred, "http") {
+		return preferred, nil
+	}
+	lastSlashIndex := strings.LastIndex(masterURL, "/")
+	if lastSlashIndex == -1 {
+		return masterURL, nil
+	}
+	return masterURL[:lastSlashIndex+1] + preferred, nil
 }
 
 func extractKidBase64(b string, mvmode bool) (string, string, string, error) {
