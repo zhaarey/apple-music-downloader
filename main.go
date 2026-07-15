@@ -1235,8 +1235,18 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 			counter.Error++
 			return err
 		}
-		trackM3U8 := strings.ReplaceAll(assetsUrl, "index.m3u8", "256/prog_index.m3u8")
-		keyAndUrls, _ := runv3.Run(station.ID, trackM3U8, token, mediaUserToken, true, serverUrl)
+		trackM3U8, err := runv3.ResolveStationVariantPlaylist(assetsUrl, token, mediaUserToken)
+		if err != nil {
+			fmt.Println("Failed to resolve station variant playlist.", err)
+			counter.Error++
+			return err
+		}
+		keyAndUrls, err := runv3.Run(station.ID, trackM3U8, token, mediaUserToken, true, serverUrl)
+		if err != nil {
+			fmt.Println("Failed to get station stream decryption key.", err)
+			counter.Error++
+			return err
+		}
 		err = runv3.ExtMvData(keyAndUrls, trackPath)
 		if err != nil {
 			fmt.Println("Failed to download station stream.", err)
