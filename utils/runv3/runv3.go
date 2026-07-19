@@ -104,10 +104,10 @@ func AfterRequest(response *resty.Response) ([]byte, error) {
 
 func getPlaybackHeaders(authtoken string, mutoken string) map[string]string {
 	headers := map[string]string{
-		"User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-		"Origin":             "https://music.apple.com",
-		"Referer":            "https://music.apple.com/",
-		"Accept":             "application/vnd.apple.mpegurl,application/x-mpegURL,text/plain;q=0.8,*/*;q=0.5",
+		"User-Agent":          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+		"Origin":              "https://music.apple.com",
+		"Referer":             "https://music.apple.com/",
+		"Accept":              "application/vnd.apple.mpegurl,application/x-mpegURL,text/plain;q=0.8,*/*;q=0.5",
 		"X-Apple-Store-Front": "143441-1,25",
 	}
 	if mutoken != "" {

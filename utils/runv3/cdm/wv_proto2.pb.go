@@ -3055,7 +3055,7 @@ func (x *SignedServiceCertificate) GetRemoteAttestation() *RemoteAttestation {
 	return nil
 }
 
-//vmp support
+// vmp support
 type FileHashes struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

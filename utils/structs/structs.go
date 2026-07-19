@@ -20,6 +20,7 @@ type ConfigSet struct {
 	AlacSaveFolder             string `yaml:"alac-save-folder"`
 	AtmosSaveFolder            string `yaml:"atmos-save-folder"`
 	AacSaveFolder              string `yaml:"aac-save-folder"`
+	Mp3SaveFolder              string `yaml:"mp3-save-folder"`
 	MVSaveFolder               string `yaml:"mv-save-folder"`
 	AlbumFolderFormat          string `yaml:"album-folder-format"`
 	PlaylistFolderFormat       string `yaml:"playlist-folder-format"`

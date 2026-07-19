@@ -46,6 +46,7 @@
 | `aac-lc` | audio-stereo | ✅ |
 | `aac-binaural` | audio-stereo-binaural | ✅ |
 | `aac-downmix` | audio-stereo-downmix | ✅ |
+| `mp3` | audio-stereo (converted to 128kbps MP3) | ✅ |
 | `MV` | Music Video | ✅ |
 
 > **Note:** For `aac-lc`, `MV`, and `lyrics`, you must provide a valid `media-user-token` from an active subscription.
@@ -137,7 +138,12 @@ docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config
    go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
    ```
 
-8. **View quality info:**
+8. **MP3 format (128kbps, preserves lyrics):**
+   ```bash
+   go run main.go --mp3 https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   ```
+
+9. **View quality info:**
    ```bash
    go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
    ```

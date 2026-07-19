@@ -16,7 +16,7 @@ func InitConstants() {
 	// 	panic(err)
 	// }
 	// DefaultPrivateKey = string(DefaultPrivateKeyBuffer)
- //
+	//
 	// DefaultClientID, err = ioutil.ReadFile("device_client_id_blob")
 	// if err != nil {
 	// 	panic(err)

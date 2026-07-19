@@ -46,6 +46,7 @@
 | `aac-lc` | audio-stereo | ✅ |
 | `aac-binaural` | audio-stereo-binaural | ✅ |
 | `aac-downmix` | audio-stereo-downmix | ✅ |
+| `mp3` | audio-stereo (转换为 128kbps MP3) | ✅ |
 | `MV` | 音乐视频 | ✅ |
 
 > **注意：** 对于 `aac-lc`、`MV` 和 `歌词`，必须提供有效订阅的 `media-user-token`。
@@ -137,7 +138,12 @@ docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config
    go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
    ```
 
-8. **查看音质信息：**
+8. **MP3 格式 (128kbps 并保留歌词)：**
+   ```bash
+   go run main.go --mp3 https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
+   ```
+
+9. **查看音质信息：**
    ```bash
    go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
    ```

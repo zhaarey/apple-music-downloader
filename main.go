@@ -42,6 +42,7 @@ var (
 	forbiddenNames     = regexp.MustCompile(`[/\\<>:"|?*]`)
 	dl_atmos           bool
 	dl_aac             bool
+	dl_mp3             bool
 	dl_select          bool
 	dl_song            bool
 	artist_select      bool
@@ -93,6 +94,10 @@ func loadConfig() error {
 
 	if Config.AacType == "" {
 		Config.AacType = "aac-lc"
+	}
+
+	if Config.Mp3SaveFolder == "" {
+		Config.Mp3SaveFolder = "AM-DL-MP3 downloads"
 	}
 
 	if Config.MVAudioType == "" {
@@ -480,6 +485,7 @@ type QualityOption struct {
 func setDlFlags(quality string) {
 	dl_atmos = false
 	dl_aac = false
+	dl_mp3 = false
 
 	switch quality {
 	case "atmos":
@@ -489,6 +495,9 @@ func setDlFlags(quality string) {
 		dl_aac = true
 		*aac_type = "aac"
 		fmt.Println("Quality set to: High-Quality (AAC)")
+	case "mp3":
+		dl_mp3 = true
+		fmt.Println("Quality set to: MP3 128kbps")
 	case "alac":
 		fmt.Println("Quality set to: Lossless (ALAC)")
 	}
@@ -507,6 +516,7 @@ func promptForQuality(item SearchResultItem, token string) (string, error) {
 		{ID: "alac", Description: "Lossless (ALAC)"},
 		{ID: "aac", Description: "High-Quality (AAC)"},
 		{ID: "atmos", Description: "Dolby Atmos"},
+		{ID: "mp3", Description: "MP3 128kbps"},
 	}
 	qualityOptions := []string{}
 	for _, q := range qualities {
@@ -695,8 +705,13 @@ func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) (
 		// ffmpeg only keeps the audio stream and the artwork is silently dropped.
 		args = append(args, "-map", "0", "-c:a", "flac", "-c:v", "copy", "-disposition:v", "attached_pic")
 	case "mp3":
-		// VBR quality 2 ~ high quality
-		args = append(args, "-c:a", "libmp3lame", "-qscale:a", "2")
+		if dl_mp3 {
+			// Encode at constant bitrate 128kbps, preserving metadata and using -map 0 to map all streams (attached_pic covers)
+			args = append(args, "-map", "0", "-c:a", "libmp3lame", "-b:a", "128k", "-c:v", "copy", "-id3v2_version", "3", "-metadata:s:v", "title=\"Album cover\"", "-metadata:s:v", "comment=\"Cover (Front)\"")
+		} else {
+			// VBR quality 2 ~ high quality
+			args = append(args, "-c:a", "libmp3lame", "-qscale:a", "2")
+		}
 	case "opus":
 		// Medium/high quality
 		args = append(args, "-c:a", "libopus", "-b:a", "192k", "-vbr", "on")
@@ -718,10 +733,14 @@ func buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) (
 
 // CONVERSION FEATURE: Perform conversion if enabled.
 func convertIfNeeded(track *task.Track) {
-	if !Config.ConvertAfterDownload {
+	if !Config.ConvertAfterDownload && !dl_mp3 {
 		return
 	}
-	if Config.ConvertFormat == "" {
+	targetFmt := strings.ToLower(Config.ConvertFormat)
+	if dl_mp3 {
+		targetFmt = "mp3"
+	}
+	if targetFmt == "" {
 		return
 	}
 	srcPath := track.SavePath
@@ -729,7 +748,6 @@ func convertIfNeeded(track *task.Track) {
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(srcPath))
-	targetFmt := strings.ToLower(Config.ConvertFormat)
 
 	// Map extension for output
 	if targetFmt == "copy" {
@@ -737,7 +755,7 @@ func convertIfNeeded(track *task.Track) {
 		return
 	}
 
-	if Config.ConvertSkipIfSourceMatch {
+	if Config.ConvertSkipIfSourceMatch && !dl_mp3 {
 		if ext == "."+targetFmt {
 			fmt.Printf("Conversion skipped (already %s)\n", targetFmt)
 			return
@@ -847,7 +865,7 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	}
 
 	needDlAacLc := false
-	if dl_aac && Config.AacType == "aac-lc" {
+	if (dl_aac && Config.AacType == "aac-lc") || dl_mp3 {
 		needDlAacLc = true
 	}
 	if track.WebM3u8 == "" && !needDlAacLc {
@@ -875,10 +893,12 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 		}
 	}
 	var Quality string
-	if strings.Contains(Config.SongFileFormat, "Quality") {
+	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
-		} else if needDlAacLc {
+		} else if dl_mp3 {
+			Quality = "128Kbps"
+		} else if dl_aac && Config.AacType == "aac-lc" {
 			Quality = "256Kbps"
 		} else {
 			_, Quality, err = extractMedia(track.M3u8, true)
@@ -929,11 +949,15 @@ func ripTrack(track *task.Track, token string, mediaUserToken string) {
 	// Determine possible post-conversion target file (so we can skip re-download)
 	var convertedPath string
 	considerConverted := false
-	if Config.ConvertAfterDownload &&
-		Config.ConvertFormat != "" &&
-		strings.ToLower(Config.ConvertFormat) != "copy" &&
+	if (Config.ConvertAfterDownload || dl_mp3) &&
+		(Config.ConvertFormat != "" || dl_mp3) &&
+		(strings.ToLower(Config.ConvertFormat) != "copy" || dl_mp3) &&
 		!Config.ConvertKeepOriginal {
-		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + strings.ToLower(Config.ConvertFormat)
+		targetFmt := "mp3"
+		if !dl_mp3 {
+			targetFmt = strings.ToLower(Config.ConvertFormat)
+		}
+		convertedPath = strings.TrimSuffix(trackPath, filepath.Ext(trackPath)) + "." + targetFmt
 		considerConverted = true
 	}
 	// Existence check now considers converted output (if original was deleted)
@@ -1115,6 +1139,8 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 		Codec = "ATMOS"
 	} else if dl_aac {
 		Codec = "AAC"
+	} else if dl_mp3 {
+		Codec = "MP3"
 	} else {
 		Codec = "ALAC"
 	}
@@ -1138,6 +1164,9 @@ func ripStation(albumId string, token string, storefront string, mediaUserToken 
 	}
 	if dl_aac {
 		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
+	if dl_mp3 {
+		singerFolder = filepath.Join(Config.Mp3SaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
 	os.MkdirAll(singerFolder, os.ModePerm)
 	station.SaveDir = singerFolder
@@ -1370,6 +1399,8 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 		Codec = "ATMOS"
 	} else if dl_aac {
 		Codec = "AAC"
+	} else if dl_mp3 {
+		Codec = "MP3"
 	} else {
 		Codec = "ALAC"
 	}
@@ -1401,6 +1432,9 @@ func ripAlbum(albumId string, token string, storefront string, mediaUserToken st
 	}
 	if dl_aac {
 		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
+	if dl_mp3 {
+		singerFolder = filepath.Join(Config.Mp3SaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
 	os.MkdirAll(singerFolder, os.ModePerm)
 	album.SaveDir = singerFolder
@@ -1649,6 +1683,8 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 		Codec = "ATMOS"
 	} else if dl_aac {
 		Codec = "AAC"
+	} else if dl_mp3 {
+		Codec = "MP3"
 	} else {
 		Codec = "ALAC"
 	}
@@ -1673,6 +1709,9 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	if dl_aac {
 		singerFolder = filepath.Join(Config.AacSaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
 	}
+	if dl_mp3 {
+		singerFolder = filepath.Join(Config.Mp3SaveFolder, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	}
 	os.MkdirAll(singerFolder, os.ModePerm)
 	playlist.SaveDir = singerFolder
 
@@ -1680,6 +1719,8 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	if strings.Contains(Config.AlbumFolderFormat, "Quality") {
 		if dl_atmos {
 			Quality = fmt.Sprintf("%dKbps", Config.AtmosMax-2000)
+		} else if dl_mp3 {
+			Quality = "128Kbps"
 		} else if dl_aac && Config.AacType == "aac-lc" {
 			Quality = "256Kbps"
 		} else {
@@ -1978,6 +2019,7 @@ func main() {
 	pflag.StringVar(&search_type, "search", "", "Search for 'album', 'song', or 'artist'. Provide query after flags.")
 	pflag.BoolVar(&dl_atmos, "atmos", false, "Enable atmos download mode")
 	pflag.BoolVar(&dl_aac, "aac", false, "Enable adm-aac download mode")
+	pflag.BoolVar(&dl_mp3, "mp3", false, "Enable mp3 download and conversion mode (128kbps, preserves lyrics)")
 	pflag.BoolVar(&dl_select, "select", false, "Enable selective download")
 	pflag.BoolVar(&dl_song, "song", false, "Enable single song download mode")
 	pflag.BoolVar(&artist_select, "all-album", false, "Download all artist albums")
