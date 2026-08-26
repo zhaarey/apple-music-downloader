@@ -1781,7 +1781,20 @@ func ripPlaylist(playlistId string, token string, storefront string, mediaUserTo
 	}
 
 	for i := range playlist.Tracks {
-		playlist.Tracks[i].CoverPath = covPath
+		os.MkdirAll("./covers", os.ModePerm)
+		songCovPath, err := writeCover(
+			playlistFolderPath,
+			playlist.Tracks[i].Resp.Attributes.Name, 
+			playlist.Tracks[i].Resp.Attributes.Artwork.URL);
+		if err != nil {
+			fmt.Println("Failed to write cover.")
+		}
+
+		if (songCovPath != "") {
+			playlist.Tracks[i].CoverPath = songCovPath;
+		} else {
+			playlist.Tracks[i].CoverPath = covPath;
+		}
 		playlist.Tracks[i].SaveDir = playlistFolderPath
 		playlist.Tracks[i].Codec = Codec
 	}
