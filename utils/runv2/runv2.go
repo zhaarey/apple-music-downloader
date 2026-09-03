@@ -137,7 +137,13 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 					BarEnd:        "",
 				}),
 			)
-			io.Copy(io.MultiWriter(&buffer, bar), do.Body)
+			n, err := io.Copy(io.MultiWriter(&buffer, bar), do.Body)
+			if err != nil {
+				return fmt.Errorf("download stream error: %w", err)
+			}
+			if do.ContentLength > 0 && n < do.ContentLength {
+				return fmt.Errorf("download incomplete (%d/%d bytes downloaded)", n, do.ContentLength)
+			}
 			body = &buffer
 			fmt.Print("Downloaded\n")
 		} else {
