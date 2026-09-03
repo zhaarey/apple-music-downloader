@@ -14,6 +14,7 @@ import (
 	"os"
 	"time"
 
+	"main/utils/httputil"
 	"main/utils/structs"
 
 	"github.com/grafov/m3u8"
@@ -57,7 +58,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	}
 	req.Header = header
 	// requesting an HLS playlist should be relatively fast, so we set the timeout directly on the client
-	do, err := (&http.Client{Timeout: timeout}).Do(req)
+	do, err := (&http.Client{Timeout: timeout, Transport: httputil.Client.Transport}).Do(req)
 	if err != nil {
 		return err
 	}
@@ -95,7 +96,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	req.Header = header
 
 	var body io.Reader
-	client := &http.Client{Timeout: timeout}
+	client := &http.Client{Timeout: timeout, Transport: httputil.Client.Transport}
 	if optstimeout > 0 {
 		// create the timer before calling Do so that the timeout covers TCP handshake,
 		// TLS handshake, sending the request and receiving HTTP headers
@@ -137,7 +138,13 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 					BarEnd:        "",
 				}),
 			)
-			io.Copy(io.MultiWriter(&buffer, bar), do.Body)
+			n, err := io.Copy(io.MultiWriter(&buffer, bar), do.Body)
+			if err != nil {
+				return fmt.Errorf("download stream error: %w", err)
+			}
+			if do.ContentLength > 0 && n < do.ContentLength {
+				return fmt.Errorf("download incomplete (%d/%d bytes downloaded)", n, do.ContentLength)
+			}
 			body = &buffer
 			fmt.Print("Downloaded\n")
 		} else {
