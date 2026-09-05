@@ -18,12 +18,12 @@ atmos-save-folder: AM-DL-Atmos downloads
 aac-save-folder: AM-DL-AAC downloads
 mv-save-folder: AM-DL-MV downloads
 max-memory-limit: 256 # MB
-template-decrypt: false
-key-server: "127.0.0.1:40020"
-decrypt-m3u8-port: "127.0.0.1:10020"
-get-m3u8-port: "127.0.0.1:20020"
-get-m3u8-from-device: true
-get-account-port: "127.0.0.1:30020"
+template-decrypt: true
+key-server: "127.0.0.1:12340/key"
+decrypt-m3u8-port: "127.0.0.1:12340"
+get-m3u8-port: "127.0.0.1:12340"
+get-m3u8-from-device: false
+get-account-port: "127.0.0.1:12340"
 get-account-from-device: false   #if set true,will auto get media-user-token
 
 # set to 'true' to exit on error instead of requiring manual intervention. (for using this program in scripts)
