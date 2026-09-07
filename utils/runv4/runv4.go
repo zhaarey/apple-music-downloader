@@ -67,11 +67,10 @@ func downloadWithResume(ctx context.Context, client *http.Client, fileUrl string
 
 	buf := &bytes.Buffer{}
 	var offset int64
-	backoff := 2 * time.Second
+	backoff := time.Duration(0)
 
 	for attempt := 1; attempt <= downloadMaxAttempts; attempt++ {
-		if attempt > 1 {
-			fmt.Printf("Download interrupted at %d/%d bytes, retrying in %v\n", offset, totalLen, backoff)
+		if attempt > 1 && backoff > 0 {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -89,14 +88,14 @@ func downloadWithResume(ctx context.Context, client *http.Client, fileUrl string
 			attemptCancel()
 			return nil, err
 		}
-		req.Header = header
-		if offset > 0 {
-			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset)) // 断点续传
-		}
+		req.Header = header.Clone()
+		// Always set Range header so Apple CDN streams the full file without 4MB cutoff
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 
 		resp, err := client.Do(req)
 		if err != nil {
 			attemptCancel()
+			backoff = 1 * time.Second
 			continue
 		}
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
@@ -130,6 +129,12 @@ func downloadWithResume(ctx context.Context, client *http.Client, fileUrl string
 		}
 		if copyErr == nil {
 			copyErr = fmt.Errorf("short download: got %d of %d bytes", offset, totalLen)
+		}
+		// If bytes were successfully read, resume immediately without waiting 2 seconds
+		if n > 0 {
+			backoff = 0
+		} else {
+			backoff = 1 * time.Second
 		}
 	}
 	return nil, fmt.Errorf("download failed after %d attempts (got %d/%d bytes)",
@@ -188,6 +193,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	req.Header = header
 
 	var body io.Reader
+	var totalLen int64
 	client := &http.Client{Timeout: timeout}
 	if optstimeout > 0 {
 		// create the timer before calling Do so that the timeout covers TCP handshake,
@@ -198,6 +204,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 			return err
 		}
 		defer do.Body.Close()
+		totalLen = do.ContentLength
 		body = &TimedResponseBody{
 			timeout:   timeout,
 			timer:     timer,
@@ -209,10 +216,11 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 		if err != nil {
 			return err
 		}
-		defer do.Body.Close()
-		if do.ContentLength < int64(Config.MaxMemoryLimit * 1024 * 1024) {
+		totalLen = do.ContentLength
+		do.Body.Close()
+		if totalLen < int64(Config.MaxMemoryLimit * 1024 * 1024) {
 			bar := progressbar.NewOptions64(
-				do.ContentLength,
+				totalLen,
 				progressbar.OptionClearOnFinish(),
 				progressbar.OptionSetElapsedTime(false),
 				progressbar.OptionSetPredictTime(false),
@@ -229,7 +237,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 					BarEnd:        "",
 				}),
 			)
-			buffer, err := downloadWithResume(ctx, client, fileUrl.String(), header, do.ContentLength, bar)
+			buffer, err := downloadWithResume(ctx, client, fileUrl.String(), header, totalLen, bar)
 			if err != nil {
 				return err // 下载没完成就失败退出，绝不进入解密
 			}
@@ -241,8 +249,6 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 		}
 	}
 
-	var totalLen int64
-	totalLen = do.ContentLength
 	//key Server
 	//keyServer := fmt.Sprintf("127.0.0.1:40020")
 	keyServer := Config.KeyServer
