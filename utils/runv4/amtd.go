@@ -43,7 +43,7 @@ func (t *template) prepare() {
 	})
 }
 
-type templateResponse struct {
+type templateData struct {
 	Ctx   string `json:"ctx"`
 	State string `json:"state"`
 	RCX   string `json:"rcx"`
@@ -53,8 +53,30 @@ type templateResponse struct {
 	RBP   string `json:"rbp"`
 }
 
+type templateResponse struct {
+	Ctx   string        `json:"ctx"`
+	State string        `json:"state"`
+	RCX   string        `json:"rcx"`
+	RAX   string        `json:"rax"`
+	RDX   string        `json:"rdx"`
+	R9    string        `json:"r9"`
+	RBP   string        `json:"rbp"`
+	Data  *templateData `json:"data"`
+}
+
 func fetchTemplate(server, adam, uri string) (*template, error) {
-	endpoint := "http://" + server + "/?adamId=" + url.QueryEscape(adam) + "&uri=" + url.QueryEscape(uri)
+	// Support both old wrapper (host:port, uses /) and wrapper-lite (host:port/key).
+	// If the server string contains a path (e.g. "127.0.0.1:12340/key"), use it;
+	// otherwise fall back to the root path for backward compatibility.
+	base := "http://" + server
+	sep := "?"
+	if strings.Contains(server, "/") {
+		// Server already includes a path like "127.0.0.1:12340/key"
+		sep = "?"
+	} else {
+		base += "/"
+	}
+	endpoint := base + sep + "adamId=" + url.QueryEscape(adam) + "&uri=" + url.QueryEscape(uri)
 	client := http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(endpoint)
 	if err != nil {
@@ -64,15 +86,31 @@ func fetchTemplate(server, adam, uri string) (*template, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("key server returned %s", resp.Status)
 	}
-	var data templateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	var respData templateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&respData); err != nil {
 		return nil, err
 	}
-	ctxRaw, err := base64.StdEncoding.DecodeString(data.Ctx)
+
+	// Wrapper-lite wraps response inside "data": {"ctx": ..., "state": ...}
+	// Old wrapper returns flat fields: {"ctx": ..., "state": ...}
+	td := &templateData{
+		Ctx:   respData.Ctx,
+		State: respData.State,
+		RCX:   respData.RCX,
+		RAX:   respData.RAX,
+		RDX:   respData.RDX,
+		R9:    respData.R9,
+		RBP:   respData.RBP,
+	}
+	if respData.Data != nil && respData.Data.Ctx != "" {
+		td = respData.Data
+	}
+
+	ctxRaw, err := base64.StdEncoding.DecodeString(td.Ctx)
 	if err != nil || len(ctxRaw) < 0x8000 {
 		return nil, errors.New("invalid ctx in key-server response")
 	}
-	stateRaw, err := base64.StdEncoding.DecodeString(data.State)
+	stateRaw, err := base64.StdEncoding.DecodeString(td.State)
 	if err != nil || len(stateRaw) < 0x2000 {
 		return nil, errors.New("invalid state in key-server response")
 	}
@@ -81,23 +119,23 @@ func fetchTemplate(server, adam, uri string) (*template, error) {
 		n, err := strconv.ParseUint(value, 16, 64)
 		return u32(n), err
 	}
-	rcx, err := parse(data.RCX)
+	rcx, err := parse(td.RCX)
 	if err != nil {
 		return nil, err
 	}
-	rax, err := parse(data.RAX)
+	rax, err := parse(td.RAX)
 	if err != nil {
 		return nil, err
 	}
-	rdx, err := parse(data.RDX)
+	rdx, err := parse(td.RDX)
 	if err != nil {
 		return nil, err
 	}
-	r9, err := parse(data.R9)
+	r9, err := parse(td.R9)
 	if err != nil {
 		return nil, err
 	}
-	rbp, err := parse(data.RBP)
+	rbp, err := parse(td.RBP)
 	if err != nil {
 		return nil, err
 	}

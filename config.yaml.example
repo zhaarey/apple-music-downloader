@@ -19,7 +19,7 @@ aac-save-folder: AM-DL-AAC downloads
 mv-save-folder: AM-DL-MV downloads
 max-memory-limit: 256 # MB
 template-decrypt: false
-key-server: "127.0.0.1:40020"
+key-server: "127.0.0.1:40020"   #for Wrapper-lite '127.0.0.1:12340/key'
 decrypt-m3u8-port: "127.0.0.1:10020"
 get-m3u8-port: "127.0.0.1:20020"
 get-m3u8-from-device: true
