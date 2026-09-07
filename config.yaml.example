@@ -29,8 +29,8 @@ get-account-from-device: false   #if set true,will auto get media-user-token
 # set to 'true' to exit on error instead of requiring manual intervention. (for using this program in scripts)
 exit-on-error: false
 
-#set 'all' to retrieve all m3u8, and set 'hires' to only detect hires m3u8.
-get-m3u8-mode: hires # all hires
+# set 'all' to retrieve all m3u8 from device (recommended to avoid Invalid CKC on standard ALAC), or 'hires' to only detect hires m3u8.
+get-m3u8-mode: all # all hires
 aac-type: aac-lc # aac-lc aac aac-binaural aac-downmix
 alac-max: 192000  #192000 96000 48000 44100
 atmos-max: 2768  #2768 2448
