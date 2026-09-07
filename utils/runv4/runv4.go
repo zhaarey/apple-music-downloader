@@ -61,16 +61,25 @@ const (
 )
 
 // downloadWithResume 下载完整文件到内存，支持断点续传、空闲超时和重试。
-// 只有拿到 totalLen 字节才返回成功。
+// first 是调用方已经拿到响应头、但尚未读取正文的首个 GET 响应，作为第一次尝试直接读取，
+// firstCancel 用于在它卡死时取消该请求；之后的尝试才用 Range 请求从断点续传。
+// 任何时刻只保留一条到服务器的下载流：如果放着 first 不读、另开一条流下载同一文件，
+// 两条流会复用同一个 HTTP/2 连接，未读取的那条会占满流量控制窗口，新开的流也会在约 4 MiB 处卡死。
+// 只有拿到 first.ContentLength 字节才返回成功。
 func downloadWithResume(ctx context.Context, client *http.Client, fileUrl string,
-	header http.Header, totalLen int64, bar *progressbar.ProgressBar) (*bytes.Buffer, error) {
+	header http.Header, first *http.Response, firstCancel context.CancelFunc,
+	bar *progressbar.ProgressBar) (*bytes.Buffer, error) {
 
+	totalLen := first.ContentLength
 	buf := &bytes.Buffer{}
 	var offset int64
-	backoff := time.Duration(0)
+	var lastErr error
+	backoff := 2 * time.Second
 
 	for attempt := 1; attempt <= downloadMaxAttempts; attempt++ {
-		if attempt > 1 && backoff > 0 {
+		resp, attemptCancel := first, firstCancel
+		if attempt > 1 {
+			fmt.Printf("Download interrupted at %d/%d bytes (%v), retrying in %v\n", offset, totalLen, lastErr, backoff)
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -79,24 +88,26 @@ func downloadWithResume(ctx context.Context, client *http.Client, fileUrl string
 			if backoff < 30*time.Second {
 				backoff *= 2
 			}
-		}
 
-		// 每次尝试用独立的子 context，卡死时只取消本次连接
-		attemptCtx, attemptCancel := context.WithCancel(ctx)
-		req, err := http.NewRequestWithContext(attemptCtx, "GET", fileUrl, nil)
-		if err != nil {
-			attemptCancel()
-			return nil, err
-		}
-		req.Header = header.Clone()
-		// Always set Range header so Apple CDN streams the full file without 4MB cutoff
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+			// 每次续传用独立的子 context，卡死时只取消本次连接
+			var attemptCtx context.Context
+			attemptCtx, attemptCancel = context.WithCancel(ctx)
+			req, err := http.NewRequestWithContext(attemptCtx, "GET", fileUrl, nil)
+			if err != nil {
+				attemptCancel()
+				return nil, err
+			}
+			req.Header = header.Clone()
+			if offset > 0 {
+				req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset)) // 断点续传
+			}
 
-		resp, err := client.Do(req)
-		if err != nil {
-			attemptCancel()
-			backoff = 1 * time.Second
-			continue
+			resp, err = client.Do(req)
+			if err != nil {
+				attemptCancel()
+				lastErr = err
+				continue
+			}
 		}
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 			resp.Body.Close()
@@ -119,26 +130,26 @@ func downloadWithResume(ctx context.Context, client *http.Client, fileUrl string
 		}
 
 		n, copyErr := io.Copy(io.MultiWriter(buf, bar), body)
+		idleTimedOut := !timer.Stop()
 		resp.Body.Close()
-		timer.Stop()
 		attemptCancel()
 		offset += n
 
 		if copyErr == nil && offset == totalLen {
 			return buf, nil // 完整拿到，才算下载成功
 		}
-		if copyErr == nil {
+		switch {
+		case copyErr == nil:
 			copyErr = fmt.Errorf("short download: got %d of %d bytes", offset, totalLen)
+		case ctx.Err() != nil:
+			return nil, ctx.Err() // 外层主动取消，不再重试
+		case idleTimedOut:
+			copyErr = fmt.Errorf("no data received for %v", downloadIdleTimeout)
 		}
-		// If bytes were successfully read, resume immediately without waiting 2 seconds
-		if n > 0 {
-			backoff = 0
-		} else {
-			backoff = 1 * time.Second
-		}
+		lastErr = copyErr
 	}
-	return nil, fmt.Errorf("download failed after %d attempts (got %d/%d bytes)",
-		downloadMaxAttempts, offset, totalLen)
+	return nil, fmt.Errorf("download failed after %d attempts (got %d/%d bytes): %w",
+		downloadMaxAttempts, offset, totalLen, lastErr)
 }
 
 func Run(adamId string, playlistUrl string, outfile string, Config structs.ConfigSet) error {
@@ -186,14 +197,16 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 	// request mp4
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(nil)
-	req, err = http.NewRequestWithContext(ctx, "GET", fileUrl.String(), nil)
+	// 首个请求单独一个子 context：下载卡死时只中止它，不影响之后的续传请求
+	firstCtx, firstCancel := context.WithCancel(ctx)
+	defer firstCancel()
+	req, err = http.NewRequestWithContext(firstCtx, "GET", fileUrl.String(), nil)
 	if err != nil {
 		return err
 	}
 	req.Header = header
 
 	var body io.Reader
-	var totalLen int64
 	client := &http.Client{Timeout: timeout}
 	if optstimeout > 0 {
 		// create the timer before calling Do so that the timeout covers TCP handshake,
@@ -204,7 +217,6 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 			return err
 		}
 		defer do.Body.Close()
-		totalLen = do.ContentLength
 		body = &TimedResponseBody{
 			timeout:   timeout,
 			timer:     timer,
@@ -216,11 +228,10 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 		if err != nil {
 			return err
 		}
-		totalLen = do.ContentLength
-		do.Body.Close()
-		if totalLen < int64(Config.MaxMemoryLimit * 1024 * 1024) {
+		defer do.Body.Close()
+		if do.ContentLength < int64(Config.MaxMemoryLimit * 1024 * 1024) {
 			bar := progressbar.NewOptions64(
-				totalLen,
+				do.ContentLength,
 				progressbar.OptionClearOnFinish(),
 				progressbar.OptionSetElapsedTime(false),
 				progressbar.OptionSetPredictTime(false),
@@ -237,11 +248,12 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 					BarEnd:        "",
 				}),
 			)
-			buffer, err := downloadWithResume(ctx, client, fileUrl.String(), header, totalLen, bar)
+			// 直接读 do 的正文作为第一次尝试，不能放着它不读再另开一条流去下同一个文件
+			buffer, err := downloadWithResume(ctx, client, fileUrl.String(), header, do, firstCancel, bar)
 			if err != nil {
 				return err // 下载没完成就失败退出，绝不进入解密
 			}
-			
+
 			body = buffer
 			fmt.Print("Downloaded\n")
 		} else {
@@ -249,6 +261,8 @@ func Run(adamId string, playlistUrl string, outfile string, Config structs.Confi
 		}
 	}
 
+	var totalLen int64
+	totalLen = do.ContentLength
 	//key Server
 	//keyServer := fmt.Sprintf("127.0.0.1:40020")
 	keyServer := Config.KeyServer
