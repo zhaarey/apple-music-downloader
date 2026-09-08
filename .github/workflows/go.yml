@@ -15,7 +15,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.1'
+        go-version: '1.23.7'
     - name: Vet
       run: go vet ./...
     - name: Test
@@ -42,7 +42,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.1'
+        go-version: '1.23.7'
     - name: Vet
       run: go vet ./...
     - name: Test
@@ -69,7 +69,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.1'
+        go-version: '1.23.7'
     - name: Vet
       run: go vet ./...
     - name: Test
