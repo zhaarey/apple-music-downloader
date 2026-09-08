@@ -5,3 +5,5 @@
 !/main.go
 !/utils/
 !/utils/**
+!/internal/
+!/internal/**
