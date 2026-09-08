@@ -1,206 +1,379 @@
 # Apple Music ALAC / 杜比全景声下载器
 
-[English](./README.md) | [简体中文](./README-CN.md) | [🌐 云服务器/代理配置](./PROXY-SETUP.md)
+[English](./README.md) | [简体中文](./README-CN.md) | [云服务器 / 代理配置](./PROXY-SETUP.md)
 
-> **原脚本由 Sorrow 编写。** 本仓库已作修改，包含一些修复和改进。
+> **原脚本由 Sorrow 编写。** 本仓库已修改并包含修复与改进。
 
----
+这是一个命令行工具，可从 Apple Music 下载专辑、单曲、播放列表、电台和音乐视频，支持 ALAC、AAC 和杜比全景声，并能保留或嵌入元数据与歌词。请仅用于你有权访问的内容，并遵守 Apple 条款和适用法律。
 
-## ⚠️ 前置要求
+## 目录
 
-**必须首先安装：**
+- [功能特性](#功能特性)
+- [支持的格式](#支持的格式)
+- [前置要求](#前置要求)
+- [配置](#配置)
+- [Windows 安装](#windows-安装)
+- [macOS 安装](#macos-安装)
+- [Linux 安装](#linux-安装)
+- [Android / Termux 安装](#android--termux-安装)
+- [使用方法](#使用方法)
+- [获取 media-user-token](#获取-media-user-token)
+- [歌词设置](#歌词设置)
+- [升级](#升级)
+- [致谢](#致谢)
 
-- **[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)** - 确保已正确添加到环境变量
-- **[wrapper](https://github.com/WorldObservationLog/wrapper)** - 解密程序必须在使用前运行. [Wrapper Setup](./Wrapper-SETUP.md)
+## 功能特性
 
-**可选（用于 MV 下载）：**
+1. 内嵌封面和 LRC 歌词。
+2. 逐词歌词和未同步歌词。
+3. 歌手全部专辑下载。
+4. 大文件流式下载和解密。
+5. 音乐视频下载，使用进程内 mp4ff 解密。
+6. 交互式搜索和曲目选择。
 
-- **[mp4decrypt](https://www.bento4.com/downloads/)**
-
----
-
-## 🚀 特别更新
-### 本地模板解密
-在配置文件中将 `template-decrypt` 设置为 `true`，即可启用 WorldObservationLog 的最新解密技术。此功能需要配合最新版本的 Wrapper 使用。
-
-工具会通过 `40020` 端口向 Wrapper 请求解密参数，然后在本地对下载的文件进行解密。
-在之前的旧版实现中，加密文件需要通过 `10020` 端口发送到 Wrapper，由 Wrapper 完成解密后再传回工具。新版无需在进程之间传输整个文件，使用更加方便，解密速度也更快。
-```yaml
-template-decrypt: true
-```
-
-## ✨ 功能特性
-
-1. **内嵌封面和 LRC 歌词** - 需要 `media-user-token`（见下方说明）
-2. **逐词与未同步歌词** 支持
-3. **歌手专辑下载** - 自动下载歌手的所有专辑
-   ```bash
-   go run main.go https://music.apple.com/us/artist/taylor-swift/159260351 --all-album
-   ```
-4. **流式解密** - 使用 Sendy McSenderson 的代码实现边下载边解密，解决大文件解密时内存不足问题
-5. **MV 下载** - 需要安装 mp4decrypt
-6. **交互式搜索** - 支持方向键导航搜索结果
-   ```bash
-   go run main.go --search [song/album/artist] "search_term"
-   ```
-7. **自动获取token** - 使用最新版本的 Wrapper，并将 `get-account-from-device` 设置为 `true`，即可自动获取 Token。
-
----
-
-## 🎵 支持的音频格式
+## 支持的格式
 
 | 格式 | 描述 | 需要订阅 |
-|--------|-------------|----------------------|
-| `alac` | audio-alac-stereo | ✅ |
-| `ec3` | audio-atmos / audio-ec3 | ✅ |
-| `aac` | audio-stereo | ✅ |
-| `aac-lc` | audio-stereo | ✅ |
-| `aac-binaural` | audio-stereo-binaural | ✅ |
-| `aac-downmix` | audio-stereo-downmix | ✅ |
-| `MV` | 音乐视频 | ✅ |
+|---|---|---|
+| `alac` | `audio-alac-stereo` | 是 |
+| `ec3` | `audio-atmos` / `audio-ec3` | 是 |
+| `aac` | `audio-stereo` | 是 |
+| `aac-lc` | `audio-stereo` | 是 |
+| `aac-binaural` | `audio-stereo-binaural` | 是 |
+| `aac-downmix` | `audio-stereo-downmix` | 是 |
+| `MV` | 音乐视频 | 是 |
 
-> **注意：** 对于 `aac-lc`、`MV` 和 `歌词`，必须提供有效订阅的 `media-user-token`。
+下载电台需要来自有效订阅的 `media-user-token`。
 
----
+## 前置要求
 
-## 🚀 使用方法
+运行前必须准备：
 
-### 使用 Docker 运行
+1. **Go 1.23.1 或更新版本**：[go.dev/dl](https://go.dev/dl/)。
+2. **MP4Box / GPAC**：[gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/)。确保 `MP4Box` 可在 `PATH` 中找到。
+3. **wrapper-lite**：[github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite)。必须先启动它，并在 `lite-server` 中写入其 HTTP 地址，例如 `http://127.0.0.1:12340`。
+4. **ffmpeg**：仅在后下载转换、动态封面或依赖 ffmpeg 的功能中需要。见 [ffmpeg.org](https://ffmpeg.org/)。
 
-1. 确保 [wrapper](https://github.com/WorldObservationLog/wrapper) 解密程序正在运行
+## 配置
 
-2. 启动下载器：
-
-```bash
-# 显示帮助
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --help
-
-# 下载专辑
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/ru/album/children-of-forever/1443732441
-
-# 下载单曲
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
-
-# 交互式选择
-docker run -it --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --select https://music.apple.com/ru/album/children-of-forever/1443732441
-
-# 下载播放列表
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-
-# 杜比全景声
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-# AAC 格式
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-# 调试/查看音质
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --debug https://music.apple.com/ru/album/miles-smiles/209407331
-```
-
-**自定义配置：**
-
-挂载自己的 `config.yaml`：
+先把示例配置复制到项目根目录：
 
 ```bash
-docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config.yaml ghcr.io/zhaarey/apple-music-downloader [参数]
+cp config.yaml.example config.yaml
 ```
 
-> **注意：** 运行前请确保当前目录下存在 `config.yaml` 文件。如果不存在，Docker 会创建一个空目录而非文件，导致容器启动失败。
+Windows PowerShell 使用：
 
----
+```powershell
+copy config.yaml.example config.yaml
+```
 
-### 本地运行 (Go)
+至少检查并设置：
 
-1. 确保 [wrapper](https://github.com/WorldObservationLog/wrapper) 解密程序正在运行
-
-2. **下载专辑：**
-   ```bash
-   go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
-   ```
-
-3. **下载单曲：**
-   ```bash
-   go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512
-   # 或
-   go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520
-   ```
-
-4. **交互式选择：**
-   ```bash
-   go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
-   ```
-   输入以空格分隔的曲目编号。
-
-5. **下载播放列表：**
-   ```bash
-   go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-   # 或
-   go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N
-   ```
-
-6. **杜比全景声：**
-   ```bash
-   go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
-
-7. **AAC 格式：**
-   ```bash
-   go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
-
-8. **查看音质信息：**
-   ```bash
-   go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
-
-📖 [中文教程 - 详见方法三](https://telegra.ph/Apple-Music-Alac%E9%AB%98%E8%A7%A3%E6%9E%90%E5%BA%A6%E6%97%A0%E6%8D%9F%E9%9F%B3%E4%B9%90%E4%B8%8B%E8%BD%BD%E6%95%99%E7%A8%8B-04-02-2)
-
----
-
-## 📝 获取 media-user-token（用于歌词）
-
-1. 打开 [Apple Music](https://music.apple.com) 并登录
-2. 打开开发者工具（F12）
-3. 导航到 `Application → Storage → Cookies → https://music.apple.com`
-4. 找到名为 `media-user-token` 的 Cookie 并复制其值
-5. 将该值粘贴到 `config.yaml` 中的 `media-user-token` 设置项
-6. 保存文件并启动脚本
-
----
-
-## 🌐 获取翻译和发音歌词（Beta）
-
-> **注意：** 此功能目前处于测试阶段。
-
-1. 打开 [Apple Music Beta](https://beta.music.apple.com) 并登录
-2. 打开开发者工具（F12），切换到 **Network** 标签页
-3. 搜索支持翻译/发音歌词的歌曲（推荐 K-Pop 歌曲）
-4. 按 **Ctrl+R** 刷新页面，让开发者工具捕获网络数据
-5. 播放歌曲并点击歌词按钮 - 查找名为 `syllable-lyrics` 的请求
-6. 停止录制（点击左上角红色圆圈按钮），然后选择 **Fetch/XHR** 标签
-7. 点击 `syllable-lyrics` 请求查看详情
-8. 找到包含以下格式的 URL：`.../syllable-lyrics?l=<language_code>&extend=ttmlLocalizations`
-9. 复制语言值并粘贴到 `config.yaml` 中
-10. **可选：** 如需禁用发音，在 config.yaml 中移除对应值：`...%5D=<remove_this_value>&extend...`
-11. 保存并照常运行脚本
-
----
-
-## 🖥️ 在云服务器上运行？（DigitalOcean / VPS）
-
-如果你在服务器上遇到 `503 Service Unavailable` 或 `failed to get lyrics`，说明 Apple Music API 封锁了你服务器的 IP。
-
-➡️ **完整解决方案：[PROXY-SETUP.md](./PROXY-SETUP.md)**
-
-快速配置——安装 [Cloudflare WARP](./PROXY-SETUP.md#2-方案-a--cloudflare-warp推荐) 或使用 [SSH 隆道](./PROXY-SETUP.md#3-方案-b--ssh-反向隊道零成本无需安装)，然后在 `config.yaml` 中添加：
 ```yaml
-proxy: "socks5://127.0.0.1:1080"
+# wrapper-lite HTTP API 地址。
+lite-server: "http://127.0.0.1:12340"
+
+# 下载电台必需，见下文“获取 media-user-token”。
+media-user-token: "your-media-user-token"
+
+# 保存目录。相对路径从运行目录解析。
+alac-save-folder: "AM-DL downloads"
+atmos-save-folder: "AM-DL-Atmos downloads"
+aac-save-folder: "AM-DL-AAC downloads"
+mv-save-folder: "AM-DL-MV downloads"
+
+# 使用 ffmpeg 转换或动态封面时需要开启。
+convert-after-download: false
+save-animated-artwork: false
 ```
 
----
+如果 wrapper-lite 运行在其他机器或容器中，把 `127.0.0.1` 换成该主机的局域网地址或公网可达地址。
 
-## 👏 特别感谢
+## Windows 安装
 
-- **chocomint** - 构建了 `agent-arm64.js`
+1. 安装 **Git**：[git-scm.com/download/win](https://git-scm.com/download/win)。
+2. 安装 **Go 1.23.1 或更新版本**：[go.dev/dl](https://go.dev/dl/)。
+3. 从 [GPAC 官方下载页](https://gpac.io/downloads/gpac-nightly-builds/)安装 GPAC，并确保 `MP4Box.exe` 在 `PATH` 中。
+4. 如果需要转换文件或保存动态封面，安装 **ffmpeg**：[ffmpeg.org/download.html](https://ffmpeg.org/download.html)。
 
----
+在 PowerShell 中：
+
+```powershell
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+copy config.yaml.example config.yaml
+go build -o amdl.exe .
+.\amdl.exe --help
+```
+
+示例：
+
+```powershell
+.\amdl.exe "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+## macOS 安装
+
+1. 安装 Homebrew：[brew.sh](https://brew.sh/)。
+2. 安装运行时和媒体工具：
+
+```bash
+brew install go git gpac ffmpeg
+```
+
+然后获取源码并构建：
+
+```bash
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+./amdl --help
+```
+
+示例：
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+## Linux 安装
+
+根据发行版选择命令。其他发行版的包名可能不同。
+
+### Debian / Ubuntu
+
+```bash
+sudo apt update
+sudo apt install -y git build-essential gpac ffmpeg
+```
+
+如果发行版软件源的 Go 低于 `1.23.1`，请从 [go.dev/dl](https://go.dev/dl/) 安装官方 Go，而不是使用发行版包。
+
+### Fedora
+
+```bash
+sudo dnf install -y git gcc make gpac ffmpeg
+```
+
+如需要，请手动安装官方 Go。
+
+### Arch Linux
+
+```bash
+sudo pacman -S --needed git base-devel gpac ffmpeg
+```
+
+如需要，请手动安装官方 Go。
+
+然后获取源码并构建：
+
+```bash
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+./amdl --help
+```
+
+示例：
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+## Android / Termux 安装
+
+从 [F-Droid](https://f-droid.org/en/packages/com.termux/) 或 [官方 GitHub Releases](https://github.com/termux/termux-app/releases) 安装 Termux。不要使用 Play Store 中的过期版本。
+
+1. 更新软件源和已安装软件：
+
+```bash
+pkg update && pkg upgrade
+```
+
+2. 安装构建工具和媒体工具：
+
+```bash
+pkg install golang git gpac ffmpeg
+```
+
+3. 可选：授权访问 Android 共享存储。同意提示后，Termux 会创建 `~/storage/shared` 目录树：
+
+```bash
+termux-setup-storage
+```
+
+4. 获取源码并构建：
+
+```bash
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+```
+
+5. 如果要保存到 Android 共享音乐目录，把保存目录指向共享存储挂载位置：
+
+```yaml
+alac-save-folder: "/sdcard/Music/amdl"
+atmos-save-folder: "/sdcard/Music/amdl-atmos"
+aac-save-folder: "/sdcard/Music/amdl-aac"
+mv-save-folder: "/sdcard/Music/amdl-mv"
+```
+
+正常下载：
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+长时间下载前，避免 Android 挂起 Termux：
+
+```bash
+termux-wake-lock
+```
+
+完成后释放唤醒锁：
+
+```bash
+termux-wake-unlock
+```
+
+如果 wrapper-lite 运行在其他设备上，`lite-server` 必须填写该设备的局域网地址或公网可达地址，不能使用 `127.0.0.1`。本节面向当前 Android arm64 Termux 环境；32 位 Android 不在文档保证范围内。
+
+## 使用方法
+
+执行任何命令前确认：
+
+1. wrapper-lite 正在运行。
+2. `config.yaml` 存在，并且 `lite-server` 正确。
+3. `MP4Box` 可在 `PATH` 中找到。
+
+### 专辑
+
+```bash
+go run . "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+也可以使用编译后的程序：
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+### 单曲
+
+```bash
+./amdl "https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512"
+./amdl "https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520"
+```
+
+### 歌手全部专辑
+
+```bash
+./amdl --all-album "https://music.apple.com/us/artist/taylor-swift/159260351"
+```
+
+### 播放列表
+
+```bash
+./amdl "https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b"
+```
+
+### 交互式选择
+
+```bash
+./amdl --select "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+输入以空格分隔的曲目编号。
+
+### 交互式搜索
+
+```bash
+./amdl --search album "never gonna give you up"
+./amdl --search song "you move me"
+./amdl --search artist "taylor swift"
+```
+
+### 杜比全景声
+
+```bash
+./amdl --atmos "https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538"
+```
+
+### AAC
+
+```bash
+./amdl --aac "https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538"
+```
+
+### 查看音质信息
+
+```bash
+./amdl --debug "https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538"
+```
+
+### 常用参数
+
+```text
+--alac-max <sample-rate>
+--atmos-max <bitrate>
+--aac-type <aac|aac-lc|aac-binaural|aac-downmix>
+--mv-max <resolution>
+--mv-audio-type <atmos|ac3|aac>
+--lite-server <wrapper-lite-url>
+```
+
+## 获取 media-user-token
+
+`media-user-token` 是下载电台必需的。
+
+1. 打开 [Apple Music](https://music.apple.com) 并登录。
+2. 按 `F12` 打开开发者工具。
+3. 进入 `Application` > `Storage` > `Cookies` > `https://music.apple.com`。
+4. 找到名为 `media-user-token` 的 Cookie，复制它的值。
+5. 将值粘贴到 `config.yaml` 的 `media-user-token`。
+6. 重启下载器。
+
+## 歌词设置
+
+`config.yaml` 中的关键配置：
+
+```yaml
+lrc-type: "lyrics"          # lyrics 或 syllable-lyrics
+lrc-format: "lrc"           # lrc 或 ttml
+lrc-extra: ""               # 翻译或发音
+embed-lrc: true             # 将歌词嵌入媒体文件
+save-lrc-file: false        # 同时保存外部 .lrc 文件
+```
+
+需要翻译或发音歌词时，根据服务支持的语言或功能代码设置 `lrc-extra`。
+
+## 升级
+
+拉取最新源码并重新构建：
+
+```bash
+git pull
+go build -o amdl .
+```
+
+Windows：
+
+```powershell
+git pull
+go build -o amdl.exe .
+```
+
+如果 `config.yaml.example` 新增了选项，先和你的 `config.yaml` 比较内容。不要直接覆盖旧文件，先保留现有凭据和保存目录。
+
+## 致谢
+
+- **Sorrow** 编写了原始脚本。
+- **WorldObservationLog** 开发了 [wrapper / wrapper-lite](https://github.com/WorldObservationLog/wrapper)，本项目将其作为后端解密服务。
+- **Sendy McSenderson** 提供了流式下载和解密实现。
+- [GPAC](https://gpac.io/) 提供 `MP4Box`。
+- [FFmpeg](https://ffmpeg.org/) 支持可选的转换和动态封面功能。

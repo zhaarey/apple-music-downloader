@@ -15,15 +15,17 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.1'
+        go-version: '1.23.7'
+    - name: Vet
+      run: go vet ./...
+    - name: Test
+      run: go test ./...
     - name: Build
       run: |
         go build -o main.exe -v ./main.go
     - name: Create a new directory and copy files
       run: |
         mkdir -p alac
-        cp agent.js alac/
-        cp agent-arm64.js alac/
         cp config.yaml.example alac/config.yaml
         cp README.md alac/
         cp main.exe alac/
@@ -40,15 +42,17 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.1'
+        go-version: '1.23.7'
+    - name: Vet
+      run: go vet ./...
+    - name: Test
+      run: go test ./...
     - name: Build
       run: |
         go build -o main -v ./main.go
     - name: Create a new directory and copy files
       run: |
         mkdir -p alac
-        cp agent.js alac/
-        cp agent-arm64.js alac/
         cp config.yaml.example alac/config.yaml
         cp README.md alac/
         cp main alac/
@@ -65,15 +69,17 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23.1'
+        go-version: '1.23.7'
+    - name: Vet
+      run: go vet ./...
+    - name: Test
+      run: go test ./...
     - name: Build
       run: |
         go build -o main -v ./main.go
     - name: Create a new directory and copy files
       run: |
         mkdir -p alac
-        cp agent.js alac/
-        cp agent-arm64.js alac/
         cp config.yaml.example alac/config.yaml
         cp README.md alac/
         cp main alac/

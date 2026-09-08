@@ -1,208 +1,379 @@
 # Apple Music ALAC / Dolby Atmos Downloader
 
-[English](./README.md) | [简体中文](./README-CN.md) | [🌐 Cloud Server / Proxy Setup](./PROXY-SETUP.md)
+[English](./README.md) | [简体中文](./README-CN.md) | [Cloud Server / Proxy Setup](./PROXY-SETUP.md)
 
 > **Original script by Sorrow.** Modified with fixes and improvements.
 
----
+This command-line tool downloads albums, songs, playlists, stations and music videos from Apple Music, preserves or embeds metadata and lyrics, and supports ALAC, AAC and Dolby Atmos. Use it only with content you are entitled to access and in accordance with Apple's terms and applicable law.
 
-## ⚠️ Prerequisites
+## Contents
 
-**Must be installed first:**
+- [Features](#features)
+- [Supported formats](#supported-formats)
+- [Requirements](#requirements)
+- [Configuration](#configuration)
+- [Install on Windows](#install-on-windows)
+- [Install on macOS](#install-on-macos)
+- [Install on Linux](#install-on-linux)
+- [Install on Android with Termux](#install-on-android-with-termux)
+- [Usage](#usage)
+- [Get media-user-token](#get-media-user-token)
+- [Lyrics options](#lyrics-options)
+- [Upgrade](#upgrade)
+- [Credits](#credits)
 
-- **[MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)** - Ensure it's correctly added to your environment variables
-- **[wrapper](https://github.com/WorldObservationLog/wrapper)** - Decryption program must be running before use. [Wrapper Setup](./Wrapper-SETUP.md)
+## Features
 
-**Optional (for MV download):**
+1. Inline cover art and LRC lyrics.
+2. Word-by-word and unsynchronized lyrics.
+3. Artist album downloads.
+4. Streaming download and decryption for large files.
+5. Music-video downloads using in-process mp4ff decryption.
+6. Interactive search and track selection.
 
-- **[mp4decrypt](https://www.bento4.com/downloads/)**
+## Supported formats
 
----
+| Format | Description | Requires subscription |
+|---|---|---|
+| `alac` | `audio-alac-stereo` | Yes |
+| `ec3` | `audio-atmos` / `audio-ec3` | Yes |
+| `aac` | `audio-stereo` | Yes |
+| `aac-lc` | `audio-stereo` | Yes |
+| `aac-binaural` | `audio-stereo-binaural` | Yes |
+| `aac-downmix` | `audio-stereo-downmix` | Yes |
+| `MV` | Music video | Yes |
 
-## 🚀 Special Update
-### Local Template Decryption
-Set `template-decrypt` to `true` in the configuration file to enable WorldObservationLog's latest decryption method. This feature requires the latest version of Wrapper.
+Stations require a valid `media-user-token` from an active subscription.
 
-The tool requests decryption parameters from Wrapper through port `40020` and decrypts the downloaded file locally.
-Previously, encrypted files were sent to Wrapper through port `10020`, decrypted by Wrapper, and then transferred back to the tool. The new method eliminates the need to transfer the entire file between processes, making decryption more convenient and significantly faster.
+## Requirements
 
-```yaml
-template-decrypt: true
-```
----
+Install these before running the downloader:
 
-## ✨ Features
+1. **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
+2. **MP4Box / GPAC**: [gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/). Ensure `MP4Box` is available in `PATH`.
+3. **wrapper-lite**: [github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite). Start it before using this downloader and set its HTTP endpoint in `lite-server`, for example `http://127.0.0.1:12340`.
+4. **ffmpeg**: required only for post-download conversion, animated artwork, or `ffmpeg`-dependent features. See [ffmpeg.org](https://ffmpeg.org/).
 
-1. **Inline Covers & LRC Lyrics** - Requires `media-user-token` (see instructions below)
-2. **Word-by-word & Out-of-sync Lyrics** support
-3. **Artist Album Download** - Automatically download all albums from an artist
-   ```bash
-   go run main.go https://music.apple.com/us/artist/taylor-swift/159260351 --all-album
-   ```
-4. **Stream Decryption** - Uses Sendy McSenderson's code for download-and-decrypt streaming, solving memory issues with large files
-5. **MV Download** - Requires mp4decrypt installation
-6. **Interactive Search** - Arrow-key navigation for search results
-   ```bash
-   go run main.go --search [song/album/artist] "search_term"
-   ```
-7. **Auto get music token** - When using the latest version of the wrapper with `get-account-from-device` set to `true`, the token will be retrieved automatically.
+## Configuration
 
----
-
-## 🎵 Supported Audio Formats
-
-| Format | Description | Requires Subscription |
-|--------|-------------|----------------------|
-| `alac` | audio-alac-stereo | ✅ |
-| `ec3` | audio-atmos / audio-ec3 | ✅ |
-| `aac` | audio-stereo | ✅ |
-| `aac-lc` | audio-stereo | ✅ |
-| `aac-binaural` | audio-stereo-binaural | ✅ |
-| `aac-downmix` | audio-stereo-downmix | ✅ |
-| `MV` | Music Video | ✅ |
-
-> **Note:** For `aac-lc`, `MV`, and `lyrics`, you must provide a valid `media-user-token` from an active subscription.
-
----
-
-## 🚀 Usage
-
-### Running with Docker
-
-1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running
-
-2. Start the downloader:
+Copy the example config to `config.yaml` in the project root:
 
 ```bash
-# Show help
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --help
-
-# Download albums
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/ru/album/children-of-forever/1443732441
-
-# Download single song
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --song https://music.apple.com/ru/album/bass-folk-song/1443732441?i=1443732453
-
-# Interactive selection
-docker run -it --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --select https://music.apple.com/ru/album/children-of-forever/1443732441
-
-# Download playlists
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-
-# Dolby Atmos
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-# AAC format
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-
-# Debug/View quality
-docker run --network host -v ./downloads:/downloads ghcr.io/zhaarey/apple-music-downloader --debug https://music.apple.com/ru/album/miles-smiles/209407331
+cp config.yaml.example config.yaml
 ```
 
-**Custom Configuration:**
+On Windows PowerShell, use:
 
-Mount your own `config.yaml`:
+```powershell
+copy config.yaml.example config.yaml
+```
+
+At minimum, review and set:
+
+```yaml
+# wrapper-lite HTTP API endpoint.
+lite-server: "http://127.0.0.1:12340"
+
+# Required for stations. See "Get media-user-token" below.
+media-user-token: "your-media-user-token"
+
+# Destination folders. Relative paths are resolved from the working directory.
+alac-save-folder: "AM-DL downloads"
+atmos-save-folder: "AM-DL-Atmos downloads"
+aac-save-folder: "AM-DL-AAC downloads"
+mv-save-folder: "AM-DL-MV downloads"
+
+# Required for ffmpeg-based conversion or animated artwork.
+convert-after-download: false
+save-animated-artwork: false
+```
+
+If wrapper-lite runs on another machine or container, replace `127.0.0.1` with that host's reachable LAN or public address.
+
+## Install on Windows
+
+1. Install **Git**: [git-scm.com/download/win](https://git-scm.com/download/win).
+2. Install **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
+3. Install **GPAC** from the [official download page](https://gpac.io/downloads/gpac-nightly-builds/) and make sure `MP4Box.exe` is available in `PATH`.
+4. Install **ffmpeg** if you plan to convert files or save animated artwork: [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
+
+From PowerShell:
+
+```powershell
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+copy config.yaml.example config.yaml
+go build -o amdl.exe .
+.\amdl.exe --help
+```
+
+Example:
+
+```powershell
+.\amdl.exe "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+## Install on macOS
+
+1. Install Homebrew: [brew.sh](https://brew.sh/).
+2. Install the runtime and media tools:
 
 ```bash
-docker run --network host -v ./downloads:/downloads -v ./config.yaml:/app/config.yaml ghcr.io/zhaarey/apple-music-downloader [args]
+brew install go git gpac ffmpeg
 ```
 
-> **Note:** Ensure `config.yaml` exists in your current directory before running. If it doesn't exist, Docker will create an empty directory instead of a file, causing the container to fail.
+Then clone, configure and build:
 
----
+```bash
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+./amdl --help
+```
 
-### Running Locally (Go)
+Example:
 
-1. Ensure the [wrapper](https://github.com/WorldObservationLog/wrapper) decryption program is running
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
 
-2. **Download albums:**
-   ```bash
-   go run main.go https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
-   ```
+## Install on Linux
 
-3. **Download single song:**
-   ```bash
-   go run main.go --song https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512
-   # or
-   go run main.go https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520
-   ```
+Choose the commands for your distribution. Package names may differ on other distributions.
 
-4. **Interactive selection:**
-   ```bash
-   go run main.go --select https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511
-   ```
-   Enter track numbers separated by spaces.
+### Debian / Ubuntu
 
-5. **Download playlists:**
-   ```bash
-   go run main.go https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b
-   # or
-   go run main.go https://music.apple.com/us/playlist/hi-res-lossless-24-bit-192khz/pl.u-MDAWvpjt38370N
-   ```
+```bash
+sudo apt update
+sudo apt install -y git build-essential gpac ffmpeg
+```
 
-6. **Dolby Atmos:**
-   ```bash
-   go run main.go --atmos https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
+If your repository's Go package is older than `1.23.1`, install Go from [go.dev/dl](https://go.dev/dl/) instead of using the distro package.
 
-7. **AAC format:**
-   ```bash
-   go run main.go --aac https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
+### Fedora
 
-8. **View quality info:**
-   ```bash
-   go run main.go --debug https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538
-   ```
+```bash
+sudo dnf install -y git gcc make gpac ffmpeg
+```
 
-📖 [Chinese Tutorial (Method 3)](https://telegra.ph/Apple-Music-Alac%E9%AB%98%E8%A7%A3%E6%9E%90%E5%BA%A6%E6%97%A0%E6%8D%9F%E9%9F%B3%E4%B9%90%E4%B8%8B%E8%BD%BD%E6%95%99%E7%A8%8B-04-02-2)
+If needed, install Go manually from the official site.
 
----
+### Arch Linux
 
-## 📝 Getting media-user-token (For Lyrics)
+```bash
+sudo pacman -S --needed git base-devel gpac ffmpeg
+```
 
-1. Open [Apple Music](https://music.apple.com) and log in
-2. Open Developer Tools (F12)
-3. Navigate to `Application → Storage → Cookies → https://music.apple.com`
-4. Find the cookie named `media-user-token` and copy its value
-5. Paste the value into `config.yaml` under the `media-user-token` setting
-6. Save the file and start the script
+If needed, install Go manually from the official site.
 
----
+Then clone, configure and build:
 
-## 🌐 Getting Translation & Pronunciation Lyrics (Beta)
+```bash
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+./amdl --help
+```
 
-> **Note:** These features are currently in beta.
+Example:
 
-1. Open [Apple Music Beta](https://beta.music.apple.com) and log in
-2. Open Developer Tools (F12) and switch to the **Network** tab
-3. Search for a song that supports translation/pronunciation lyrics (K-Pop songs recommended)
-4. Press **Ctrl+R** to refresh and let DevTools capture network traffic
-5. Play the song and click the lyrics button - look for a request named `syllable-lyrics`
-6. Stop recording (click the red circle button), then select the **Fetch/XHR** tab
-7. Click on the `syllable-lyrics` request to view details
-8. Find the URL containing: `.../syllable-lyrics?l=<language_code>&extend=ttmlLocalizations`
-9. Copy the language value and paste it into `config.yaml`
-10. **Optional:** To disable pronunciation, remove the corresponding value in config.yaml: `...%5D=<remove_this_value>&extend...`
-11. Save and run the script as usual
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
 
----
+## Install on Android with Termux
 
-## 🖥️ Running on a Cloud Server (DigitalOcean / VPS)?
+Install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/) or the [official GitHub releases](https://github.com/termux/termux-app/releases). Do not use the outdated Play Store build.
 
-If you're getting `503 Service Unavailable`  on your server, Apple Music's API likely blocks your server's IP.
+1. Update the package index and installed packages:
 
-➡️ **See the full fix guide: [PROXY-SETUP.md](./PROXY-SETUP.md)**
+```bash
+pkg update && pkg upgrade
+```
 
-Quick summary — add this to `config.yaml` after setting up [Cloudflare WARP](./PROXY-SETUP.md#2-option-a--cloudflare-warp-recommended) or an [SSH tunnel](./PROXY-SETUP.md#3-option-b--ssh-reverse-tunnel-zero-cost-no-install):
+2. Install the toolchain and media tools:
+
+```bash
+pkg install golang git gpac ffmpeg
+```
+
+3. Optionally grant access to shared Android storage. Termux creates the `~/storage/shared` tree after you approve the prompt:
+
+```bash
+termux-setup-storage
+```
+
+4. Clone, configure and build:
+
+```bash
+git clone https://github.com/zhaarey/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+```
+
+5. To save into Android shared music storage, point the save folders at the shared storage mount:
+
 ```yaml
-proxy: "socks5://127.0.0.1:1080"
+alac-save-folder: "/sdcard/Music/amdl"
+atmos-save-folder: "/sdcard/Music/amdl-atmos"
+aac-save-folder: "/sdcard/Music/amdl-aac"
+mv-save-folder: "/sdcard/Music/amdl-mv"
 ```
 
----
+Run normally:
 
-## 👏 Special Thanks
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
 
-- **chocomint** - Created `agent-arm64.js`
+For long downloads, keep Android from suspending Termux:
 
----
+```bash
+termux-wake-lock
+```
+
+Release the lock when finished:
+
+```bash
+termux-wake-unlock
+```
+
+If wrapper-lite runs on another device, set `lite-server` to that device's LAN or public address, not `127.0.0.1`. These instructions target current Android arm64 Termux environments; 32-bit Android is not a documented target.
+
+## Usage
+
+Before running any command, make sure:
+
+1. wrapper-lite is running.
+2. `config.yaml` exists and has the correct `lite-server` value.
+3. `MP4Box` is available in `PATH`.
+
+### Album
+
+```bash
+go run . "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+Or use the built binary:
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+### Single song
+
+```bash
+./amdl "https://music.apple.com/us/album/never-gonna-give-you-up-2022-remaster/1624945511?i=1624945512"
+./amdl "https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520"
+```
+
+### Artist albums
+
+```bash
+./amdl --all-album "https://music.apple.com/us/artist/taylor-swift/159260351"
+```
+
+### Playlist
+
+```bash
+./amdl "https://music.apple.com/us/playlist/taylor-swift-essentials/pl.3950454ced8c45a3b0cc693c2a7db97b"
+```
+
+### Interactive selection
+
+```bash
+./amdl --select "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+Enter track numbers separated by spaces.
+
+### Interactive search
+
+```bash
+./amdl --search album "never gonna give you up"
+./amdl --search song "you move me"
+./amdl --search artist "taylor swift"
+```
+
+### Dolby Atmos
+
+```bash
+./amdl --atmos "https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538"
+```
+
+### AAC
+
+```bash
+./amdl --aac "https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538"
+```
+
+### Show quality information
+
+```bash
+./amdl --debug "https://music.apple.com/us/album/1989-taylors-version-deluxe/1713845538"
+```
+
+### Common options
+
+```text
+--alac-max <sample-rate>
+--atmos-max <bitrate>
+--aac-type <aac|aac-lc|aac-binaural|aac-downmix>
+--mv-max <resolution>
+--mv-audio-type <atmos|ac3|aac>
+--lite-server <wrapper-lite-url>
+```
+
+## Get media-user-token
+
+`media-user-token` is required for stations.
+
+1. Open [Apple Music](https://music.apple.com) and sign in.
+2. Open browser developer tools with `F12`.
+3. Go to `Application` > `Storage` > `Cookies` > `https://music.apple.com`.
+4. Find the cookie named `media-user-token` and copy its value.
+5. Paste it into `media-user-token` in `config.yaml`.
+6. Restart the downloader.
+
+## Lyrics options
+
+Key settings in `config.yaml`:
+
+```yaml
+lrc-type: "lyrics"          # lyrics or syllable-lyrics
+lrc-format: "lrc"           # lrc or ttml
+lrc-extra: ""               # translation or pronunciation
+embed-lrc: true             # embed lyrics in the media file
+save-lrc-file: false        # also save an external .lrc file
+```
+
+Set `lrc-extra` according to the service's language or feature code when you want translated or phonetic lyrics.
+
+## Upgrade
+
+Pull the latest source and rebuild:
+
+```bash
+git pull
+go build -o amdl .
+```
+
+On Windows:
+
+```powershell
+git pull
+go build -o amdl.exe .
+```
+
+If `config.yaml.example` gains new options, compare it with your `config.yaml` before copying anything. Preserve your existing credentials and save folders.
+
+## Credits
+
+- **Sorrow** created the original script.
+- **WorldObservationLog** created [wrapper / wrapper-lite](https://github.com/WorldObservationLog/wrapper), used as the backend decryption service.
+- **Sendy McSenderson** contributed the streaming download-and-decrypt implementation.
+- [GPAC](https://gpac.io/) provides `MP4Box`.
+- [FFmpeg](https://ffmpeg.org/) supports optional conversion and animated-artwork features.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"main/utils/alacfix"
+	"amdl/internal/media/alacfix"
 )
 
 func main() {
