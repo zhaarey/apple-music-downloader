@@ -100,7 +100,7 @@ save-animated-artwork: false
 在 PowerShell 中：
 
 ```powershell
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 copy config.yaml.example config.yaml
 go build -o amdl.exe .
@@ -125,7 +125,7 @@ brew install go git gpac ffmpeg
 然后获取源码并构建：
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
@@ -170,7 +170,7 @@ sudo pacman -S --needed git base-devel gpac ffmpeg
 然后获取源码并构建：
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
@@ -208,7 +208,7 @@ termux-setup-storage
 4. 获取源码并构建：
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .

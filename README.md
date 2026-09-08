@@ -100,7 +100,7 @@ If wrapper-lite runs on another machine or container, replace `127.0.0.1` with t
 From PowerShell:
 
 ```powershell
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 copy config.yaml.example config.yaml
 go build -o amdl.exe .
@@ -125,7 +125,7 @@ brew install go git gpac ffmpeg
 Then clone, configure and build:
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
@@ -170,7 +170,7 @@ If needed, install Go manually from the official site.
 Then clone, configure and build:
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
@@ -208,7 +208,7 @@ termux-setup-storage
 4. Clone, configure and build:
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
