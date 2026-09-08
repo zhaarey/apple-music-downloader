@@ -54,19 +54,19 @@ func (r *Runner) getUrlSong(songUrl string, token string) (string, error) {
 		return "", err
 	}
 	albumId := manifest.Data[0].Relationships.Albums.Data[0].ID
-	songAlbumUrl := fmt.Sprintf("https://music.ampapi.com/%s/album/1/%s?i=%s", storefront, albumId, songId)
+	songAlbumUrl := fmt.Sprintf("https://music.apple.com/%s/album/1/%s?i=%s", storefront, albumId, songId)
 	return songAlbumUrl, nil
 }
 
 func (r *Runner) getUrlArtistName(artistUrl string, token string) (string, string, error) {
 	storefront, artistId := checkUrl(artistUrl, "artist")
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.ampapi.com/v1/catalog/%s/artists/%s", storefront, artistId), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/artists/%s", storefront, artistId), nil)
 	if err != nil {
 		return "", "", err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Origin", "https://music.ampapi.com")
+	req.Header.Set("Origin", "https://music.apple.com")
 	query := url.Values{}
 	query.Set("l", r.Config.Language)
 	req.URL.RawQuery = query.Encode()
@@ -108,13 +108,13 @@ func (r *Runner) checkArtist(artistUrl string, token string, relationship string
 	var urls []string
 	var options [][]string
 	for {
-		req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.ampapi.com/v1/catalog/%s/artists/%s/%s?limit=100&offset=%d&l=%s", storefront, artistId, relationship, Num, r.Config.Language), nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://amp-api.music.apple.com/v1/catalog/%s/artists/%s/%s?limit=100&offset=%d&l=%s", storefront, artistId, relationship, Num, r.Config.Language), nil)
 		if err != nil {
 			return nil, err
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-		req.Header.Set("Origin", "https://music.ampapi.com")
+		req.Header.Set("Origin", "https://music.apple.com")
 		do, err := download.Client.Do(req)
 		if err != nil {
 			return nil, err
