@@ -18,19 +18,21 @@ const (
   <head>
     <metadata>
       <iTunesMetadata>
-        <translations type="subtitle">
-          <translation for="line-1" text="你好，世界"/>
+        <translations>
+          <translation type="subtitle">
+            <text for="L1">说不上为什么 我变得很主动</text><text for="L2">若爱上一个人 什么都会值得去做</text>
+          </translation>
         </translations>
         <transliterations>
-          <transliteration for="line-1" text="hello world"/>
+          <transliteration>
+            <text for="L1">shuo bu shang wei shen me wo bian de hen zhu dong</text><text for="L2">ruo ai shang yi ge ren shen me du hui zhi de qu zuo</text>
+          </transliteration>
         </transliterations>
       </iTunesMetadata>
     </metadata>
   </head>
   <body>
-    <div>
-      <p itunes:key="line-1" begin="00:01:02.250" end="00:01:04.500" text="Hello world">
-      </p>
+    <div begin="26.663" end="46.313" itunes:songPart="Verse"><p begin="26.663" end="31.467" itunes:key="L1" ttm:agent="v1">說不上為什麼 我變得很主動</p><p begin="31.673" end="36.360" itunes:key="L2" ttm:agent="v1">若愛上一個人 什麼都會值得去做</p>
     </div>
   </body>
 </tt>`
@@ -40,16 +42,16 @@ const (
   <head>
     <metadata>
       <iTunesMetadata>
-        <translations type="replacement">
-          <translation for="line-1" text="替换文本"/>
+        <translations>
+          <translation type="replacement">
+            <text for="L1">说不上为什么 我变得很主动</text><text for="L2">若爱上一个人 什么都会值得去做</text>
+          </translation>
         </translations>
       </iTunesMetadata>
     </metadata>
   </head>
   <body>
-    <div>
-      <p itunes:key="line-1" begin="01:02.500" end="01:03.000" text="Original">
-      </p>
+    <div begin="26.663" end="46.313" itunes:songPart="Verse"><p begin="26.663" end="31.467" itunes:key="L1" ttm:agent="v1">說不上為什麼 我變得很主動</p><p begin="31.673" end="36.360" itunes:key="L2" ttm:agent="v1">若愛上一個人 什麼都會值得去做</p>
     </div>
   </body>
 </tt>`
@@ -59,24 +61,21 @@ const (
   <head>
     <metadata>
       <iTunesMetadata>
-        <translations type="replacement">
-          <translation for="line-1">
-            <span begin="00:00:01.250">替换</span>
-            <span begin="00:00:01.500">文本</span>
+        <translations>
+          <translation type="replacement">
+            <text for="L1"><span begin="26.663" end="28.242" xmlns="http://www.w3.org/ns/ttml">说不上为什</span><span begin="28.242" end="29.013" xmlns="http://www.w3.org/ns/ttml">么</span> <span begin="29.193" end="30.794" xmlns="http://www.w3.org/ns/ttml">我变得很主</span><span begin="30.794" end="31.467" xmlns="http://www.w3.org/ns/ttml">动</span></text><text for="L2"><span begin="31.673" end="33.552" xmlns="http://www.w3.org/ns/ttml">若爱上一个人</span> <span begin="33.552" end="33.850" xmlns="http://www.w3.org/ns/ttml">什么</span><span begin="33.850" end="35.105" xmlns="http://www.w3.org/ns/ttml">都会值得</span><span begin="35.105" end="36.360" xmlns="http://www.w3.org/ns/ttml">去做</span></text>
           </translation>
         </translations>
         <transliterations>
-          <transliteration for="line-1">
-            <span begin="00:00:01.250">HEH</span>
-            <span begin="00:00:01.500">LOH</span>
+          <transliteration>
+            <text for="L1"><span begin="26.663" end="28.242" xmlns="http://www.w3.org/ns/ttml">shuo bu shang wei shen</span> <span begin="28.242" end="29.013" xmlns="http://www.w3.org/ns/ttml">me</span> <span begin="29.193" end="30.794" xmlns="http://www.w3.org/ns/ttml">wo bian de hen zhu</span> <span begin="30.794" end="31.467" xmlns="http://www.w3.org/ns/ttml">dong</span></text><text for="L2"><span begin="31.673" end="33.552" xmlns="http://www.w3.org/ns/ttml">ruo ai shang yi ge ren</span> <span begin="33.552" end="33.850" xmlns="http://www.w3.org/ns/ttml">shen me</span> <span begin="33.850" end="35.105" xmlns="http://www.w3.org/ns/ttml">du hui zhi de</span> <span begin="35.105" end="36.360" xmlns="http://www.w3.org/ns/ttml">qu zuo</span></text>
           </transliteration>
         </transliterations>
       </iTunesMetadata>
     </metadata>
   </head>
   <body>
-    <div>
-      <p itunes:key="line-1"><span begin="00:00:01.250" end="00:00:01.500" text="Hel"/> <span begin="00:00:01.500" end="00:00:02.000" text="lo"/></p>
+    <div begin="26.663" end="46.313" itunes:songPart="Verse"><p begin="26.663" end="31.467" itunes:key="L1" ttm:agent="v1"><span begin="26.663" end="28.242">說不上為什</span><span begin="28.242" end="29.013">麼</span> <span begin="29.193" end="30.794">我變得很主</span><span begin="30.794" end="31.467">動</span></p><p begin="31.673" end="36.360" itunes:key="L2" ttm:agent="v1"><span begin="31.673" end="33.552">若愛上一個人</span> <span begin="33.552" end="33.850">什麼</span><span begin="33.850" end="35.105">都會值得</span><span begin="35.105" end="36.360">去做</span></p>
     </div>
   </body>
 </tt>`
@@ -86,16 +85,35 @@ const (
   <head>
     <metadata>
       <iTunesMetadata>
-        <translations type="subtitle">
-          <translation for="line-1" text="你好"/>
+        <translations>
+          <translation type="subtitle">
+            <text for="L1">别着急 <span xmlns:ttm="http://www.w3.org/ns/ttml#metadata" ttm:role="x-bg" xmlns="http://www.w3.org/ns/ttml">(别着急)</span></text><text for="L2">教你我如何互相信任 不必偷偷摸摸 <span xmlns:ttm="http://www.w3.org/ns/ttml#metadata" ttm:role="x-bg" xmlns="http://www.w3.org/ns/ttml">(答应我)</span></text>
+          </translation>
         </translations>
       </iTunesMetadata>
     </metadata>
   </head>
   <body>
-    <div>
-      <p itunes:key="line-1"><span begin="00:00:01.250" end="00:00:02.000" text="Hello"/></p>
+    <div begin="7.439" end="23.760" itunes:songPart="Verse"><p begin="7.439" end="9.794" itunes:key="L1" ttm:agent="v1"><span begin="7.439" end="7.988">Don't</span> <span begin="7.988" end="8.700">rush</span> <span ttm:role="x-bg"><span begin="8.435" end="8.921">(Don't</span> <span begin="8.921" end="9.794">rush)</span></span></p><p begin="9.304" end="14.834" itunes:key="L2" ttm:agent="v1"><span begin="9.304" end="9.915">Teaching</span> <span begin="9.915" end="10.399">you,</span> <span begin="10.399" end="10.900">teaching</span> <span begin="10.900" end="11.427">me</span> <span begin="11.427" end="11.688">how</span> <span begin="11.688" end="11.919">to</span> <span begin="11.919" end="12.386">trust,</span> <span begin="12.386" end="12.652">don't</span> <span begin="12.652" end="12.884">have</span> <span begin="12.884" end="13.126">to</span> <span begin="13.126" end="13.402">be</span> <span begin="13.402" end="13.822">under</span><span begin="13.822" end="14.125">co</span><span begin="14.125" end="14.834">ver</span></p>
     </div>
+  </body>
+</tt>`
+
+	backgroundReplacementSyllableTTML = `<?xml version="1.0" encoding="UTF-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Word">
+  <head>
+    <metadata>
+      <iTunesMetadata>
+        <translations>
+          <translation type="replacement">
+            <text for="L1"><span begin="00:00:01.250" end="00:00:01.500">替换</span> <span ttm:role="x-bg"><span begin="00:00:01.500" end="00:00:02.000">背景</span></span></text>
+          </translation>
+        </translations>
+      </iTunesMetadata>
+    </metadata>
+  </head>
+  <body>
+    <div><p begin="00:00:01.250" end="00:00:02.000" itunes:key="L1"><span begin="00:00:01.250" end="00:00:01.500">Original</span></p></div>
   </body>
 </tt>`
 
@@ -123,17 +141,24 @@ func TestTtmlToLrcLineTimed(t *testing.T) {
 	}{
 		{
 			name: "default line",
-			want: "[01:02.25]Hello world",
+			want: "[00:26.66]說不上為什麼 我變得很主動\n" +
+				"[00:31.67]若愛上一個人 什麼都會值得去做",
 		},
 		{
 			name:        "pronunciation line",
 			lyricsExtra: "pronunciation",
-			want:        "[01:02.25]Hello world\n[01:02.25]hello world",
+			want: "[00:26.66]說不上為什麼 我變得很主動\n" +
+				"[00:26.66]shuo bu shang wei shen me wo bian de hen zhu dong\n" +
+				"[00:31.67]若愛上一個人 什麼都會值得去做\n" +
+				"[00:31.67]ruo ai shang yi ge ren shen me du hui zhi de qu zuo",
 		},
 		{
 			name:        "subtitle translation line",
 			lyricsExtra: "translation",
-			want:        "[01:02.25]Hello world\n[01:02.25]你好，世界",
+			want: "[00:26.66]說不上為什麼 我變得很主動\n" +
+				"[00:26.66]说不上为什么 我变得很主动\n" +
+				"[00:31.67]若愛上一個人 什麼都會值得去做\n" +
+				"[00:31.67]若爱上一个人 什么都会值得去做",
 		},
 	}
 
@@ -156,7 +181,8 @@ func TestTtmlToLrcReplacementLine(t *testing.T) {
 		t.Fatalf("TtmlToLrc() error = %v", err)
 	}
 
-	want := "[01:02.50]替换文本"
+	want := "[00:26.66]说不上为什么 我变得很主动\n" +
+		"[00:31.67]若爱上一个人 什么都会值得去做"
 	if got != want {
 		t.Fatalf("TtmlToLrc() = %q, want %q", got, want)
 	}
@@ -180,7 +206,8 @@ func TestConventSyllableTTMLToLRC(t *testing.T) {
 		t.Fatalf("conventSyllableTTMLToLRC() error = %v", err)
 	}
 
-	want := "[00:01.25]<00:01.25>替换 <00:01.50>文本"
+	want := "[00:26.66]<00:26.66>说不上为什<00:28.24>么 <00:29.19>我变得很主<00:30.79>动<00:31.46>\n" +
+		"[00:31.67]<00:31.67>若爱上一个人 <00:33.55>什么<00:33.85>都会值得<00:35.10>去做<00:36.36>"
 	if got != want {
 		t.Fatalf("conventSyllableTTMLToLRC()\n got: %q\nwant: %q", got, want)
 	}
@@ -192,8 +219,10 @@ func TestConventSyllableTTMLToLRCWithPronunciation(t *testing.T) {
 		t.Fatalf("conventSyllableTTMLToLRC() error = %v", err)
 	}
 
-	want := "[00:01.25]<00:01.25>替换 <00:01.50>文本\n" +
-		"[00:01.25]<00:01.25>HEH <00:01.50>LOH"
+	want := "[00:26.66]<00:26.66>说不上为什<00:28.24>么 <00:29.19>我变得很主<00:30.79>动<00:31.46>\n" +
+		"[00:26.66]<00:26.66>shuo bu shang wei shen <00:28.24>me <00:29.19>wo bian de hen zhu <00:30.79>dong<00:31.46>\n" +
+		"[00:31.67]<00:31.67>若爱上一个人 <00:33.55>什么<00:33.85>都会值得<00:35.10>去做<00:36.36>\n" +
+		"[00:31.67]<00:31.67>ruo ai shang yi ge ren <00:33.55>shen me <00:33.85>du hui zhi de <00:35.10>qu zuo<00:36.36>"
 	if got != want {
 		t.Fatalf("conventSyllableTTMLToLRC()\n got: %q\nwant: %q", got, want)
 	}
@@ -205,7 +234,10 @@ func TestConventSyllableTTMLToLRCWithSubtitleTranslation(t *testing.T) {
 		t.Fatalf("conventSyllableTTMLToLRC() error = %v", err)
 	}
 
-	want := "[00:01.25]<00:01.25>Hello[00:02.00]\n[00:01.25]你好"
+	want := "[00:07.43]<00:07.43>Don't <00:07.98>rush <00:08.70>\n" +
+		"[00:07.43]别着急 (别着急)\n" +
+		"[00:09.30]<00:09.30>Teaching <00:09.91>you, <00:10.39>teaching <00:10.90>me <00:11.42>how <00:11.68>to <00:11.91>trust, <00:12.38>don't <00:12.65>have <00:12.88>to <00:13.12>be <00:13.40>under<00:13.82>co<00:14.12>ver<00:14.83>\n" +
+		"[00:09.30]教你我如何互相信任 不必偷偷摸摸 (答应我)"
 	if got != want {
 		t.Fatalf("conventSyllableTTMLToLRC()\n got: %q\nwant: %q", got, want)
 	}
@@ -217,7 +249,20 @@ func TestConventSyllableTTMLToLRCWithReplacement(t *testing.T) {
 		t.Fatalf("conventSyllableTTMLToLRC() error = %v", err)
 	}
 
-	want := "[00:01.25]<00:01.25>替换 <00:01.50>文本"
+	want := "[00:26.66]<00:26.66>说不上为什<00:28.24>么 <00:29.19>我变得很主<00:30.79>动<00:31.46>\n" +
+		"[00:31.67]<00:31.67>若爱上一个人 <00:33.55>什么<00:33.85>都会值得<00:35.10>去做<00:36.36>"
+	if got != want {
+		t.Fatalf("conventSyllableTTMLToLRC()\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestConventSyllableTTMLToLRCWithBackgroundReplacement(t *testing.T) {
+	got, err := conventSyllableTTMLToLRC(backgroundReplacementSyllableTTML, "")
+	if err != nil {
+		t.Fatalf("conventSyllableTTMLToLRC() error = %v", err)
+	}
+
+	want := "[00:01.25]<00:01.25>替换<00:01.50>"
 	if got != want {
 		t.Fatalf("conventSyllableTTMLToLRC()\n got: %q\nwant: %q", got, want)
 	}

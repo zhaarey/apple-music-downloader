@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/beevik/etree"
 	"amdl/internal/download"
+	"github.com/beevik/etree"
 )
 
 func Get(songId, lrcType, language, lrcFormat, liteServer, lrcExtra string) (string, error) {
@@ -190,13 +190,37 @@ func newItunesMetadataIndex(root *etree.Element) *itunesMetadataIndex {
 			index.translationType = translations.SelectAttrValue("type", "")
 		}
 		for translation := range translations.SelectElementsSeq("translation") {
-			index.translations[translation.SelectAttrValue("for", "")] = translation
+			if index.translationType == "" {
+				index.translationType = translation.SelectAttrValue("type", "")
+			}
+
+			textCount := 0
+			for text := range translation.SelectElementsSeq("text") {
+				key := text.SelectAttrValue("for", "")
+				if key != "" {
+					index.translations[key] = text
+				}
+				textCount++
+			}
+			if textCount == 0 {
+				index.translations[translation.SelectAttrValue("for", "")] = translation
+			}
 		}
 	}
 
 	for transliterations := range iTunesMetadata.SelectElementsSeq("transliterations") {
 		for transliteration := range transliterations.SelectElementsSeq("transliteration") {
-			index.transliterations[transliteration.SelectAttrValue("for", "")] = transliteration
+			textCount := 0
+			for text := range transliteration.SelectElementsSeq("text") {
+				key := text.SelectAttrValue("for", "")
+				if key != "" {
+					index.transliterations[key] = text
+				}
+				textCount++
+			}
+			if textCount == 0 {
+				index.transliterations[transliteration.SelectAttrValue("for", "")] = transliteration
+			}
 		}
 	}
 
@@ -260,7 +284,7 @@ func convertSyllableLine(line *etree.Element, metadata *itunesMetadataIndex, lyr
 		wordCount++
 	}
 
-	converted := syllableLine{line: strings.Join(syllables, "") + endTime.lineTag()}
+	converted := syllableLine{line: strings.Join(syllables, "") + endTime.syllableTag()}
 	if wordCount == 0 {
 		return converted, nil
 	}
@@ -275,7 +299,7 @@ func convertSyllableLine(line *etree.Element, metadata *itunesMetadataIndex, lyr
 				return syllableLine{}, err
 			}
 			if replacementLine != "" {
-				converted.line = replacementLine
+				converted.line = replacementLine + endTime.syllableTag()
 			}
 		}
 	}
@@ -287,7 +311,7 @@ func convertSyllableLine(line *etree.Element, metadata *itunesMetadataIndex, lyr
 			if err != nil {
 				return syllableLine{}, err
 			}
-			converted.extraLine = pronunciationLine
+			converted.extraLine = pronunciationLine + endTime.syllableTag()
 		}
 	case metadata != nil && metadata.translationType == "subtitle" && lyricsExtra == "translation":
 		lineBegin, err := parseTTMLTime(firstWordBegin(line))
@@ -296,7 +320,8 @@ func convertSyllableLine(line *etree.Element, metadata *itunesMetadataIndex, lyr
 		}
 		translation := metadata.translations[key]
 		if translation != nil {
-			converted.extraLine = lineBegin.lineTag() + inlineTextWithoutElements(translation)
+			translationText := strings.Join(strings.Fields(extractElementText(translation)), " ")
+			converted.extraLine = lineBegin.lineTag() + translationText
 		}
 	}
 
@@ -308,23 +333,42 @@ func buildTimedMetadataLine(metadataText *etree.Element) (string, error) {
 	var startTime lrcTime
 
 	var spanCount int
-	for span := range metadataText.ChildElementsSeq() {
-		if span.Tag != "span" {
-			continue
-		}
+	var pendingSpace bool
+	for _, node := range metadataText.Child {
+		switch node := node.(type) {
+		case *etree.CharData:
+			if strings.TrimSpace(node.Data) == "" {
+				if spanCount > 0 {
+					pendingSpace = true
+				}
+				continue
+			}
+			timedParts = append(timedParts, strings.TrimRight(node.Data, " \t\r\n"))
+		case *etree.Element:
+			if node.Tag != "span" {
+				continue
+			}
+			if node.SelectAttrValue("ttm:role", "") == "x-bg" {
+				continue
+			}
 
-		spanBegin, err := parseTTMLTime(span.SelectAttrValue("begin", ""))
-		if err != nil {
-			return "", err
+			spanBegin, err := parseTTMLTime(node.SelectAttrValue("begin", ""))
+			if err != nil {
+				return "", err
+			}
+			if spanCount == 0 {
+				startTime = spanBegin
+			}
+			if pendingSpace && spanCount > 0 {
+				timedParts = append(timedParts, " ")
+			}
+			pendingSpace = false
+			timedParts = append(timedParts, spanBegin.syllableTag()+extractElementText(node))
+			spanCount++
 		}
-		if spanCount == 0 {
-			startTime = spanBegin
-		}
-		timedParts = append(timedParts, spanBegin.syllableTag()+span.Text())
-		spanCount++
 	}
 
-	return startTime.lineTag() + strings.Join(timedParts, " "), nil
+	return startTime.lineTag() + strings.Join(timedParts, ""), nil
 }
 
 func firstWordBegin(line *etree.Element) string {
@@ -419,20 +463,6 @@ func extractElementText(element *etree.Element) string {
 			parts = append(parts, child.Data)
 		case *etree.Element:
 			parts = append(parts, child.Text())
-		}
-	}
-	return strings.Join(parts, "")
-}
-
-func inlineTextWithoutElements(element *etree.Element) string {
-	if text := element.SelectAttrValue("text", ""); text != "" {
-		return text
-	}
-
-	var parts []string
-	for _, node := range element.Child {
-		if text, ok := node.(*etree.CharData); ok {
-			parts = append(parts, text.Data)
 		}
 	}
 	return strings.Join(parts, "")
