@@ -1,7 +1,7 @@
 github.com/AlecAivazis/survey/v2 v2.3.7 h1:6I/u8FvytdGsgonrYsVn2t8t4QiRnh6QSTqkkhIiSjQ=
 github.com/AlecAivazis/survey/v2 v2.3.7/go.mod h1:xUTIdE4KCOIjsBAE1JYsUPoCqYdZ1reCfTwbto0Fduo=
-github.com/Eyevinn/mp4ff v0.50.0 h1:vFlsvpQh5Jfz++cuaeTI90vbID5dAabebvvN/l9lom0=
-github.com/Eyevinn/mp4ff v0.50.0/go.mod h1:hJNUUqOBryLAzUW9wpCJyw2HaI+TCd2rUPhafoS5lgg=
+github.com/Eyevinn/mp4ff v0.55.0 h1:wFShr5eqcJaVd15/uPMe747sAWPbz7dl2TfhusDx+Kk=
+github.com/Eyevinn/mp4ff v0.55.0/go.mod h1:AhC+bOI7GSZmzuN4zFY9U76qMedbHI+8BdQXWrC9+8U=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2 h1:+vx7roKuyA63nhn5WAunQHLTznkw5W8b1Xc0dNjp83s=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2/go.mod h1:HBCaDeC1lPdgDeDbhX8XFpy1jqjK0IBG8W5K+xYqA0w=
 github.com/WorldObservationLog/Temari/bindings/go v0.5.1 h1:r3KuVTzI/BBQe4bYxoiMoBihcc2ZtkoOuj2IcZDS0vA=

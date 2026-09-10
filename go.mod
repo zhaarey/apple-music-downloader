@@ -12,7 +12,6 @@ require (
 )
 
 require (
-	github.com/Eyevinn/mp4ff v0.50.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
@@ -35,6 +34,7 @@ require (
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/Eyevinn/mp4ff v0.55.0
 	github.com/WorldObservationLog/Temari/bindings/go v0.5.1
 	github.com/beevik/etree v1.7.1
 	github.com/fatih/color v1.18.0

@@ -1,14 +1,15 @@
 package app
 
 import (
-	"fmt"
 	"amdl/internal/amp-api"
 	fairplayrip "amdl/internal/fairplay-rip"
-	"amdl/internal/model"
 	"amdl/internal/media/alacfix"
+	defrag "amdl/internal/media/defrag"
 	"amdl/internal/media/lyrics"
+	"amdl/internal/model"
 	"amdl/internal/widevine-rip"
 	"amdl/internal/widevine-rip/runv5"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -233,33 +234,23 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 
 	}
-	//这里利用MP4box将fmp4转化为mp4，并添加ilst box与cover，方便后面的mp4tag添加更多自定义标签
-	tags := []string{
-		"tool=",
-		"artist=AppleMusic",
-	}
+	// 将 fMP4 解碎片为普通 MP4；元数据和封面统一交给后续 writeMP4Tags 写入。
+	removeCoverAfterWrite := false
 	if r.Config.EmbedCover {
 		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && r.Config.DlAlbumcoverForPlaylist {
 			track.CoverPath, err = r.writeCover(track.SaveDir, track.ID, track.Resp.Attributes.Artwork.URL)
 			if err != nil {
 				fmt.Println("Failed to write cover.")
+			} else {
+				removeCoverAfterWrite = true
 			}
 		}
-		tags = append(tags, fmt.Sprintf("cover=%s", track.CoverPath))
 	}
-	tagsString := strings.Join(tags, ":")
-	cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Embed failed: %v\n", err)
+
+	if err := defrag.DefragmentMP4(trackPath); err != nil {
+		fmt.Printf("Defragment failed: %v\n", err)
 		r.State.Counter.Error++
 		return
-	}
-	if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && r.Config.DlAlbumcoverForPlaylist {
-		if err := os.Remove(track.CoverPath); err != nil {
-			fmt.Printf("Error deleting file: %s\n", track.CoverPath)
-			r.State.Counter.Error++
-			return
-		}
 	}
 	track.SavePath = trackPath
 
@@ -277,6 +268,13 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		fmt.Println("\u26A0 Failed to write tags in media:", err)
 		r.State.Counter.Unavailable++
 		return
+	}
+	if removeCoverAfterWrite {
+		if err := os.Remove(track.CoverPath); err != nil {
+			fmt.Printf("Error deleting file: %s\n", track.CoverPath)
+			r.State.Counter.Error++
+			return
+		}
 	}
 
 	// CONVERSION FEATURE hook
