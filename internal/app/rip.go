@@ -10,8 +10,8 @@ import (
 	"amdl/internal/widevine-rip"
 	"amdl/internal/widevine-rip/runv5"
 	"fmt"
+	"github.com/itouakirai/go-mp4tag"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -423,28 +423,57 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 		}
 		err = widevinerip.ExtMvData(keyAndUrls, trackPath)
 		if err != nil {
+			_ = os.Remove(trackPath)
 			fmt.Println("Failed to download station stream.", err)
 			r.State.Counter.Error++
 			return err
 		}
-		tags := []string{
-			"tool=",
-			"disk=1/1",
-			"track=1",
-			"tracknum=1/1",
-			fmt.Sprintf("artist=%s", "Apple Music Station"),
-			fmt.Sprintf("performer=%s", "Apple Music Station"),
-			fmt.Sprintf("album_artist=%s", "Apple Music Station"),
-			fmt.Sprintf("album=%s", station.Name),
-			fmt.Sprintf("title=%s", station.Name),
+		if err := defrag.DefragmentMP4(trackPath); err != nil {
+			_ = os.Remove(trackPath)
+			fmt.Printf("Defragment failed: %v\n", err)
+			r.State.Counter.Error++
+			return err
 		}
-		if r.Config.EmbedCover {
-			tags = append(tags, fmt.Sprintf("cover=%s", station.CoverPath))
+		tags := &mp4tag.MP4Tags{
+			Title:       station.Name,
+			Artist:      "Apple Music Station",
+			Album:       station.Name,
+			AlbumArtist: "Apple Music Station",
+			TrackNumber: 1,
+			TrackTotal:  1,
+			DiscNumber:  1,
+			DiscTotal:   1,
+			Custom: map[string]string{
+				"PERFORMER": "Apple Music Station",
+			},
 		}
-		tagsString := strings.Join(tags, ":")
-		cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Embed failed: %v\n", err)
+		if r.Config.EmbedCover && station.CoverPath != "" {
+			cover, err := os.ReadFile(station.CoverPath)
+			if err != nil {
+				_ = os.Remove(trackPath)
+				fmt.Println("Failed to read station cover.", err)
+				r.State.Counter.Error++
+				return err
+			}
+			tags.Pictures = []*mp4tag.MP4Picture{{
+				Format: mp4tag.ImageTypeAuto,
+				Data:   cover,
+			}}
+		}
+		mp4, err := mp4tag.Open(trackPath)
+		if err != nil {
+			_ = os.Remove(trackPath)
+			fmt.Println("Failed to open station stream for tagging.", err)
+			r.State.Counter.Error++
+			return err
+		}
+		err = mp4.Write(tags, []string{})
+		_ = mp4.Close()
+		if err != nil {
+			_ = os.Remove(trackPath)
+			fmt.Println("Failed to embed station tags.", err)
+			r.State.Counter.Error++
+			return err
 		}
 		r.State.AddedTracks = append(r.State.AddedTracks, AddedTrack{
 			Path:     trackPath,

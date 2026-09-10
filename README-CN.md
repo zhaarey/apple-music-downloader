@@ -50,9 +50,8 @@
 运行前必须准备：
 
 1. **Go 1.23.1 或更新版本**：[go.dev/dl](https://go.dev/dl/)。
-2. **MP4Box / GPAC（可选）**：[gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/)。仅下载 Apple Music 电台时需要，普通歌曲和 MV 使用纯 Go mux。
-3. **wrapper-lite**：[github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite)。必须先启动它，并在 `lite-server` 中写入其 HTTP 地址，例如 `http://127.0.0.1:12340`。
-4. **ffmpeg**：仅在后下载转换、动态封面或依赖 ffmpeg 的功能中需要。见 [ffmpeg.org](https://ffmpeg.org/)。
+2. **wrapper-lite**：[github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite)。必须先启动它，并在 `lite-server` 中写入其 HTTP 地址，例如 `http://127.0.0.1:12340`。
+3. **ffmpeg**：仅在后下载转换、动态封面或依赖 ffmpeg 的功能中需要。见 [ffmpeg.org](https://ffmpeg.org/)。
 
 ## 配置
 
@@ -94,8 +93,7 @@ save-animated-artwork: false
 
 1. 安装 **Git**：[git-scm.com/download/win](https://git-scm.com/download/win)。
 2. 安装 **Go 1.23.1 或更新版本**：[go.dev/dl](https://go.dev/dl/)。
-3. 如需下载电台，再从 [GPAC 官方下载页](https://gpac.io/downloads/gpac-nightly-builds/)安装 GPAC，并确保 `MP4Box.exe` 在 `PATH` 中。
-4. 如果需要转换文件或保存动态封面，安装 **ffmpeg**：[ffmpeg.org/download.html](https://ffmpeg.org/download.html)。
+3. 如果需要转换文件或保存动态封面，安装 **ffmpeg**：[ffmpeg.org/download.html](https://ffmpeg.org/download.html)。
 
 在 PowerShell 中：
 
@@ -119,7 +117,7 @@ go build -o amdl.exe .
 2. 安装运行时和媒体工具：
 
 ```bash
-brew install go git gpac ffmpeg
+brew install go git ffmpeg
 ```
 
 然后获取源码并构建：
@@ -146,7 +144,7 @@ go build -o amdl .
 
 ```bash
 sudo apt update
-sudo apt install -y git build-essential gpac ffmpeg
+sudo apt install -y git build-essential ffmpeg
 ```
 
 如果发行版软件源的 Go 低于 `1.23.1`，请从 [go.dev/dl](https://go.dev/dl/) 安装官方 Go，而不是使用发行版包。
@@ -154,7 +152,7 @@ sudo apt install -y git build-essential gpac ffmpeg
 ### Fedora
 
 ```bash
-sudo dnf install -y git gcc make gpac ffmpeg
+sudo dnf install -y git gcc make ffmpeg
 ```
 
 如需要，请手动安装官方 Go。
@@ -162,7 +160,7 @@ sudo dnf install -y git gcc make gpac ffmpeg
 ### Arch Linux
 
 ```bash
-sudo pacman -S --needed git base-devel gpac ffmpeg
+sudo pacman -S --needed git base-devel ffmpeg
 ```
 
 如需要，请手动安装官方 Go。
@@ -196,7 +194,7 @@ pkg update && pkg upgrade
 2. 安装构建工具和媒体工具：
 
 ```bash
-pkg install golang git gpac ffmpeg
+pkg install golang git ffmpeg
 ```
 
 3. 可选：授权访问 Android 共享存储。同意提示后，Termux 会创建 `~/storage/shared` 目录树：
@@ -249,7 +247,6 @@ termux-wake-unlock
 
 1. wrapper-lite 正在运行。
 2. `config.yaml` 存在，并且 `lite-server` 正确。
-3. 仅下载电台时需要确保 `MP4Box` 可在 `PATH` 中找到。
 
 ### 专辑
 
@@ -375,5 +372,5 @@ go build -o amdl.exe .
 - **Sorrow** 编写了原始脚本。
 - **WorldObservationLog** 开发了 [wrapper / wrapper-lite](https://github.com/WorldObservationLog/wrapper)，本项目将其作为后端解密服务。
 - **Sendy McSenderson** 提供了流式下载和解密实现。
-- [GPAC](https://gpac.io/) 为电台下载提供 `MP4Box`。
+- [go-mp4tag](https://github.com/itouakirai/go-mp4tag) 用于写入电台 MP4 元数据。
 - [FFmpeg](https://ffmpeg.org/) 支持可选的转换和动态封面功能。
