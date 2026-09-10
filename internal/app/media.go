@@ -1,14 +1,14 @@
 package app
 
 import (
+	"amdl/internal/download"
+	"amdl/internal/model"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/grafov/m3u8"
 	"github.com/olekukonko/tablewriter"
-	"github.com/zhaarey/go-mp4tag"
-	"amdl/internal/model"
-	"amdl/internal/download"
+	"github.com/itouakirai/go-mp4tag"
 	"io"
 	"net/http"
 	"net/url"
@@ -157,6 +157,17 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		TrackNumber: int16(track.Resp.Attributes.TrackNumber),
 		DiscNumber:  int16(track.Resp.Attributes.DiscNumber),
 		Album:       track.Resp.Attributes.AlbumName,
+	}
+
+	if r.Config.EmbedCover && track.CoverPath != "" {
+		cover, err := os.ReadFile(track.CoverPath)
+		if err != nil {
+			return fmt.Errorf("read cover: %w", err)
+		}
+		t.Pictures = []*mp4tag.MP4Picture{{
+			Format: mp4tag.ImageTypeAuto,
+			Data:   cover,
+		}}
 	}
 
 	if r.Config.TagSortOrder {

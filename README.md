@@ -50,9 +50,8 @@ Stations require a valid `media-user-token` from an active subscription.
 Install these before running the downloader:
 
 1. **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
-2. **MP4Box / GPAC**: [gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/). Ensure `MP4Box` is available in `PATH`.
-3. **wrapper-lite**: [github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite). Start it before using this downloader and set its HTTP endpoint in `lite-server`, for example `http://127.0.0.1:12340`.
-4. **ffmpeg**: required only for post-download conversion, animated artwork, or `ffmpeg`-dependent features. See [ffmpeg.org](https://ffmpeg.org/).
+2. **wrapper-lite**: [github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite). Start it before using this downloader and set its HTTP endpoint in `lite-server`, for example `http://127.0.0.1:12340`.
+3. **ffmpeg**: required only for post-download conversion, animated artwork, or `ffmpeg`-dependent features. See [ffmpeg.org](https://ffmpeg.org/).
 
 ## Configuration
 
@@ -94,8 +93,7 @@ If wrapper-lite runs on another machine or container, replace `127.0.0.1` with t
 
 1. Install **Git**: [git-scm.com/download/win](https://git-scm.com/download/win).
 2. Install **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
-3. Install **GPAC** from the [official download page](https://gpac.io/downloads/gpac-nightly-builds/) and make sure `MP4Box.exe` is available in `PATH`.
-4. Install **ffmpeg** if you plan to convert files or save animated artwork: [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
+3. Install **ffmpeg** if you plan to convert files or save animated artwork: [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
 
 From PowerShell:
 
@@ -119,7 +117,7 @@ Example:
 2. Install the runtime and media tools:
 
 ```bash
-brew install go git gpac ffmpeg
+brew install go git ffmpeg
 ```
 
 Then clone, configure and build:
@@ -146,7 +144,7 @@ Choose the commands for your distribution. Package names may differ on other dis
 
 ```bash
 sudo apt update
-sudo apt install -y git build-essential gpac ffmpeg
+sudo apt install -y git build-essential ffmpeg
 ```
 
 If your repository's Go package is older than `1.23.1`, install Go from [go.dev/dl](https://go.dev/dl/) instead of using the distro package.
@@ -154,7 +152,7 @@ If your repository's Go package is older than `1.23.1`, install Go from [go.dev/
 ### Fedora
 
 ```bash
-sudo dnf install -y git gcc make gpac ffmpeg
+sudo dnf install -y git gcc make ffmpeg
 ```
 
 If needed, install Go manually from the official site.
@@ -162,7 +160,7 @@ If needed, install Go manually from the official site.
 ### Arch Linux
 
 ```bash
-sudo pacman -S --needed git base-devel gpac ffmpeg
+sudo pacman -S --needed git base-devel ffmpeg
 ```
 
 If needed, install Go manually from the official site.
@@ -196,7 +194,7 @@ pkg update && pkg upgrade
 2. Install the toolchain and media tools:
 
 ```bash
-pkg install golang git gpac ffmpeg
+pkg install golang git ffmpeg
 ```
 
 3. Optionally grant access to shared Android storage. Termux creates the `~/storage/shared` tree after you approve the prompt:
@@ -249,7 +247,6 @@ Before running any command, make sure:
 
 1. wrapper-lite is running.
 2. `config.yaml` exists and has the correct `lite-server` value.
-3. `MP4Box` is available in `PATH`.
 
 ### Album
 
@@ -375,5 +372,5 @@ If `config.yaml.example` gains new options, compare it with your `config.yaml` b
 - **Sorrow** created the original script.
 - **WorldObservationLog** created [wrapper / wrapper-lite](https://github.com/WorldObservationLog/wrapper), used as the backend decryption service.
 - **Sendy McSenderson** contributed the streaming download-and-decrypt implementation.
-- [GPAC](https://gpac.io/) provides `MP4Box`.
+- [go-mp4tag](https://github.com/itouakirai/go-mp4tag) writes station MP4 metadata.
 - [FFmpeg](https://ffmpeg.org/) supports optional conversion and animated-artwork features.

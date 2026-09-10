@@ -3,13 +3,16 @@ package app
 import (
 	"errors"
 	"fmt"
-	"amdl/internal/amp-api"
-	"amdl/internal/model"
-	"amdl/internal/widevine-rip/runv5"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"amdl/internal/amp-api"
+	mvmedia "amdl/internal/media/mv"
+	"amdl/internal/model"
+	"amdl/internal/widevine-rip/runv5"
+
+	"github.com/itouakirai/go-mp4tag"
 )
 
 func (r *Runner) mvDownloader(adamID string, saveDir string, token string, storefront string, track *model.Track) error {
@@ -98,79 +101,32 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	}
 	defer os.Remove(audPath)
 
-	tags := []string{
-		"tool=",
-		fmt.Sprintf("artist=%s", MVInfo.Data[0].Attributes.ArtistName),
-		fmt.Sprintf("title=%s", MVInfo.Data[0].Attributes.Name),
-		fmt.Sprintf("genre=%s", firstGenre(MVInfo.Data[0].Attributes.GenreNames)),
-		fmt.Sprintf("created=%s", MVInfo.Data[0].Attributes.ReleaseDate),
-		fmt.Sprintf("ISRC=%s", MVInfo.Data[0].Attributes.Isrc),
-	}
-
-	if MVInfo.Data[0].Attributes.ContentRating == "explicit" {
-		tags = append(tags, "rating=1")
-	} else if MVInfo.Data[0].Attributes.ContentRating == "clean" {
-		tags = append(tags, "rating=2")
-	} else {
-		tags = append(tags, "rating=0")
-	}
-
-	if track != nil {
-		if track.PreType == "playlists" && !r.Config.UseSongInfoForPlaylist {
-			tags = append(tags, "disk=1/1")
-			tags = append(tags, fmt.Sprintf("album=%s", track.PlaylistData.Attributes.Name))
-			tags = append(tags, fmt.Sprintf("track=%d", track.TaskNum))
-			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", track.TaskNum, track.TaskTotal))
-			tags = append(tags, fmt.Sprintf("album_artist=%s", track.PlaylistData.Attributes.ArtistName))
-			tags = append(tags, fmt.Sprintf("performer=%s", track.Resp.Attributes.ArtistName))
-		} else if track.PreType == "playlists" && r.Config.UseSongInfoForPlaylist {
-			tags = append(tags, fmt.Sprintf("album=%s", track.AlbumData.Attributes.Name))
-			tags = append(tags, fmt.Sprintf("disk=%d/%d", track.Resp.Attributes.DiscNumber, track.DiscTotal))
-			tags = append(tags, fmt.Sprintf("track=%d", track.Resp.Attributes.TrackNumber))
-			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", track.Resp.Attributes.TrackNumber, track.AlbumData.Attributes.TrackCount))
-			tags = append(tags, fmt.Sprintf("album_artist=%s", track.AlbumData.Attributes.ArtistName))
-			tags = append(tags, fmt.Sprintf("performer=%s", track.Resp.Attributes.ArtistName))
-			tags = append(tags, fmt.Sprintf("copyright=%s", track.AlbumData.Attributes.Copyright))
-			tags = append(tags, fmt.Sprintf("UPC=%s", track.AlbumData.Attributes.Upc))
-		} else {
-			tags = append(tags, fmt.Sprintf("album=%s", track.AlbumData.Attributes.Name))
-			tags = append(tags, fmt.Sprintf("disk=%d/%d", track.Resp.Attributes.DiscNumber, track.DiscTotal))
-			tags = append(tags, fmt.Sprintf("track=%d", track.Resp.Attributes.TrackNumber))
-			tags = append(tags, fmt.Sprintf("tracknum=%d/%d", track.Resp.Attributes.TrackNumber, track.AlbumData.Attributes.TrackCount))
-			tags = append(tags, fmt.Sprintf("album_artist=%s", track.AlbumData.Attributes.ArtistName))
-			tags = append(tags, fmt.Sprintf("performer=%s", track.Resp.Attributes.ArtistName))
-			tags = append(tags, fmt.Sprintf("copyright=%s", track.AlbumData.Attributes.Copyright))
-			tags = append(tags, fmt.Sprintf("UPC=%s", track.AlbumData.Attributes.Upc))
-		}
-	} else {
-		tags = append(tags, fmt.Sprintf("album=%s", MVInfo.Data[0].Attributes.AlbumName))
-		tags = append(tags, fmt.Sprintf("disk=%d", MVInfo.Data[0].Attributes.DiscNumber))
-		tags = append(tags, fmt.Sprintf("track=%d", MVInfo.Data[0].Attributes.TrackNumber))
-		tags = append(tags, fmt.Sprintf("tracknum=%d", MVInfo.Data[0].Attributes.TrackNumber))
-		tags = append(tags, fmt.Sprintf("performer=%s", MVInfo.Data[0].Attributes.ArtistName))
-	}
-
 	var covPath string
-	thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
-	baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
-	covPath, err = r.writeCover(saveDir, baseThumbName, thumbURL)
-	if err != nil {
-		fmt.Println("Failed to save MV thumbnail:", err)
-	} else {
-		tags = append(tags, fmt.Sprintf("cover=%s", covPath))
+	if r.Config.EmbedCover {
+		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
+		baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
+		covPath, err = r.writeCover(saveDir, baseThumbName, thumbURL)
+		if err != nil {
+			fmt.Println("Failed to save MV thumbnail:", err)
+			covPath = ""
+		} else {
+			defer os.Remove(covPath)
+		}
 	}
-	defer os.Remove(covPath)
 
-	tagsString := strings.Join(tags, ":")
-	muxCmd := exec.Command("MP4Box", "-itags", tagsString, "-quiet", "-add", vidPath, "-add", audPath, "-keep-utc", "-new", mvOutPath)
 	fmt.Printf("MV Remuxing...")
-	if err := muxCmd.Run(); err != nil {
+	if err := mvmedia.Mux(vidPath, audPath, mvOutPath); err != nil {
 		fmt.Printf("MV mux failed: %v\n", err)
 		return err
 	}
 	fmt.Printf("\rMV Remuxed.   \n")
 
-	// Append to r.State.AddedTracks
+	if err := r.writeMVMP4Tags(mvOutPath, MVInfo, track, covPath); err != nil {
+		_ = os.Remove(mvOutPath)
+		fmt.Printf("MV tag writing failed: %v\n", err)
+		return err
+	}
+
 	mvArtistName := MVInfo.Data[0].Attributes.ArtistName
 	mvAlbumName := MVInfo.Data[0].Attributes.AlbumName
 	mvName := MVInfo.Data[0].Attributes.Name
@@ -188,4 +144,82 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	})
 
 	return nil
+}
+
+func (r *Runner) writeMVMP4Tags(path string, mvInfo *ampapi.MusicVideoResp, track *model.Track, coverPath string) error {
+	if mvInfo == nil || len(mvInfo.Data) == 0 {
+		return errors.New("music video response contains no data")
+	}
+	attrs := mvInfo.Data[0].Attributes
+
+	tags := &mp4tag.MP4Tags{
+		Title:       attrs.Name,
+		Artist:      attrs.ArtistName,
+		Album:       attrs.AlbumName,
+		CustomGenre: firstGenre(attrs.GenreNames),
+		Date:        attrs.ReleaseDate,
+		TrackNumber: int16(attrs.TrackNumber),
+		DiscNumber:  int16(attrs.DiscNumber),
+		Custom: map[string]string{
+			"PERFORMER":   attrs.ArtistName,
+			"RELEASETIME": attrs.ReleaseDate,
+			"ISRC":        attrs.Isrc,
+		},
+	}
+
+	switch {
+	case track != nil && (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.UseSongInfoForPlaylist:
+		tags.Album = track.PlaylistData.Attributes.Name
+		tags.DiscNumber = 1
+		tags.DiscTotal = 1
+		tags.TrackNumber = int16(track.TaskNum)
+		tags.TrackTotal = int16(track.TaskTotal)
+		tags.AlbumArtist = track.PlaylistData.Attributes.ArtistName
+		tags.Custom["PERFORMER"] = track.Resp.Attributes.ArtistName
+	case track != nil:
+		tags.Album = track.AlbumData.Attributes.Name
+		tags.DiscNumber = int16(track.Resp.Attributes.DiscNumber)
+		tags.DiscTotal = int16(track.DiscTotal)
+		tags.TrackNumber = int16(track.Resp.Attributes.TrackNumber)
+		tags.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
+		tags.AlbumArtist = track.AlbumData.Attributes.ArtistName
+		tags.Custom["PERFORMER"] = track.Resp.Attributes.ArtistName
+		tags.Custom["UPC"] = track.AlbumData.Attributes.Upc
+		tags.Copyright = track.AlbumData.Attributes.Copyright
+		tags.Publisher = track.AlbumData.Attributes.RecordLabel
+	}
+
+	if r.Config.TagSortOrder {
+		tags.TitleSort = attrs.Name
+		tags.ArtistSort = attrs.ArtistName
+		tags.AlbumSort = tags.Album
+		tags.AlbumArtistSort = tags.AlbumArtist
+	}
+
+	switch attrs.ContentRating {
+	case "explicit":
+		tags.ItunesAdvisory = mp4tag.ItunesAdvisoryExplicit
+	case "clean":
+		tags.ItunesAdvisory = mp4tag.ItunesAdvisoryClean
+	default:
+		tags.ItunesAdvisory = mp4tag.ItunesAdvisoryNone
+	}
+
+	if r.Config.EmbedCover && coverPath != "" {
+		cover, err := os.ReadFile(coverPath)
+		if err != nil {
+			return fmt.Errorf("read MV cover: %w", err)
+		}
+		tags.Pictures = []*mp4tag.MP4Picture{{
+			Format: mp4tag.ImageTypeAuto,
+			Data:   cover,
+		}}
+	}
+
+	mp4, err := mp4tag.Open(path)
+	if err != nil {
+		return err
+	}
+	defer mp4.Close()
+	return mp4.Write(tags, []string{})
 }

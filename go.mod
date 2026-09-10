@@ -12,7 +12,6 @@ require (
 )
 
 require (
-	github.com/Eyevinn/mp4ff v0.50.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
@@ -35,13 +34,14 @@ require (
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/Eyevinn/mp4ff v0.55.0
 	github.com/WorldObservationLog/Temari/bindings/go v0.5.1
 	github.com/beevik/etree v1.7.1
 	github.com/fatih/color v1.18.0
 	github.com/go-resty/resty/v2 v2.16.5
+	github.com/itouakirai/go-mp4tag v0.0.0-20260910161811-7dcccd0cc361
 	github.com/itouakirai/mp4ff v0.0.0-20250930132656-98812935a1c7
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/zhaarey/go-mp4tag v0.0.0-20260509131819-a89fa417cd97
 	golang.org/x/net v0.38.0
 	golang.org/x/sync v0.12.0
 	gopkg.in/yaml.v2 v2.2.8

@@ -1,16 +1,17 @@
 package app
 
 import (
-	"fmt"
 	"amdl/internal/amp-api"
 	fairplayrip "amdl/internal/fairplay-rip"
-	"amdl/internal/model"
 	"amdl/internal/media/alacfix"
+	defrag "amdl/internal/media/defrag"
 	"amdl/internal/media/lyrics"
+	"amdl/internal/model"
 	"amdl/internal/widevine-rip"
 	"amdl/internal/widevine-rip/runv5"
+	"fmt"
+	"github.com/itouakirai/go-mp4tag"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -233,33 +234,23 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 
 	}
-	//这里利用MP4box将fmp4转化为mp4，并添加ilst box与cover，方便后面的mp4tag添加更多自定义标签
-	tags := []string{
-		"tool=",
-		"artist=AppleMusic",
-	}
+	// 将 fMP4 解碎片为普通 MP4；元数据和封面统一交给后续 writeMP4Tags 写入。
+	removeCoverAfterWrite := false
 	if r.Config.EmbedCover {
 		if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && r.Config.DlAlbumcoverForPlaylist {
 			track.CoverPath, err = r.writeCover(track.SaveDir, track.ID, track.Resp.Attributes.Artwork.URL)
 			if err != nil {
 				fmt.Println("Failed to write cover.")
+			} else {
+				removeCoverAfterWrite = true
 			}
 		}
-		tags = append(tags, fmt.Sprintf("cover=%s", track.CoverPath))
 	}
-	tagsString := strings.Join(tags, ":")
-	cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Embed failed: %v\n", err)
+
+	if err := defrag.DefragmentMP4(trackPath); err != nil {
+		fmt.Printf("Defragment failed: %v\n", err)
 		r.State.Counter.Error++
 		return
-	}
-	if (strings.Contains(track.PreID, "pl.") || strings.Contains(track.PreID, "ra.")) && r.Config.DlAlbumcoverForPlaylist {
-		if err := os.Remove(track.CoverPath); err != nil {
-			fmt.Printf("Error deleting file: %s\n", track.CoverPath)
-			r.State.Counter.Error++
-			return
-		}
 	}
 	track.SavePath = trackPath
 
@@ -277,6 +268,13 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		fmt.Println("\u26A0 Failed to write tags in media:", err)
 		r.State.Counter.Unavailable++
 		return
+	}
+	if removeCoverAfterWrite {
+		if err := os.Remove(track.CoverPath); err != nil {
+			fmt.Printf("Error deleting file: %s\n", track.CoverPath)
+			r.State.Counter.Error++
+			return
+		}
 	}
 
 	// CONVERSION FEATURE hook
@@ -425,28 +423,57 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 		}
 		err = widevinerip.ExtMvData(keyAndUrls, trackPath)
 		if err != nil {
+			_ = os.Remove(trackPath)
 			fmt.Println("Failed to download station stream.", err)
 			r.State.Counter.Error++
 			return err
 		}
-		tags := []string{
-			"tool=",
-			"disk=1/1",
-			"track=1",
-			"tracknum=1/1",
-			fmt.Sprintf("artist=%s", "Apple Music Station"),
-			fmt.Sprintf("performer=%s", "Apple Music Station"),
-			fmt.Sprintf("album_artist=%s", "Apple Music Station"),
-			fmt.Sprintf("album=%s", station.Name),
-			fmt.Sprintf("title=%s", station.Name),
+		if err := defrag.DefragmentMP4(trackPath); err != nil {
+			_ = os.Remove(trackPath)
+			fmt.Printf("Defragment failed: %v\n", err)
+			r.State.Counter.Error++
+			return err
 		}
-		if r.Config.EmbedCover {
-			tags = append(tags, fmt.Sprintf("cover=%s", station.CoverPath))
+		tags := &mp4tag.MP4Tags{
+			Title:       station.Name,
+			Artist:      "Apple Music Station",
+			Album:       station.Name,
+			AlbumArtist: "Apple Music Station",
+			TrackNumber: 1,
+			TrackTotal:  1,
+			DiscNumber:  1,
+			DiscTotal:   1,
+			Custom: map[string]string{
+				"PERFORMER": "Apple Music Station",
+			},
 		}
-		tagsString := strings.Join(tags, ":")
-		cmd := exec.Command("MP4Box", "-itags", tagsString, trackPath)
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Embed failed: %v\n", err)
+		if r.Config.EmbedCover && station.CoverPath != "" {
+			cover, err := os.ReadFile(station.CoverPath)
+			if err != nil {
+				_ = os.Remove(trackPath)
+				fmt.Println("Failed to read station cover.", err)
+				r.State.Counter.Error++
+				return err
+			}
+			tags.Pictures = []*mp4tag.MP4Picture{{
+				Format: mp4tag.ImageTypeAuto,
+				Data:   cover,
+			}}
+		}
+		mp4, err := mp4tag.Open(trackPath)
+		if err != nil {
+			_ = os.Remove(trackPath)
+			fmt.Println("Failed to open station stream for tagging.", err)
+			r.State.Counter.Error++
+			return err
+		}
+		err = mp4.Write(tags, []string{})
+		_ = mp4.Close()
+		if err != nil {
+			_ = os.Remove(trackPath)
+			fmt.Println("Failed to embed station tags.", err)
+			r.State.Counter.Error++
+			return err
 		}
 		r.State.AddedTracks = append(r.State.AddedTracks, AddedTrack{
 			Path:     trackPath,
