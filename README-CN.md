@@ -50,7 +50,7 @@
 运行前必须准备：
 
 1. **Go 1.23.1 或更新版本**：[go.dev/dl](https://go.dev/dl/)。
-2. **MP4Box / GPAC**：[gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/)。确保 `MP4Box` 可在 `PATH` 中找到。
+2. **MP4Box / GPAC（可选）**：[gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/)。仅下载 Apple Music 电台时需要，普通歌曲和 MV 使用纯 Go mux。
 3. **wrapper-lite**：[github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite)。必须先启动它，并在 `lite-server` 中写入其 HTTP 地址，例如 `http://127.0.0.1:12340`。
 4. **ffmpeg**：仅在后下载转换、动态封面或依赖 ffmpeg 的功能中需要。见 [ffmpeg.org](https://ffmpeg.org/)。
 
@@ -94,7 +94,7 @@ save-animated-artwork: false
 
 1. 安装 **Git**：[git-scm.com/download/win](https://git-scm.com/download/win)。
 2. 安装 **Go 1.23.1 或更新版本**：[go.dev/dl](https://go.dev/dl/)。
-3. 从 [GPAC 官方下载页](https://gpac.io/downloads/gpac-nightly-builds/)安装 GPAC，并确保 `MP4Box.exe` 在 `PATH` 中。
+3. 如需下载电台，再从 [GPAC 官方下载页](https://gpac.io/downloads/gpac-nightly-builds/)安装 GPAC，并确保 `MP4Box.exe` 在 `PATH` 中。
 4. 如果需要转换文件或保存动态封面，安装 **ffmpeg**：[ffmpeg.org/download.html](https://ffmpeg.org/download.html)。
 
 在 PowerShell 中：
@@ -249,7 +249,7 @@ termux-wake-unlock
 
 1. wrapper-lite 正在运行。
 2. `config.yaml` 存在，并且 `lite-server` 正确。
-3. `MP4Box` 可在 `PATH` 中找到。
+3. 仅下载电台时需要确保 `MP4Box` 可在 `PATH` 中找到。
 
 ### 专辑
 
@@ -375,5 +375,5 @@ go build -o amdl.exe .
 - **Sorrow** 编写了原始脚本。
 - **WorldObservationLog** 开发了 [wrapper / wrapper-lite](https://github.com/WorldObservationLog/wrapper)，本项目将其作为后端解密服务。
 - **Sendy McSenderson** 提供了流式下载和解密实现。
-- [GPAC](https://gpac.io/) 提供 `MP4Box`。
+- [GPAC](https://gpac.io/) 为电台下载提供 `MP4Box`。
 - [FFmpeg](https://ffmpeg.org/) 支持可选的转换和动态封面功能。

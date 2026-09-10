@@ -36,7 +36,31 @@ const (
 // those chunks.
 //
 // Media samples are never decoded or re-encoded.
+// DefragmentMP4 converts a fragmented MP4 into a progressive MP4 using the
+// default tag-compatible ftyp.
 func DefragmentMP4(input string) error {
+	return defragmentMP4(input, nil)
+}
+
+// DefragmentMP4WithFtyp converts a fragmented MP4 into a progressive MP4 and
+// replaces its ftyp with the supplied major brand, minor version, and
+// compatible brands.
+func DefragmentMP4WithFtyp(input, majorBrand string, minorVersion uint32, compatibleBrands []string) error {
+	if len(majorBrand) != 4 {
+		return errors.New("major brand must contain exactly 4 bytes")
+	}
+	for _, brand := range compatibleBrands {
+		if len(brand) != 4 {
+			return fmt.Errorf("compatible brand %q must contain exactly 4 bytes", brand)
+		}
+	}
+	return defragmentMP4(
+		input,
+		mp4.NewFtyp(majorBrand, minorVersion, append([]string(nil), compatibleBrands...)),
+	)
+}
+
+func defragmentMP4(input string, ftypOverride *mp4.FtypBox) error {
 	if input == "" {
 		return errors.New("input path is empty")
 	}
@@ -118,9 +142,12 @@ func DefragmentMP4(input string) error {
 
 	// go-mp4tag only accepts a small set of ftyp brands and requires
 	// moov.udta.meta.ilst when writing tags.
-	compatibleFtyp, err := makeTagCompatibleFtyp(parsed.Ftyp)
-	if err != nil {
-		return fmt.Errorf("make ftyp tag-compatible: %w", err)
+	compatibleFtyp := ftypOverride
+	if compatibleFtyp == nil {
+		compatibleFtyp, err = makeTagCompatibleFtyp(parsed.Ftyp)
+		if err != nil {
+			return fmt.Errorf("make ftyp tag-compatible: %w", err)
+		}
 	}
 
 	if err := ensureTagMetadata(moov); err != nil {

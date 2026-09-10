@@ -50,7 +50,7 @@ Stations require a valid `media-user-token` from an active subscription.
 Install these before running the downloader:
 
 1. **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
-2. **MP4Box / GPAC**: [gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/). Ensure `MP4Box` is available in `PATH`.
+2. **MP4Box / GPAC (optional)**: [gpac.io/downloads/gpac-nightly-builds/](https://gpac.io/downloads/gpac-nightly-builds/). Required only for Apple Music station downloads. Songs and music videos use the pure-Go muxer.
 3. **wrapper-lite**: [github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite). Start it before using this downloader and set its HTTP endpoint in `lite-server`, for example `http://127.0.0.1:12340`.
 4. **ffmpeg**: required only for post-download conversion, animated artwork, or `ffmpeg`-dependent features. See [ffmpeg.org](https://ffmpeg.org/).
 
@@ -94,7 +94,7 @@ If wrapper-lite runs on another machine or container, replace `127.0.0.1` with t
 
 1. Install **Git**: [git-scm.com/download/win](https://git-scm.com/download/win).
 2. Install **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
-3. Install **GPAC** from the [official download page](https://gpac.io/downloads/gpac-nightly-builds/) and make sure `MP4Box.exe` is available in `PATH`.
+3. Optionally install **GPAC** from the [official download page](https://gpac.io/downloads/gpac-nightly-builds/) if you download stations. Make sure `MP4Box.exe` is available in `PATH`.
 4. Install **ffmpeg** if you plan to convert files or save animated artwork: [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
 
 From PowerShell:
@@ -249,7 +249,7 @@ Before running any command, make sure:
 
 1. wrapper-lite is running.
 2. `config.yaml` exists and has the correct `lite-server` value.
-3. `MP4Box` is available in `PATH`.
+3. `MP4Box` is only needed for station downloads.
 
 ### Album
 
@@ -375,5 +375,5 @@ If `config.yaml.example` gains new options, compare it with your `config.yaml` b
 - **Sorrow** created the original script.
 - **WorldObservationLog** created [wrapper / wrapper-lite](https://github.com/WorldObservationLog/wrapper), used as the backend decryption service.
 - **Sendy McSenderson** contributed the streaming download-and-decrypt implementation.
-- [GPAC](https://gpac.io/) provides `MP4Box`.
+- [GPAC](https://gpac.io/) provides `MP4Box` for station downloads.
 - [FFmpeg](https://ffmpeg.org/) supports optional conversion and animated-artwork features.

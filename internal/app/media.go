@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/grafov/m3u8"
 	"github.com/olekukonko/tablewriter"
-	"github.com/zhaarey/go-mp4tag"
+	"github.com/itouakirai/go-mp4tag"
 	"io"
 	"net/http"
 	"net/url"
