@@ -1,15 +1,12 @@
 package lyrics
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
-	"amdl/internal/download"
+	"amdl/internal/wrapper"
 	"github.com/beevik/etree"
 )
 
@@ -32,37 +29,14 @@ func Get(songId, lrcType, language, lrcFormat, liteServer, lrcExtra string) (str
 }
 
 func getSongLyrics(songId string, liteServer string, lrcType string, language string) (string, error) {
-	if liteServer == "" {
-		return "", errors.New("lite-server is not configured")
-	}
-	isSyllable := "1"
-	if lrcType == "lyrics" {
-		isSyllable = "0"
-	}
-	endpoint := strings.TrimRight(liteServer, "/") + "/lyrics?adamId=" + url.QueryEscape(songId) + "&language=" + url.QueryEscape(language) + "&syllable=" + isSyllable
-	resp, err := download.Get(endpoint)
+	lyrics, err := wrapper.GetLyrics(liteServer, songId, language, lrcType != "lyrics")
 	if err != nil {
-		fmt.Println("Error connecting to lite-server:", err)
+		if !errors.Is(err, wrapper.ErrNotConfigured) {
+			fmt.Println("Error connecting to lite-server:", err)
+		}
 		return "", err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(resp.Status)
-	}
-	var envelope struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
-		Data struct {
-			Lyrics string `json:"lyrics"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return "", err
-	}
-	if envelope.Code != 0 {
-		return "", fmt.Errorf("lite-server /lyrics returned code=%d msg=%s", envelope.Code, envelope.Msg)
-	}
-	return envelope.Data.Lyrics, nil
+	return lyrics, nil
 }
 
 // TtmlToLrc converts TTML lyrics into plain LRC. Word timing is delegated to

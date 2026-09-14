@@ -4,14 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,13 +19,12 @@ import (
 
 	"amdl/internal/config"
 	"amdl/internal/download"
+	"amdl/internal/wrapper"
 
 	"github.com/grafov/m3u8"
 	"github.com/itouakirai/mp4ff/mp4"
 	"github.com/schollz/progressbar/v3"
 )
-
-const prefetchKey = "skd://itunes.apple.com/P000000000/s1/e1"
 
 var ErrTimeout = errors.New("response timed out")
 
@@ -44,48 +41,13 @@ func Init() error {
 	return nil
 }
 
-type templateResponse struct {
-	Ctx   string `json:"ctx"`
-	State string `json:"state"`
-	RCX   string `json:"rcx"`
-	RAX   string `json:"rax"`
-	RDX   string `json:"rdx"`
-	R9    string `json:"r9"`
-	RBP   string `json:"rbp"`
-}
-
-type liteResponse struct {
-	Code int              `json:"code"`
-	Msg  string           `json:"msg"`
-	Data templateResponse `json:"data"`
-}
-
 // fetchTemplate obtains the decryption template for adamId/uri from lite-server
 // and hands the 40020-style JSON body to Temari.
 func fetchTemplate(baseURL, adam, uri string) (*temarimod.Temari, error) {
 	if lib == nil {
 		return nil, errors.New("runv4: temari library not initialized (call runv4.Init)")
 	}
-	if adam == "0" && uri == prefetchKey {
-		return lib.FromJSON([]byte(prefetchTemplateJSON))
-	}
-	endpoint := strings.TrimRight(baseURL, "/") + "/key?adamId=" + url.QueryEscape(adam) + "&uri=" + url.QueryEscape(uri)
-	resp, err := download.Get(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("lite-server /key returned %s", resp.Status)
-	}
-	var envelope liteResponse
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, err
-	}
-	if envelope.Code != 0 {
-		return nil, fmt.Errorf("lite-server /key returned code=%d msg=%s", envelope.Code, envelope.Msg)
-	}
-	body, err := json.Marshal(envelope.Data)
+	body, err := wrapper.GetKeyTemplateJSON(baseURL, adam, uri)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +334,7 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 
 			key := segment.Key
 			if key != nil && (i < 2) {
-				if key.URI == prefetchKey {
+				if key.URI == wrapper.PrefetchKey {
 					tmpl, err = fetchTemplate(liteServer, "0", key.URI)
 				} else {
 					tmpl, err = fetchTemplate(liteServer, adamId, key.URI)

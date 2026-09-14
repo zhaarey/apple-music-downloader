@@ -3,7 +3,7 @@ package app
 import (
 	"amdl/internal/download"
 	"amdl/internal/model"
-	"encoding/json"
+	"amdl/internal/wrapper"
 	"errors"
 	"fmt"
 	"github.com/grafov/m3u8"
@@ -365,34 +365,14 @@ func parseAudioBitrate(groupID, prefix string) int {
 }
 
 func (r *Runner) checkM3u8(b string, f string) (string, error) {
-	var EnhancedHls string
-	if r.Config.LiteServer == "" {
-		return "", errors.New("lite-server is not configured")
-	}
-	endpoint := strings.TrimRight(r.Config.LiteServer, "/") + "/m3u8?adamId=" + url.QueryEscape(b)
-	resp, err := download.Get(endpoint)
+	EnhancedHls, err := wrapper.GetM3U8(r.Config.LiteServer, b)
 	if err != nil {
+		if errors.Is(err, wrapper.ErrNotConfigured) {
+			return "", err
+		}
 		fmt.Println("Error connecting to lite-server:", err)
 		return "", err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(resp.Status)
-	}
-	var envelope struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
-		Data struct {
-			M3u8 string `json:"m3u8"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return "", err
-	}
-	if envelope.Code != 0 {
-		return "", fmt.Errorf("lite-server /m3u8 returned code=%d msg=%s", envelope.Code, envelope.Msg)
-	}
-	EnhancedHls = envelope.Data.M3u8
 	if f == "song" {
 		if EnhancedHls != "" {
 			fmt.Println("Received URL:", EnhancedHls)

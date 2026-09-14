@@ -1,16 +1,16 @@
 package app
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
-	"amdl/internal/download"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
+
+	"amdl/internal/wrapper"
+	"gopkg.in/yaml.v2"
 )
+
 
 func topLevelKeys(data []byte) map[string]bool {
 	keys := make(map[string]bool)
@@ -26,34 +26,8 @@ func topLevelKeys(data []byte) map[string]bool {
 
 // getLiteRegions queries wrapper-lite's /status endpoint once and returns
 // the regions reported by the service.
-
 func (r *Runner) getLiteRegions() ([]string, error) {
-	if r.Config.LiteServer == "" {
-		return nil, errors.New("lite-server is not configured")
-	}
-	endpoint := strings.TrimRight(r.Config.LiteServer, "/") + "/status"
-	resp, err := download.Get(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Status)
-	}
-	var envelope struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
-		Data struct {
-			Regions []string `json:"regions"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, err
-	}
-	if envelope.Code != 0 {
-		return nil, fmt.Errorf("lite-server /status returned code=%d msg=%s", envelope.Code, envelope.Msg)
-	}
-	return envelope.Data.Regions, nil
+	return wrapper.GetStatus(r.Config.LiteServer)
 }
 
 // flagValueFromArgs scans raw os.Args for "--name=value" or "--name value"

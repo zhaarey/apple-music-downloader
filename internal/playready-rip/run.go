@@ -1,31 +1,18 @@
 package playreadyrip
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 
-	"amdl/internal/download"
 	widevine "amdl/internal/widevine-rip"
+	"amdl/internal/wrapper"
 
 	puppyready "git.gay/itouakirai/puppyready"
 )
 
 const playReadyKeyFormat = "com.microsoft.playready"
-
-type licenseResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
-		License string `json:"license"`
-	} `json:"data"`
-}
 
 // Run obtains a PlayReady content key from wrapper-lite and returns the same
 // key-and-URLs format used by the existing MV downloader.
@@ -113,51 +100,5 @@ func buildWRMHeader(keyPayload string, uriPrefix string) (string, string, error)
 }
 
 func requestLicense(adamID string, challenge string, uri string, liteServerURL string) ([]byte, error) {
-	requestBody, err := json.Marshal(map[string]string{
-		"challenge": challenge,
-		"uri":       uri,
-		"adamId":    adamID,
-		"drm-type":  "pr",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	endpoint := strings.TrimRight(liteServerURL, "/") + "/license"
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(requestBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := download.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request PlayReady license: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read PlayReady license response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("lite-server /license returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-
-	var response licenseResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("parse PlayReady license response: %w", err)
-	}
-	if response.Code != 0 {
-		return nil, fmt.Errorf("lite-server /license returned code=%d msg=%s", response.Code, response.Msg)
-	}
-	if response.Data.License == "" {
-		return nil, errors.New("empty PlayReady license in lite-server response")
-	}
-
-	licenseXML, err := base64.StdEncoding.DecodeString(response.Data.License)
-	if err != nil {
-		return nil, fmt.Errorf("decode PlayReady license: %w", err)
-	}
-	return licenseXML, nil
+	return wrapper.GetPlayReadyLicense(liteServerURL, adamID, challenge, uri)
 }

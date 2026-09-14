@@ -12,6 +12,7 @@ import (
 	"amdl/internal/model"
 	playreadyrip "amdl/internal/playready-rip"
 	"amdl/internal/widevine-rip/runv5"
+	"amdl/internal/wrapper"
 
 	"github.com/itouakirai/go-mp4tag"
 )
@@ -64,12 +65,9 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 		return nil
 	}
 
-	mvm3u8url, _, _, err := runv5.GetWebplayback(adamID, r.Config.LiteServer, true)
+	mvm3u8url, err := wrapper.GetWebplayback(r.Config.LiteServer, adamID)
 	if err != nil {
 		return err
-	}
-	if mvm3u8url == "" {
-		return errors.New("lite-server returned no web playback URL")
 	}
 
 	if err := os.MkdirAll(saveDir, os.ModePerm); err != nil {
