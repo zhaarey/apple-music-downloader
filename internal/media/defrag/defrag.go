@@ -1524,13 +1524,10 @@ const (
 )
 
 var fixedFtypCompatibleBrands = []string{
-	"isom",
-	"iso5",
-	"hlsf",
-	"cmfc",
-	"ccea",
 	"M4A ",
 	"mp42",
+	"isom",
+	"iso5",
 }
 
 func makeTagCompatibleFtyp(
