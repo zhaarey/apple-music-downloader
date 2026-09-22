@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -14,6 +15,29 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
 )
+
+// DefaultConfigTemplate holds the embedded content of config.yaml.example,
+// populated at runtime from package main via init().
+var DefaultConfigTemplate string
+
+type bytesProvider []byte
+
+func (b bytesProvider) ReadBytes() ([]byte, error) {
+	return []byte(b), nil
+}
+
+func (b bytesProvider) Read() (map[string]any, error) {
+	return nil, nil
+}
+
+func getExampleContent(exampleFile string) string {
+	if fileExists(exampleFile) {
+		if data, err := os.ReadFile(exampleFile); err == nil {
+			return string(data)
+		}
+	}
+	return DefaultConfigTemplate
+}
 
 // flagKeyMap maps flat command line flag names to nested configuration keys.
 var flagKeyMap = map[string]string{
@@ -39,7 +63,7 @@ type LoadOptions struct {
 
 // Load loads configuration using koanf with layered precedence:
 // 1. In-code defaults (Default())
-// 2. Example file (config.yaml.example, if present)
+// 2. Example file or embedded template (config.yaml.example or DefaultConfigTemplate)
 // 3. User configuration file (config.yaml or custom path)
 // 4. Command line flags (*pflag.FlagSet via posflag)
 func Load(opts LoadOptions) (*Config, error) {
@@ -55,13 +79,29 @@ func Load(opts LoadOptions) (*Config, error) {
 	userFileExists := fileExists(configFile)
 	exampleFileExists := fileExists(exampleFile)
 
+	// Automatically create default config file if it does not exist.
+	if !userFileExists && (opts.ConfigFile == "" || filepath.Base(configFile) == "config.yaml") {
+		templateContent := getExampleContent(exampleFile)
+		if templateContent != "" {
+			if dir := filepath.Dir(configFile); dir != "" && dir != "." {
+				_ = os.MkdirAll(dir, 0755)
+			}
+			if err := os.WriteFile(configFile, []byte(templateContent), 0644); err == nil {
+				userFileExists = true
+				if !opts.DisableMissingWarnings {
+					fmt.Printf("Config file %s not found, created from default template.\n", configFile)
+				}
+			}
+		}
+	}
+
 	// If a custom config file path was specified, it must exist.
 	if opts.ConfigFile != "" && !userFileExists {
 		return nil, fmt.Errorf("config file not found: %s", configFile)
 	}
 
-	// Neither user config nor example file exists.
-	if !userFileExists && !exampleFileExists {
+	// Neither user config nor example file/embedded template exists.
+	if !userFileExists && !exampleFileExists && DefaultConfigTemplate == "" {
 		return nil, errors.New("config file not found: provide " + configFile)
 	}
 
@@ -72,15 +112,17 @@ func Load(opts LoadOptions) (*Config, error) {
 		return nil, fmt.Errorf("load default config: %w", err)
 	}
 
-	// Layer 2: Example file (if available)
+	// Layer 2: Example file or embedded template (if available)
 	var exampleK *koanf.Koanf
-	if exampleFileExists {
+	exampleContent := getExampleContent(exampleFile)
+	if exampleContent != "" {
+		exampleBytes := []byte(exampleContent)
 		exampleK = koanf.New(".")
-		if err := exampleK.Load(file.Provider(exampleFile), yaml.Parser()); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", exampleFile, err)
+		if err := exampleK.Load(bytesProvider(exampleBytes), yaml.Parser()); err != nil {
+			return nil, fmt.Errorf("parse example config: %w", err)
 		}
-		if err := k.Load(file.Provider(exampleFile), yaml.Parser()); err != nil {
-			return nil, fmt.Errorf("load %s: %w", exampleFile, err)
+		if err := k.Load(bytesProvider(exampleBytes), yaml.Parser()); err != nil {
+			return nil, fmt.Errorf("load example config: %w", err)
 		}
 	} else if userFileExists && !opts.DisableMissingWarnings {
 		fmt.Printf("Warning: %s not found, using %s only\n", exampleFile, configFile)
@@ -114,13 +156,14 @@ func Load(opts LoadOptions) (*Config, error) {
 			}
 			sort.Strings(missing)
 			if len(missing) > 0 {
-				fmt.Printf("Warning: %s is missing fields, using defaults from %s for them.\n", configFile, exampleFile)
+				fmt.Printf("Warning: %s is missing fields, using defaults for them.\n", configFile)
 				fmt.Println("  Missing fields:", strings.Join(missing, ", "))
 			}
 		}
-	} else if exampleFileExists && !opts.DisableMissingWarnings {
-		fmt.Printf("Warning: %s not found, using defaults from %s\n", configFile, exampleFile)
+	} else if exampleContent != "" && !opts.DisableMissingWarnings {
+		fmt.Printf("Warning: %s not found, using defaults\n", configFile)
 	}
+
 
 	// Layer 4: Command line flags (mapped to nested keys)
 	if opts.FlagSet != nil {

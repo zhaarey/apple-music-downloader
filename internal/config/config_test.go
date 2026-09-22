@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -186,3 +187,113 @@ func TestLoadActualExampleFile(t *testing.T) {
 		t.Errorf("Metadata.Format.LimitMax = %d, want 200", cfg.Metadata.Format.LimitMax)
 	}
 }
+
+func TestAutoCreateConfigFromDefaultTemplate(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "config.yaml")
+
+	oldTemplate := DefaultConfigTemplate
+	DefaultConfigTemplate = `
+general:
+  storefront: gb
+  lite-server: http://embedded-test:9999
+media:
+  alac-max: 48000
+`
+	t.Cleanup(func() {
+		DefaultConfigTemplate = oldTemplate
+	})
+
+	cfg, err := Load(LoadOptions{
+		ConfigFile:             configFile,
+		ExampleFile:            filepath.Join(dir, "nonexistent.example"),
+		DisableMissingWarnings: true,
+	})
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	// Verify file was created on disk
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatalf("Expected config.yaml to be created, read failed: %v", err)
+	}
+	if !strings.Contains(string(data), "http://embedded-test:9999") {
+		t.Fatalf("Created config.yaml does not match template content: %s", string(data))
+	}
+
+	if cfg.General.Storefront != "gb" {
+		t.Errorf("General.Storefront = %q, want 'gb'", cfg.General.Storefront)
+	}
+	if cfg.General.LiteServer != "http://embedded-test:9999" {
+		t.Errorf("General.LiteServer = %q, want 'http://embedded-test:9999'", cfg.General.LiteServer)
+	}
+	if cfg.Media.AlacMax != 48000 {
+		t.Errorf("Media.AlacMax = %d, want 48000", cfg.Media.AlacMax)
+	}
+}
+
+func TestAutoCreateConfigFromExampleFile(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "config.yaml")
+	exampleFile := filepath.Join(dir, "config.yaml.example")
+
+	exampleContent := `
+general:
+  storefront: fr
+  lite-server: http://disk-example:8888
+media:
+  alac-max: 96000
+`
+	if err := os.WriteFile(exampleFile, []byte(exampleContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldTemplate := DefaultConfigTemplate
+	DefaultConfigTemplate = ""
+	t.Cleanup(func() {
+		DefaultConfigTemplate = oldTemplate
+	})
+
+	cfg, err := Load(LoadOptions{
+		ConfigFile:             configFile,
+		ExampleFile:            exampleFile,
+		DisableMissingWarnings: true,
+	})
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatalf("Expected config.yaml to be created, read failed: %v", err)
+	}
+	if !strings.Contains(string(data), "http://disk-example:8888") {
+		t.Fatalf("Created config.yaml does not match example file content: %s", string(data))
+	}
+
+	if cfg.General.Storefront != "fr" {
+		t.Errorf("General.Storefront = %q, want 'fr'", cfg.General.Storefront)
+	}
+}
+
+func TestCustomConfigMissingDoesNotAutoCreate(t *testing.T) {
+	dir := t.TempDir()
+	customFile := filepath.Join(dir, "custom.yaml")
+
+	_, err := Load(LoadOptions{
+		ConfigFile:             customFile,
+		DisableMissingWarnings: true,
+	})
+	if err == nil {
+		t.Fatal("Expected error for missing custom config file, got nil")
+	}
+	if !strings.Contains(err.Error(), "config file not found") {
+		t.Errorf("Expected 'config file not found' error, got %v", err)
+	}
+
+	if _, statErr := os.Stat(customFile); !os.IsNotExist(statErr) {
+		t.Errorf("Custom config file %s should not have been created", customFile)
+	}
+}
+
