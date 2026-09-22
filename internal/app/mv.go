@@ -173,7 +173,7 @@ func (r *Runner) writeMVMP4Tags(path string, mvInfo *ampapi.MusicVideoResp, trac
 	}
 
 	switch {
-	case track != nil && (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.Metadata.Format.UseSongInfoForPlaylist:
+	case track != nil && (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.Metadata.Tags.UseSongInfoForPlaylist:
 		tags.Album = track.PlaylistData.Attributes.Name
 		tags.DiscNumber = 1
 		tags.DiscTotal = 1

@@ -28,7 +28,7 @@ media:
     max: 2160                             # Maximum video resolution for MV (e.g. 2160, 1080, 720)
 
 # ------------------------------------------------------------------------------
-# 3. Storage Paths (Save Folders)
+# 3. Storage Paths & Templates (Save Folders & Naming Templates)
 # ------------------------------------------------------------------------------
 paths:
   alac: "AM-Lossless"                     # Save folder for ALAC (Lossless / Hi-Res) downloads
@@ -36,8 +36,25 @@ paths:
   aac: "AM-AAC"                           # Save folder for AAC downloads
   mv: "AM-MV"                             # Save folder for Music Videos
 
+  # Variables: {AlbumId}, {AlbumName}, {ArtistName}, {ReleaseDate}, {ReleaseYear}, {UPC}, {Copyright}, {Quality}, {Codec}, {Tag}, {RecordLabel}
+  album-folder: "{AlbumName}"
+
+  # Variables: {PlaylistId}, {PlaylistName}, {ArtistName}, {Quality}, {Codec}, {Tag}
+  playlist-folder: "{PlaylistName}"
+
+  # Variables: {ArtistId}, {ArtistName}, {UrlArtistName}. Set to "" to disable artist sub-folder.
+  artist-folder: "{UrlArtistName}"
+
+  # Variables: {SongId}, {SongNumer}, {ArtistName}, {SongName}, {DiscNumber}, {TrackNumber}, {Quality}, {Codec}, {Tag}
+  song-file: "{SongNumer}. {SongName}"
+
+  limit-max: 200                        # Maximum character limit for folder and file names
+  explicit: "[E]"                       # Tag suffix for explicit tracks (set to "" to disable)
+  clean: "[C]"                          # Tag suffix for clean tracks (set to "" to disable)
+  apple-master: "[M]"                   # Tag suffix for Apple Digital Master tracks (set to "" to disable)
+
 # ------------------------------------------------------------------------------
-# 4. Metadata Settings (Lyrics, Artwork, Tags & Naming Templates)
+# 4. Metadata Settings (Lyrics, Artwork & Tags)
 # ------------------------------------------------------------------------------
 metadata:
   lyrics:
@@ -59,24 +76,6 @@ metadata:
   tags:
     sort-order: true                      # Write iTunes sort order tags (artist, album artist, album name)
     itunes-id: true                       # Write iTunes catalog IDs into metadata
-    explicit: "[E]"                       # Tag suffix for explicit tracks (set to "" to disable)
-    clean: "[C]"                          # Tag suffix for clean tracks (set to "" to disable)
-    apple-master: "[M]"                   # Tag suffix for Apple Digital Master tracks (set to "" to disable)
-
-  format:
-    # Variables: {AlbumId}, {AlbumName}, {ArtistName}, {ReleaseDate}, {ReleaseYear}, {UPC}, {Copyright}, {Quality}, {Codec}, {Tag}, {RecordLabel}
-    album-folder: "{AlbumName}"
-
-    # Variables: {PlaylistId}, {PlaylistName}, {ArtistName}, {Quality}, {Codec}, {Tag}
-    playlist-folder: "{PlaylistName}"
-
-    # Variables: {ArtistId}, {ArtistName}, {UrlArtistName}. Set to "" to disable artist sub-folder.
-    artist-folder: "{UrlArtistName}"
-
-    # Variables: {SongId}, {SongNumer}, {ArtistName}, {SongName}, {DiscNumber}, {TrackNumber}, {Quality}, {Codec}, {Tag}
-    song-file: "{SongNumer}. {SongName}"
-
-    limit-max: 200                        # Maximum character limit for folder and file names
     use-songinfo-for-playlist: false      # For playlists, use original song info for album name, track and disc number
 
 # ------------------------------------------------------------------------------

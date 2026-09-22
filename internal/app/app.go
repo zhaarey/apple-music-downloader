@@ -62,8 +62,8 @@ func contains[T comparable](slice []T, item T) bool {
 }
 
 func (r *Runner) LimitString(s string) string {
-	if len([]rune(s)) > r.Config.Metadata.Format.LimitMax {
-		return string([]rune(s)[:r.Config.Metadata.Format.LimitMax])
+	if len([]rune(s)) > r.Config.Paths.LimitMax {
+		return string([]rune(s)[:r.Config.Paths.LimitMax])
 	}
 	return s
 }

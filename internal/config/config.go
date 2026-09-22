@@ -129,8 +129,9 @@ func Load(opts LoadOptions) (*Config, error) {
 	}
 
 	// Layer 3: User configuration file
+	var userK *koanf.Koanf
 	if userFileExists {
-		userK := koanf.New(".")
+		userK = koanf.New(".")
 		if err := userK.Load(file.Provider(configFile), yaml.Parser()); err != nil {
 			return nil, fmt.Errorf("parse %s: %w", configFile, err)
 		}
@@ -184,6 +185,72 @@ func Load(opts LoadOptions) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
+	// Backward compatibility fallback for migrated config keys
+	hasUserOrExample := func(key string) bool {
+		if userFileExists && userK != nil && userK.Exists(key) {
+			return true
+		}
+		if exampleK != nil && exampleK.Exists(key) {
+			return true
+		}
+		return false
+	}
+	getUserOrExampleString := func(key string) string {
+		if userFileExists && userK != nil && userK.Exists(key) {
+			return userK.String(key)
+		}
+		if exampleK != nil && exampleK.Exists(key) {
+			return exampleK.String(key)
+		}
+		return ""
+	}
+	getUserOrExampleInt := func(key string) int {
+		if userFileExists && userK != nil && userK.Exists(key) {
+			return userK.Int(key)
+		}
+		if exampleK != nil && exampleK.Exists(key) {
+			return exampleK.Int(key)
+		}
+		return 0
+	}
+	getUserOrExampleBool := func(key string) bool {
+		if userFileExists && userK != nil && userK.Exists(key) {
+			return userK.Bool(key)
+		}
+		if exampleK != nil && exampleK.Exists(key) {
+			return exampleK.Bool(key)
+		}
+		return false
+	}
+
+	if !hasUserOrExample("paths.album-folder") && hasUserOrExample("metadata.format.album-folder") {
+		cfg.Paths.AlbumFolder = getUserOrExampleString("metadata.format.album-folder")
+	}
+	if !hasUserOrExample("paths.playlist-folder") && hasUserOrExample("metadata.format.playlist-folder") {
+		cfg.Paths.PlaylistFolder = getUserOrExampleString("metadata.format.playlist-folder")
+	}
+	if !hasUserOrExample("paths.artist-folder") && hasUserOrExample("metadata.format.artist-folder") {
+		cfg.Paths.ArtistFolder = getUserOrExampleString("metadata.format.artist-folder")
+	}
+	if !hasUserOrExample("paths.song-file") && hasUserOrExample("metadata.format.song-file") {
+		cfg.Paths.SongFile = getUserOrExampleString("metadata.format.song-file")
+	}
+	if !hasUserOrExample("paths.limit-max") && hasUserOrExample("metadata.format.limit-max") {
+		cfg.Paths.LimitMax = getUserOrExampleInt("metadata.format.limit-max")
+	}
+	if !hasUserOrExample("paths.explicit") && hasUserOrExample("metadata.tags.explicit") {
+		cfg.Paths.Explicit = getUserOrExampleString("metadata.tags.explicit")
+	}
+	if !hasUserOrExample("paths.clean") && hasUserOrExample("metadata.tags.clean") {
+		cfg.Paths.Clean = getUserOrExampleString("metadata.tags.clean")
+	}
+	if !hasUserOrExample("paths.apple-master") && hasUserOrExample("metadata.tags.apple-master") {
+		cfg.Paths.AppleMaster = getUserOrExampleString("metadata.tags.apple-master")
+	}
+	if !hasUserOrExample("metadata.tags.use-songinfo-for-playlist") && hasUserOrExample("metadata.format.use-songinfo-for-playlist") {
+		cfg.Metadata.Tags.UseSongInfoForPlaylist = getUserOrExampleBool("metadata.format.use-songinfo-for-playlist")
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validate config: %w", err)
 	}
@@ -219,15 +286,26 @@ func (c *Config) Validate() error {
 		c.Media.MV.Max = 2160
 	}
 
+	// Paths
+	if c.Paths.LimitMax == 0 {
+		c.Paths.LimitMax = 200
+	}
+	if c.Paths.AlbumFolder == "" {
+		c.Paths.AlbumFolder = "{AlbumName}"
+	}
+	if c.Paths.PlaylistFolder == "" {
+		c.Paths.PlaylistFolder = "{PlaylistName}"
+	}
+	if c.Paths.SongFile == "" {
+		c.Paths.SongFile = "{SongNumer}. {SongName}"
+	}
+
 	// Metadata
 	if c.Metadata.Artwork.Size == "" {
 		c.Metadata.Artwork.Size = "5000x5000"
 	}
 	if c.Metadata.Artwork.Format == "" {
 		c.Metadata.Artwork.Format = "jpg"
-	}
-	if c.Metadata.Format.LimitMax == 0 {
-		c.Metadata.Format.LimitMax = 200
 	}
 
 	return nil

@@ -40,20 +40,27 @@ type MVConfig struct {
 	Max       int    `koanf:"max"`
 }
 
-// PathsConfig holds destination folder paths for downloaded content.
+// PathsConfig holds destination folder paths and naming templates for downloaded content.
 type PathsConfig struct {
-	Alac  string `koanf:"alac"`
-	Atmos string `koanf:"atmos"`
-	Aac   string `koanf:"aac"`
-	MV    string `koanf:"mv"`
+	Alac           string `koanf:"alac"`
+	Atmos          string `koanf:"atmos"`
+	Aac            string `koanf:"aac"`
+	MV             string `koanf:"mv"`
+	AlbumFolder    string `koanf:"album-folder"`
+	PlaylistFolder string `koanf:"playlist-folder"`
+	ArtistFolder   string `koanf:"artist-folder"`
+	SongFile       string `koanf:"song-file"`
+	LimitMax       int    `koanf:"limit-max"`
+	Explicit       string `koanf:"explicit"`
+	Clean          string `koanf:"clean"`
+	AppleMaster    string `koanf:"apple-master"`
 }
 
-// MetadataConfig holds lyrics, artwork, tags, and naming template configurations.
+// MetadataConfig holds lyrics, artwork, and tags configurations.
 type MetadataConfig struct {
 	Lyrics  LyricsConfig  `koanf:"lyrics"`
 	Artwork ArtworkConfig `koanf:"artwork"`
 	Tags    TagsConfig    `koanf:"tags"`
-	Format  FormatConfig  `koanf:"format"`
 }
 
 // LyricsConfig holds lyrics fetching, formatting, and embedding options.
@@ -78,21 +85,9 @@ type ArtworkConfig struct {
 
 // TagsConfig holds audio metadata tag formatting and identifiers.
 type TagsConfig struct {
-	SortOrder   bool   `koanf:"sort-order"`
-	ItunesID    bool   `koanf:"itunes-id"`
-	Explicit    string `koanf:"explicit"`
-	Clean       string `koanf:"clean"`
-	AppleMaster string `koanf:"apple-master"`
-}
-
-// FormatConfig holds file and folder naming templates.
-type FormatConfig struct {
-	AlbumFolder            string `koanf:"album-folder"`
-	PlaylistFolder         string `koanf:"playlist-folder"`
-	ArtistFolder           string `koanf:"artist-folder"`
-	SongFile               string `koanf:"song-file"`
-	LimitMax               int    `koanf:"limit-max"`
-	UseSongInfoForPlaylist bool   `koanf:"use-songinfo-for-playlist"`
+	SortOrder              bool `koanf:"sort-order"`
+	ItunesID               bool `koanf:"itunes-id"`
+	UseSongInfoForPlaylist bool `koanf:"use-songinfo-for-playlist"`
 }
 
 // ConvertConfig holds post-download audio conversion settings via FFmpeg.

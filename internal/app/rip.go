@@ -67,7 +67,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 	}
 	var Quality string
-	if strings.Contains(r.Config.Metadata.Format.SongFile, "Quality") {
+	if strings.Contains(r.Config.Paths.SongFile, "Quality") {
 		if r.Flags.Atmos {
 			Quality = fmt.Sprintf("%dKbps", r.Config.Media.AtmosMax-2000)
 		} else if needDlAacLc {
@@ -85,18 +85,18 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 
 	stringsToJoin := []string{}
 	if track.Resp.Attributes.IsAppleDigitalMaster {
-		if r.Config.Metadata.Tags.AppleMaster != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.AppleMaster)
+		if r.Config.Paths.AppleMaster != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.AppleMaster)
 		}
 	}
 	if track.Resp.Attributes.ContentRating == "explicit" {
-		if r.Config.Metadata.Tags.Explicit != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.Explicit)
+		if r.Config.Paths.Explicit != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.Explicit)
 		}
 	}
 	if track.Resp.Attributes.ContentRating == "clean" {
-		if r.Config.Metadata.Tags.Clean != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.Clean)
+		if r.Config.Paths.Clean != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.Clean)
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
@@ -111,7 +111,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		"{Quality}", Quality,
 		"{Tag}", Tag_string,
 		"{Codec}", track.Codec,
-	).Replace(r.Config.Metadata.Format.SongFile)
+	).Replace(r.Config.Paths.SongFile)
 	fmt.Println(songName)
 	filename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
 	track.SaveName = filename
@@ -174,7 +174,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	}
 
 	//提前获取到的播放列表下track所在的专辑信息
-	if track.PreType == "playlists" && r.Config.Metadata.Format.UseSongInfoForPlaylist {
+	if track.PreType == "playlists" && r.Config.Metadata.Tags.UseSongInfoForPlaylist {
 		if err := track.GetAlbumData(token); err != nil {
 			fmt.Println("Failed to get album data for playlist track:", err)
 			r.State.Counter.Error++
@@ -322,12 +322,12 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 	}
 	station.Codec = Codec
 	var singerFoldername string
-	if r.Config.Metadata.Format.ArtistFolder != "" {
+	if r.Config.Paths.ArtistFolder != "" {
 		singerFoldername = strings.NewReplacer(
 			"{ArtistName}", "Apple Music Station",
 			"{ArtistId}", "",
 			"{UrlArtistName}", "Apple Music Station",
-		).Replace(r.Config.Metadata.Format.ArtistFolder)
+		).Replace(r.Config.Paths.ArtistFolder)
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 		}
@@ -353,7 +353,7 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 		"{Quality}", "",
 		"{Codec}", Codec,
 		"{Tag}", "",
-	).Replace(r.Config.Metadata.Format.PlaylistFolder)
+	).Replace(r.Config.Paths.PlaylistFolder)
 	playlistFolderPath, err := r.prepareCollectionFolder(singerFolder, playlistFolder)
 	if err != nil {
 		return err
@@ -386,7 +386,7 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 			"{Quality}", "256Kbps",
 			"{Tag}", "",
 			"{Codec}", "AAC",
-		).Replace(r.Config.Metadata.Format.SongFile)
+		).Replace(r.Config.Paths.SongFile)
 		fmt.Println(songName)
 		trackPath := filepath.Join(playlistFolderPath, fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_")))
 		exists, _ := fileExists(trackPath)
@@ -579,19 +579,19 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	}
 	album.Codec = Codec
 	var singerFoldername string
-	if r.Config.Metadata.Format.ArtistFolder != "" {
+	if r.Config.Paths.ArtistFolder != "" {
 		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
 			singerFoldername = strings.NewReplacer(
 				"{UrlArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
-			).Replace(r.Config.Metadata.Format.ArtistFolder)
+			).Replace(r.Config.Paths.ArtistFolder)
 		} else {
 			singerFoldername = strings.NewReplacer(
 				"{UrlArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistId}", "",
-			).Replace(r.Config.Metadata.Format.ArtistFolder)
+			).Replace(r.Config.Paths.ArtistFolder)
 		}
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
@@ -611,7 +611,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	}
 	album.SaveDir = singerFolder
 	var Quality string
-	if strings.Contains(r.Config.Metadata.Format.AlbumFolder, "Quality") {
+	if strings.Contains(r.Config.Paths.AlbumFolder, "Quality") {
 		if r.Flags.Atmos {
 			Quality = fmt.Sprintf("%dKbps", r.Config.Media.AtmosMax-2000)
 		} else if r.Flags.AAC && r.Config.Media.AacType == "aac-lc" {
@@ -649,18 +649,18 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	}
 	stringsToJoin := []string{}
 	if meta.Data[0].Attributes.IsAppleDigitalMaster || meta.Data[0].Attributes.IsMasteredForItunes {
-		if r.Config.Metadata.Tags.AppleMaster != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.AppleMaster)
+		if r.Config.Paths.AppleMaster != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.AppleMaster)
 		}
 	}
 	if meta.Data[0].Attributes.ContentRating == "explicit" {
-		if r.Config.Metadata.Tags.Explicit != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.Explicit)
+		if r.Config.Paths.Explicit != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.Explicit)
 		}
 	}
 	if meta.Data[0].Attributes.ContentRating == "clean" {
-		if r.Config.Metadata.Tags.Clean != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.Clean)
+		if r.Config.Paths.Clean != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.Clean)
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
@@ -677,7 +677,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 		"{Quality}", Quality,
 		"{Codec}", Codec,
 		"{Tag}", Tag_string,
-	).Replace(r.Config.Metadata.Format.AlbumFolder)
+	).Replace(r.Config.Paths.AlbumFolder)
 
 	albumFolderPath, err := r.prepareCollectionFolder(singerFolder, albumFolderName)
 	if err != nil {
@@ -807,12 +807,12 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 	}
 	playlist.Codec = Codec
 	var singerFoldername string
-	if r.Config.Metadata.Format.ArtistFolder != "" {
+	if r.Config.Paths.ArtistFolder != "" {
 		singerFoldername = strings.NewReplacer(
 			"{ArtistName}", "Apple Music",
 			"{ArtistId}", "",
 			"{UrlArtistName}", "Apple Music",
-		).Replace(r.Config.Metadata.Format.ArtistFolder)
+		).Replace(r.Config.Paths.ArtistFolder)
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 		}
@@ -832,7 +832,7 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 	playlist.SaveDir = singerFolder
 
 	var Quality string
-	if strings.Contains(r.Config.Metadata.Format.AlbumFolder, "Quality") {
+	if strings.Contains(r.Config.Paths.AlbumFolder, "Quality") {
 		if r.Flags.Atmos {
 			Quality = fmt.Sprintf("%dKbps", r.Config.Media.AtmosMax-2000)
 		} else if r.Flags.AAC && r.Config.Media.AacType == "aac-lc" {
@@ -870,18 +870,18 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 	}
 	stringsToJoin := []string{}
 	if meta.Data[0].Attributes.IsAppleDigitalMaster || meta.Data[0].Attributes.IsMasteredForItunes {
-		if r.Config.Metadata.Tags.AppleMaster != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.AppleMaster)
+		if r.Config.Paths.AppleMaster != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.AppleMaster)
 		}
 	}
 	if meta.Data[0].Attributes.ContentRating == "explicit" {
-		if r.Config.Metadata.Tags.Explicit != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.Explicit)
+		if r.Config.Paths.Explicit != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.Explicit)
 		}
 	}
 	if meta.Data[0].Attributes.ContentRating == "clean" {
-		if r.Config.Metadata.Tags.Clean != "" {
-			stringsToJoin = append(stringsToJoin, r.Config.Metadata.Tags.Clean)
+		if r.Config.Paths.Clean != "" {
+			stringsToJoin = append(stringsToJoin, r.Config.Paths.Clean)
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
@@ -892,7 +892,7 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 		"{Quality}", Quality,
 		"{Codec}", Codec,
 		"{Tag}", Tag_string,
-	).Replace(r.Config.Metadata.Format.PlaylistFolder)
+	).Replace(r.Config.Paths.PlaylistFolder)
 	playlistFolderPath, err := r.prepareCollectionFolder(singerFolder, playlistFolder)
 	if err != nil {
 		return err

@@ -200,7 +200,7 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		}
 	}
 
-	if (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.Metadata.Format.UseSongInfoForPlaylist {
+	if (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.Metadata.Tags.UseSongInfoForPlaylist {
 		t.DiscNumber = 1
 		t.DiscTotal = 1
 		t.TrackNumber = int16(track.TaskNum)
@@ -211,7 +211,7 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 			t.AlbumSort = track.PlaylistData.Attributes.Name
 			t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
 		}
-	} else if (track.PreType == "playlists" || track.PreType == "stations") && r.Config.Metadata.Format.UseSongInfoForPlaylist {
+	} else if (track.PreType == "playlists" || track.PreType == "stations") && r.Config.Metadata.Tags.UseSongInfoForPlaylist {
 		t.DiscTotal = int16(track.DiscTotal)
 		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
 		t.AlbumArtist = track.AlbumData.Attributes.ArtistName

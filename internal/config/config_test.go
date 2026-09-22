@@ -29,11 +29,38 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Paths.Alac != "AM-Lossless" {
 		t.Errorf("Paths.Alac = %q, want 'AM-Lossless'", cfg.Paths.Alac)
 	}
+	if cfg.Paths.AlbumFolder != "{AlbumName}" {
+		t.Errorf("Paths.AlbumFolder = %q, want '{AlbumName}'", cfg.Paths.AlbumFolder)
+	}
+	if cfg.Paths.PlaylistFolder != "{PlaylistName}" {
+		t.Errorf("Paths.PlaylistFolder = %q, want '{PlaylistName}'", cfg.Paths.PlaylistFolder)
+	}
+	if cfg.Paths.ArtistFolder != "{UrlArtistName}" {
+		t.Errorf("Paths.ArtistFolder = %q, want '{UrlArtistName}'", cfg.Paths.ArtistFolder)
+	}
+	if cfg.Paths.SongFile != "{SongNumer}. {SongName}" {
+		t.Errorf("Paths.SongFile = %q, want '{SongNumer}. {SongName}'", cfg.Paths.SongFile)
+	}
+	if cfg.Paths.LimitMax != 200 {
+		t.Errorf("Paths.LimitMax = %d, want 200", cfg.Paths.LimitMax)
+	}
+	if cfg.Paths.Explicit != "[E]" {
+		t.Errorf("Paths.Explicit = %q, want '[E]'", cfg.Paths.Explicit)
+	}
+	if cfg.Paths.Clean != "[C]" {
+		t.Errorf("Paths.Clean = %q, want '[C]'", cfg.Paths.Clean)
+	}
+	if cfg.Paths.AppleMaster != "[M]" {
+		t.Errorf("Paths.AppleMaster = %q, want '[M]'", cfg.Paths.AppleMaster)
+	}
 	if !cfg.Metadata.Artwork.Embed {
 		t.Errorf("Metadata.Artwork.Embed = %v, want true", cfg.Metadata.Artwork.Embed)
 	}
 	if cfg.Metadata.Lyrics.Format != "lrc" {
 		t.Errorf("Metadata.Lyrics.Format = %q, want 'lrc'", cfg.Metadata.Lyrics.Format)
+	}
+	if cfg.Metadata.Tags.UseSongInfoForPlaylist {
+		t.Errorf("Metadata.Tags.UseSongInfoForPlaylist = %v, want false", cfg.Metadata.Tags.UseSongInfoForPlaylist)
 	}
 	if cfg.Convert.Format != "flac" {
 		t.Errorf("Convert.Format = %q, want 'flac'", cfg.Convert.Format)
@@ -183,8 +210,76 @@ func TestLoadActualExampleFile(t *testing.T) {
 	if cfg.Media.AlacMax != 192000 {
 		t.Errorf("Media.AlacMax = %d, want 192000", cfg.Media.AlacMax)
 	}
-	if cfg.Metadata.Format.LimitMax != 200 {
-		t.Errorf("Metadata.Format.LimitMax = %d, want 200", cfg.Metadata.Format.LimitMax)
+	if cfg.Paths.LimitMax != 200 {
+		t.Errorf("Paths.LimitMax = %d, want 200", cfg.Paths.LimitMax)
+	}
+	if cfg.Paths.AlbumFolder != "{AlbumName}" {
+		t.Errorf("Paths.AlbumFolder = %q, want '{AlbumName}'", cfg.Paths.AlbumFolder)
+	}
+	if cfg.Paths.Explicit != "[E]" {
+		t.Errorf("Paths.Explicit = %q, want '[E]'", cfg.Paths.Explicit)
+	}
+	if cfg.Metadata.Tags.UseSongInfoForPlaylist {
+		t.Errorf("Metadata.Tags.UseSongInfoForPlaylist = %v, want false", cfg.Metadata.Tags.UseSongInfoForPlaylist)
+	}
+}
+
+func TestLoadBackwardCompatibility(t *testing.T) {
+	dir := t.TempDir()
+	userContent := `
+metadata:
+  format:
+    album-folder: "custom-album"
+    playlist-folder: "custom-playlist"
+    artist-folder: "custom-artist"
+    song-file: "custom-song"
+    limit-max: 150
+    use-songinfo-for-playlist: true
+  tags:
+    explicit: "[EXP]"
+    clean: "[CLN]"
+    apple-master: "[ADM]"
+`
+	userFile := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(userFile, []byte(userContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(LoadOptions{
+		ConfigFile:             userFile,
+		ExampleFile:            filepath.Join(dir, "nonexistent.example"),
+		DisableMissingWarnings: true,
+	})
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	if cfg.Paths.AlbumFolder != "custom-album" {
+		t.Errorf("Paths.AlbumFolder = %q, want 'custom-album'", cfg.Paths.AlbumFolder)
+	}
+	if cfg.Paths.PlaylistFolder != "custom-playlist" {
+		t.Errorf("Paths.PlaylistFolder = %q, want 'custom-playlist'", cfg.Paths.PlaylistFolder)
+	}
+	if cfg.Paths.ArtistFolder != "custom-artist" {
+		t.Errorf("Paths.ArtistFolder = %q, want 'custom-artist'", cfg.Paths.ArtistFolder)
+	}
+	if cfg.Paths.SongFile != "custom-song" {
+		t.Errorf("Paths.SongFile = %q, want 'custom-song'", cfg.Paths.SongFile)
+	}
+	if cfg.Paths.LimitMax != 150 {
+		t.Errorf("Paths.LimitMax = %d, want 150", cfg.Paths.LimitMax)
+	}
+	if cfg.Paths.Explicit != "[EXP]" {
+		t.Errorf("Paths.Explicit = %q, want '[EXP]'", cfg.Paths.Explicit)
+	}
+	if cfg.Paths.Clean != "[CLN]" {
+		t.Errorf("Paths.Clean = %q, want '[CLN]'", cfg.Paths.Clean)
+	}
+	if cfg.Paths.AppleMaster != "[ADM]" {
+		t.Errorf("Paths.AppleMaster = %q, want '[ADM]'", cfg.Paths.AppleMaster)
+	}
+	if !cfg.Metadata.Tags.UseSongInfoForPlaylist {
+		t.Errorf("Metadata.Tags.UseSongInfoForPlaylist = %v, want true", cfg.Metadata.Tags.UseSongInfoForPlaylist)
 	}
 }
 

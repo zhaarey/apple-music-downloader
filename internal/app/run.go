@@ -154,10 +154,10 @@ func Main() {
 			fmt.Println("Failed to get artistname.")
 			return
 		}
-		r.Config.Metadata.Format.ArtistFolder = strings.NewReplacer(
+		r.Config.Paths.ArtistFolder = strings.NewReplacer(
 			"{UrlArtistName}", r.LimitString(urlArtistName),
 			"{ArtistId}", urlArtistID,
-		).Replace(r.Config.Metadata.Format.ArtistFolder)
+		).Replace(r.Config.Paths.ArtistFolder)
 		albumArgs, err := r.checkArtist(os.Args[0], token, "albums")
 		if err != nil {
 			fmt.Println("Failed to get artist albums.")
@@ -190,7 +190,7 @@ func Main() {
 					"{ArtistName}", "",
 					"{UrlArtistName}", "",
 					"{ArtistId}", "",
-				).Replace(r.Config.Metadata.Format.ArtistFolder)
+				).Replace(r.Config.Paths.ArtistFolder)
 				if mvSaveDir != "" {
 					mvSaveDir = filepath.Join(r.Config.Paths.MV, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
 				} else {
