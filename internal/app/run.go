@@ -3,15 +3,19 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/pflag"
-	"amdl/internal/amp-api"
-	fairplayrip "amdl/internal/fairplay-rip"
-	"amdl/internal/config"
-	"amdl/internal/download"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/pflag"
+
+	ampapi "amdl/internal/amp-api"
+	"amdl/internal/config"
+	"amdl/internal/download"
+	fairplayrip "amdl/internal/fairplay-rip"
+	"amdl/internal/updater"
+	"amdl/internal/version"
 )
 
 func Main() {
@@ -36,6 +40,10 @@ func Main() {
 	pflag.String("aac-type", "", "Select AAC type, aac aac-binaural aac-downmix")
 	pflag.String("mv-audio-type", "", "Select MV audio type, atmos ac3 aac")
 	pflag.Int("mv-max", 0, "Specify the max quality for download MV")
+	pflag.BoolVarP(&r.Flags.Version, "version", "v", false, "Print version information and exit")
+	pflag.BoolVarP(&r.Flags.Update, "update", "U", false, "Perform self-update and interactive config migration")
+	pflag.BoolVar(&r.Flags.CheckUpdate, "check-update", false, "Check for available updates without downloading")
+	pflag.BoolVarP(&r.Flags.Yes, "yes", "y", false, "Automatically accept defaults during update")
 
 	pflag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", "[main | main.exe | go run main.go]")
@@ -46,6 +54,35 @@ func Main() {
 
 	pflag.Parse()
 
+	if r.Flags.Version {
+		fmt.Println(version.Info())
+		return
+	}
+
+	if r.Flags.CheckUpdate || r.Flags.Update {
+		_ = r.loadConfig(config.LoadOptions{
+			ConfigFile:             configFile,
+			FlagSet:                pflag.CommandLine,
+			DisableMissingWarnings: true,
+		})
+		proxyURL := r.Config.General.Proxy
+
+		if r.Flags.CheckUpdate {
+			if err := updater.CheckUpdateOnly(proxyURL); err != nil {
+				fmt.Printf("Update check error: %v\n", err)
+			}
+			return
+		}
+
+		if r.Flags.Update {
+			if err := updater.ExecuteSelfUpdate(configFile, proxyURL, r.Flags.Yes); err != nil {
+				fmt.Printf("Self-update failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
+
 	err := r.loadConfig(config.LoadOptions{
 		ConfigFile: configFile,
 		FlagSet:    pflag.CommandLine,
@@ -54,6 +91,8 @@ func Main() {
 		fmt.Printf("load Config failed: %v\n", err)
 		return
 	}
+
+	updater.PrintStartupUpdateNotice(r.Config.General.Proxy)
 	if r.Flags.LiteServerFlag == "" {
 		r.Flags.LiteServerFlag = r.Config.General.LiteServer
 	}

@@ -19,6 +19,10 @@ type Flags struct {
 	PrintJSON      bool
 	SaveM3U8       bool
 	LiteServerFlag string
+	Version        bool
+	Update         bool
+	CheckUpdate    bool
+	Yes            bool
 }
 
 type State struct {

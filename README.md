@@ -350,6 +350,28 @@ save-lrc-file: false        # also save an external .lrc file
 Set `lrc-extra` according to the service's language or feature code when you want translated or phonetic lyrics.
 
 ## Upgrade
+ 
+### Precompiled Binary Users (Recommended)
+
+Use the built-in self-update command to upgrade to the latest official release with automatic checksum verification and interactive configuration migration:
+
+```bash
+# Check and perform self-update with interactive config migration
+./amdl --update
+
+# Shorthand flag
+./amdl -U
+
+# Check for updates without downloading
+./amdl --check-update
+
+# Automated / non-interactive mode (automatically accept new option defaults)
+./amdl -U -y
+```
+
+> **Note**: Self-update automatically creates a timestamped `config.yaml.bak_...` backup and safely guides the migration of new settings without overwriting your credentials, custom paths, or comments. If a proxy is configured in `config.yaml`, the updater automatically routes through it.
+
+### Source Build Users
 
 Pull the latest source and rebuild:
 
@@ -364,8 +386,6 @@ On Windows:
 git pull
 go build -o amdl.exe .
 ```
-
-If `config.yaml.example` gains new options, compare it with your `config.yaml` before copying anything. Preserve your existing credentials and save folders.
 
 ## Credits
 
