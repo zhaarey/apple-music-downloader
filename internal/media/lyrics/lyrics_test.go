@@ -1,7 +1,11 @@
 package lyrics
 
 import (
+	"encoding/json"
+	"errors"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -401,4 +405,25 @@ func normalizeLiteServer(value string) string {
 	value = strings.TrimSpace(value)
 	value = strings.TrimSuffix(value, "s")
 	return strings.TrimRight(value, "/")
+}
+
+func TestGetLyricsNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 404,
+			"msg":  "lyrics not found",
+		})
+	}))
+	defer server.Close()
+
+	lrc, err := Get("123", "syllable-lyrics", "en-US", "lrc", server.URL, "")
+	if lrc != "" {
+		t.Fatalf("expected empty lyrics, got %q", lrc)
+	}
+	if !errors.Is(err, ErrLyricsNotFound) {
+		t.Fatalf("Get() error = %v, want ErrLyricsNotFound", err)
+	}
+	if err.Error() != "no lyrics available for this song" {
+		t.Fatalf("unexpected error string: %v", err)
+	}
 }

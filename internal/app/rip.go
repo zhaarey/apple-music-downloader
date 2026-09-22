@@ -9,6 +9,7 @@ import (
 	"amdl/internal/model"
 	"amdl/internal/widevine-rip"
 	"amdl/internal/widevine-rip/runv5"
+	"errors"
 	"fmt"
 	"github.com/itouakirai/go-mp4tag"
 	"os"
@@ -187,15 +188,19 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	if r.Config.Metadata.Lyrics.Embed || r.Config.Metadata.Lyrics.SaveFile {
 		lrcStr, err := lyrics.Get(track.ID, r.Config.Metadata.Lyrics.Type, r.Config.General.Language, r.Config.Metadata.Lyrics.Format, r.Config.General.LiteServer, r.Config.Metadata.Lyrics.Extra)
 		if err != nil {
-			fmt.Println(err)
+			if errors.Is(err, lyrics.ErrLyricsNotFound) {
+				fmt.Println("No lyrics available for this song")
+			} else {
+				fmt.Println(err)
+			}
 		} else {
-			if r.Config.Metadata.Lyrics.SaveFile {
+			if r.Config.Metadata.Lyrics.SaveFile && lrcStr != "" {
 				err := r.writeLyrics(track.SaveDir, lrcFilename, lrcStr)
 				if err != nil {
 					fmt.Printf("Failed to write lyrics")
 				}
 			}
-			if r.Config.Metadata.Lyrics.Embed {
+			if r.Config.Metadata.Lyrics.Embed && lrcStr != "" {
 				lrc = lrcStr
 			}
 		}

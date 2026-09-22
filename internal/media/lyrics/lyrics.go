@@ -10,6 +10,12 @@ import (
 	"github.com/beevik/etree"
 )
 
+// ErrLyricsNotFound is returned when wrapper-lite indicates no lyrics are available (code 404).
+var ErrLyricsNotFound = wrapper.ErrLyricsNotFound
+
+// ErrNoLyrics is an alias for ErrLyricsNotFound.
+var ErrNoLyrics = wrapper.ErrNoLyrics
+
 func Get(songId, lrcType, language, lrcFormat, liteServer, lrcExtra string) (string, error) {
 	ttml, err := getSongLyrics(songId, liteServer, lrcType, language)
 	if err != nil {
@@ -31,6 +37,9 @@ func Get(songId, lrcType, language, lrcFormat, liteServer, lrcExtra string) (str
 func getSongLyrics(songId string, liteServer string, lrcType string, language string) (string, error) {
 	lyrics, err := wrapper.GetLyrics(liteServer, songId, language, lrcType != "lyrics")
 	if err != nil {
+		if errors.Is(err, wrapper.ErrLyricsNotFound) {
+			return "", err
+		}
 		if !errors.Is(err, wrapper.ErrNotConfigured) {
 			fmt.Println("Error connecting to lite-server:", err)
 		}
