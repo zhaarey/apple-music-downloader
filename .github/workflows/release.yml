@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    name: Build ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -18,22 +18,25 @@ jobs:
         include:
           - goos: windows
             goarch: amd64
-            ext: .exe
+            target: amdl_windows_amd64.exe
           - goos: windows
             goarch: arm64
-            ext: .exe
+            target: amdl_windows_arm64.exe
           - goos: linux
             goarch: amd64
-            ext: ''
+            target: amdl_linux_amd64
           - goos: linux
             goarch: arm64
-            ext: ''
+            target: amdl_linux_arm64
+          - goos: linux
+            goarch: arm64
+            target: amdl_android_arm64
           - goos: darwin
             goarch: amd64
-            ext: ''
+            target: amdl_darwin_amd64
           - goos: darwin
             goarch: arm64
-            ext: ''
+            target: amdl_darwin_arm64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,7 +55,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          OUTPUT_NAME="amdl_${{ matrix.goos }}_${{ matrix.goarch }}${{ matrix.ext }}"
+          OUTPUT_NAME="${{ matrix.target }}"
           go build -trimpath -ldflags="-s -w \
             -X 'amdl/internal/version.Version=${{ github.ref_name }}' \
             -X 'amdl/internal/version.Commit=${{ github.sha }}' \

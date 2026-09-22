@@ -38,6 +38,7 @@ func TestFindBinaryAsset(t *testing.T) {
 		Assets: []Asset{
 			{Name: "amdl_windows_amd64.exe", BrowserDownloadURL: "http://example.com/win"},
 			{Name: "amdl_linux_amd64", BrowserDownloadURL: "http://example.com/linux"},
+			{Name: "amdl_android_arm64", BrowserDownloadURL: "http://example.com/android"},
 			{Name: "amdl_darwin_arm64", BrowserDownloadURL: "http://example.com/mac"},
 			{Name: "checksums.txt", BrowserDownloadURL: "http://example.com/sums"},
 		},
@@ -51,6 +52,11 @@ func TestFindBinaryAsset(t *testing.T) {
 	asset, err = FindBinaryAsset(rel, "linux", "amd64")
 	if err != nil || asset.Name != "amdl_linux_amd64" {
 		t.Fatalf("failed to find linux asset: %v", err)
+	}
+
+	asset, err = FindBinaryAsset(rel, "android", "arm64")
+	if err != nil || asset.Name != "amdl_android_arm64" {
+		t.Fatalf("failed to find android asset: %v", err)
 	}
 
 	sums, err := FindChecksumsAsset(rel)

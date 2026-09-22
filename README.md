@@ -191,10 +191,10 @@ Install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/) or th
 pkg update && pkg upgrade
 ```
 
-2. Install the toolchain and media tools:
+2. Install necessary tools (ffmpeg is optional, used for conversion or animated artwork):
 
 ```bash
-pkg install golang git ffmpeg
+pkg install ffmpeg curl
 ```
 
 3. Optionally grant access to shared Android storage. Termux creates the `~/storage/shared` tree after you approve the prompt:
@@ -203,10 +203,21 @@ pkg install golang git ffmpeg
 termux-setup-storage
 ```
 
-4. Clone, configure and build:
+4. Get the binary:
+
+**Option A: Direct precompiled binary (Recommended)**:
 
 ```bash
-git clone https://github.com/zhaarey/apple-music-downloader.git
+curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_android_arm64
+chmod +x amdl
+curl -L -o config.yaml https://raw.githubusercontent.com/itouakirai/apple-music-downloader/main/config.yaml.example
+```
+
+**Option B: Build from source**:
+
+```bash
+pkg install golang git
+git clone https://github.com/itouakirai/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .

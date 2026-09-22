@@ -112,6 +112,17 @@ func FindBinaryAsset(rel *Release, goos, goarch string) (*Asset, error) {
 		}
 	}
 
+	// Fallback alias for android/termux and linux
+	if goos == "android" {
+		return FindBinaryAsset(rel, "linux", goarch)
+	} else if goos == "linux" && goarch == "arm64" {
+		for _, a := range rel.Assets {
+			if strings.EqualFold(a.Name, "amdl_android_arm64") {
+				return &a, nil
+			}
+		}
+	}
+
 	return nil, fmt.Errorf("no matching binary asset found for %s/%s in release %s", goos, goarch, rel.TagName)
 }
 

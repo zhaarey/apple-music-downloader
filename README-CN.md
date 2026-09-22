@@ -191,10 +191,10 @@ go build -o amdl .
 pkg update && pkg upgrade
 ```
 
-2. 安装构建工具和媒体工具：
+2. 安装必要工具（ffmpeg 可选，用于转换或动态封面）：
 
 ```bash
-pkg install golang git ffmpeg
+pkg install ffmpeg curl
 ```
 
 3. 可选：授权访问 Android 共享存储。同意提示后，Termux 会创建 `~/storage/shared` 目录树：
@@ -203,10 +203,21 @@ pkg install golang git ffmpeg
 termux-setup-storage
 ```
 
-4. 获取源码并构建：
+4. 获取程序：
+
+**方式 A：直接下载预编译二进制（推荐，免编译）**：
 
 ```bash
-git clone https://github.com/zhaarey/apple-music-downloader.git
+curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_android_arm64
+chmod +x amdl
+curl -L -o config.yaml https://raw.githubusercontent.com/itouakirai/apple-music-downloader/main/config.yaml.example
+```
+
+**方式 B：通过源码构建**：
+
+```bash
+pkg install golang git
+git clone https://github.com/itouakirai/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
