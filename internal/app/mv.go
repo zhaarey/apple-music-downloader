@@ -18,7 +18,7 @@ import (
 )
 
 func (r *Runner) mvDownloader(adamID string, saveDir string, token string, storefront string, track *model.Track) error {
-	MVInfo, err := ampapi.GetMusicVideoResp(storefront, adamID, r.Config.Language, token)
+	MVInfo, err := ampapi.GetMusicVideoResp(storefront, adamID, r.Config.General.Language, token)
 	if err != nil {
 		fmt.Println("\u26A0 Failed to get MV manifest:", err)
 		return nil
@@ -65,7 +65,7 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 		return nil
 	}
 
-	mvm3u8url, err := wrapper.GetWebplayback(r.Config.LiteServer, adamID)
+	mvm3u8url, err := wrapper.GetWebplayback(r.Config.General.LiteServer, adamID)
 	if err != nil {
 		return err
 	}
@@ -81,9 +81,9 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	var videokeyAndUrls string
 	if usePlayReady {
 		fmt.Println("Video DRM: PlayReady")
-		videokeyAndUrls, err = playreadyrip.Run(adamID, videom3u8url, r.Config.LiteServer)
+		videokeyAndUrls, err = playreadyrip.Run(adamID, videom3u8url, r.Config.General.LiteServer)
 	} else {
-		videokeyAndUrls, err = runv5.Run(adamID, videom3u8url, token, true, r.Config.LiteServer)
+		videokeyAndUrls, err = runv5.Run(adamID, videom3u8url, token, true, r.Config.General.LiteServer)
 	}
 	if err != nil {
 		return fmt.Errorf("download video stream: %w", err)
@@ -97,7 +97,7 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	if err != nil {
 		return fmt.Errorf("extract audio manifest: %w", err)
 	}
-	audiokeyAndUrls, err := runv5.Run(adamID, audiom3u8url, token, true, r.Config.LiteServer)
+	audiokeyAndUrls, err := runv5.Run(adamID, audiom3u8url, token, true, r.Config.General.LiteServer)
 	if err != nil {
 		return fmt.Errorf("download audio stream: %w", err)
 	}
@@ -107,7 +107,7 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	defer os.Remove(audPath)
 
 	var covPath string
-	if r.Config.EmbedCover {
+	if r.Config.Metadata.Artwork.Embed {
 		thumbURL := MVInfo.Data[0].Attributes.Artwork.URL
 		baseThumbName := forbiddenNames.ReplaceAllString(mvSaveName, "_") + "_thumbnail"
 		covPath, err = r.writeCover(saveDir, baseThumbName, thumbURL)
@@ -173,7 +173,7 @@ func (r *Runner) writeMVMP4Tags(path string, mvInfo *ampapi.MusicVideoResp, trac
 	}
 
 	switch {
-	case track != nil && (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.UseSongInfoForPlaylist:
+	case track != nil && (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.Metadata.Format.UseSongInfoForPlaylist:
 		tags.Album = track.PlaylistData.Attributes.Name
 		tags.DiscNumber = 1
 		tags.DiscTotal = 1
@@ -194,7 +194,7 @@ func (r *Runner) writeMVMP4Tags(path string, mvInfo *ampapi.MusicVideoResp, trac
 		tags.Publisher = track.AlbumData.Attributes.RecordLabel
 	}
 
-	if r.Config.TagSortOrder {
+	if r.Config.Metadata.Tags.SortOrder {
 		tags.TitleSort = attrs.Name
 		tags.ArtistSort = attrs.ArtistName
 		tags.AlbumSort = tags.Album
@@ -210,7 +210,7 @@ func (r *Runner) writeMVMP4Tags(path string, mvInfo *ampapi.MusicVideoResp, trac
 		tags.ItunesAdvisory = mp4tag.ItunesAdvisoryNone
 	}
 
-	if r.Config.EmbedCover && coverPath != "" {
+	if r.Config.Metadata.Artwork.Embed && coverPath != "" {
 		cover, err := os.ReadFile(coverPath)
 		if err != nil {
 			return fmt.Errorf("read MV cover: %w", err)

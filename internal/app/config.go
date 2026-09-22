@@ -1,38 +1,20 @@
 package app
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"sort"
 	"strings"
 
+	"amdl/internal/config"
 	"amdl/internal/wrapper"
-	"gopkg.in/yaml.v2"
 )
-
-
-func topLevelKeys(data []byte) map[string]bool {
-	keys := make(map[string]bool)
-	var raw map[string]interface{}
-	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return keys
-	}
-	for k := range raw {
-		keys[k] = true
-	}
-	return keys
-}
 
 // getLiteRegions queries wrapper-lite's /status endpoint once and returns
 // the regions reported by the service.
 func (r *Runner) getLiteRegions() ([]string, error) {
-	return wrapper.GetStatus(r.Config.LiteServer)
+	return wrapper.GetStatus(r.Config.General.LiteServer)
 }
 
 // flagValueFromArgs scans raw os.Args for "--name=value" or "--name value"
-// before pflag.Parse runs, so early startup logic can already use the override.
-
+// before flag parsing runs, allowing early override lookups if needed.
 func flagValueFromArgs(args []string, name string) string {
 	prefix := "--" + name + "="
 	for i := 0; i < len(args); i++ {
@@ -46,76 +28,16 @@ func flagValueFromArgs(args []string, name string) string {
 	return ""
 }
 
-func (r *Runner) loadConfig() error {
-	userData, err := os.ReadFile("config.yaml")
+// loadConfig loads application configuration through internal/config with koanf.
+func (r *Runner) loadConfig(opts ...config.LoadOptions) error {
+	var opt config.LoadOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	cfg, err := config.Load(opt)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("read config.yaml: %w", err)
-		}
-		userData = nil
+		return err
 	}
-
-	exampleData, err := os.ReadFile("config.yaml.example")
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("read config.yaml.example: %w", err)
-		}
-		exampleData = nil
-	}
-
-	// config.yaml.example supplies defaults when it is available. A valid
-	// config.yaml remains enough to run without the example file.
-	if userData == nil && exampleData == nil {
-		return errors.New("config file not found: provide config.yaml")
-	}
-	if exampleData == nil && userData != nil {
-		fmt.Println("Warning: config.yaml.example not found, using config.yaml only")
-	}
-
-	if err := yaml.Unmarshal(exampleData, &r.Config); err != nil {
-		return fmt.Errorf("parse config.yaml.example: %w", err)
-	}
-
-	if userData != nil {
-		if err := yaml.Unmarshal(userData, &r.Config); err != nil {
-			return fmt.Errorf("parse config.yaml: %w", err)
-		}
-
-		exampleKeys := topLevelKeys(exampleData)
-		userKeys := topLevelKeys(userData)
-		var missing []string
-		for k := range exampleKeys {
-			if !userKeys[k] {
-				missing = append(missing, k)
-			}
-		}
-		sort.Strings(missing)
-
-		if len(missing) > 0 {
-			fmt.Println("Warning: config.yaml is missing fields, using defaults from config.yaml.example for them.")
-			fmt.Println("  Missing fields:", strings.Join(missing, ", "))
-		}
-	} else if exampleData != nil {
-		fmt.Println("Warning: config.yaml not found, using defaults from config.yaml.example")
-	}
-
-	if len(r.Config.Storefront) != 2 {
-		r.Config.Storefront = "us"
-	}
-	if r.Config.AlacMax == 0 {
-		r.Config.AlacMax = 192000
-	}
-
-	if r.Config.AtmosMax == 0 {
-		r.Config.AtmosMax = 2768
-	}
-
-	if r.Config.AacType == "" {
-		r.Config.AacType = "aac-lc"
-	}
-
-	if r.Config.MVAudioType == "" {
-		r.Config.MVAudioType = "atmos"
-	}
+	r.Config = *cfg
 	return nil
 }

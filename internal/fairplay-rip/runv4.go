@@ -95,7 +95,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config config.Config
 	if lib == nil {
 		return errors.New("runv4: temari library not initialized (call runv4.Init)")
 	}
-	if Config.LiteServer == "" {
+	if Config.General.LiteServer == "" {
 		return errors.New("lite-server is not configured in config.yaml")
 	}
 	header := make(http.Header)
@@ -154,7 +154,7 @@ func Run(adamId string, playlistUrl string, outfile string, Config config.Config
 		body:      do.Body,
 	}
 
-	err = downloadAndDecryptFile(Config.LiteServer, body, outfile, adamId, segments, totalLen, Config)
+	err = downloadAndDecryptFile(Config.General.LiteServer, body, outfile, adamId, segments, totalLen, Config)
 	timer.Stop()
 	if err != nil {
 		return err
@@ -170,7 +170,7 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 	var outFile *os.File
 	var tmpPath string
 	var err error
-	MaxMemorySize := int64(Config.MaxMemoryLimit * 1024 * 1024)
+	MaxMemorySize := int64(Config.General.MaxMemoryLimit * 1024 * 1024)
 	inBuf := bufio.NewReader(in)
 
 	var fetchedTemplates []*temarimod.Temari

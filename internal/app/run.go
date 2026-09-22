@@ -17,40 +17,11 @@ import (
 func Main() {
 	r := NewRunner(config.ConfigSet{})
 
-	// --lite-server overrides the configured endpoint for this run. Scan the
-	// raw args first so the /status check below uses the override too.
-	r.Flags.LiteServerFlag = flagValueFromArgs(os.Args[1:], "lite-server")
-	err := r.loadConfig()
-	if err != nil {
-		fmt.Printf("load Config failed: %v", err)
-		return
-	}
-	if r.Flags.LiteServerFlag != "" {
-		r.Config.LiteServer = r.Flags.LiteServerFlag
-	}
-	if regions, err := r.getLiteRegions(); err != nil {
-		fmt.Println("Warning: failed to query lite-server /status:", err)
-	} else {
-		fmt.Printf("lite-server regions: %s\n", regions)
-	}
-	if err := download.Init(r.Config.Proxy); err != nil {
-		fmt.Printf("proxy config error: %v\n", err)
-		return
-	}
-	if err := fairplayrip.Init(); err != nil {
-		fmt.Printf("temari library error: %v\n", err)
-		return
-	}
-	token, err := ampapi.GetToken()
-	if err != nil {
-		if r.Config.AuthorizationToken != "" && r.Config.AuthorizationToken != "your-authorization-token" {
-			token = strings.Replace(r.Config.AuthorizationToken, "Bearer ", "", -1)
-		} else {
-			fmt.Println("Failed to get token.")
-			return
-		}
-	}
-	var search_type string
+	var (
+		configFile  string
+		search_type string
+	)
+	pflag.StringVarP(&configFile, "config", "c", "", "Path to custom config file (default: config.yaml)")
 	pflag.StringVar(&search_type, "search", "", "Search for 'album', 'song', or 'artist'. Provide query after flags.")
 	pflag.BoolVar(&r.Flags.Atmos, "atmos", false, "Enable atmos download mode")
 	pflag.BoolVar(&r.Flags.AAC, "aac", false, "Enable adm-aac download mode")
@@ -59,12 +30,12 @@ func Main() {
 	pflag.BoolVar(&r.Flags.Debug, "debug", false, "Enable debug mode to show audio quality information")
 	pflag.BoolVar(&r.Flags.PrintJSON, "json", false, "Output JSON summary at the end")
 	pflag.BoolVar(&r.Flags.SaveM3U8, "save-m3u8-playlist", false, "Save M3U8 playlist file")
-	pflag.StringVar(&r.Flags.LiteServerFlag, "lite-server", r.Config.LiteServer, "wrapper-lite HTTP API endpoint for this run")
-	alac_max = pflag.Int("alac-max", r.Config.AlacMax, "Specify the max quality for download alac")
-	atmos_max = pflag.Int("atmos-max", r.Config.AtmosMax, "Specify the max quality for download atmos")
-	aac_type = pflag.String("aac-type", r.Config.AacType, "Select AAC type, aac aac-binaural aac-downmix")
-	mv_audio_type = pflag.String("mv-audio-type", r.Config.MVAudioType, "Select MV audio type, atmos ac3 aac")
-	mv_max = pflag.Int("mv-max", r.Config.MVMax, "Specify the max quality for download MV")
+	pflag.StringVar(&r.Flags.LiteServerFlag, "lite-server", "", "wrapper-lite HTTP API endpoint for this run")
+	pflag.Int("alac-max", 0, "Specify the max quality for download alac")
+	pflag.Int("atmos-max", 0, "Specify the max quality for download atmos")
+	pflag.String("aac-type", "", "Select AAC type, aac aac-binaural aac-downmix")
+	pflag.String("mv-audio-type", "", "Select MV audio type, atmos ac3 aac")
+	pflag.Int("mv-max", 0, "Specify the max quality for download MV")
 
 	pflag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", "[main | main.exe | go run main.go]")
@@ -74,14 +45,41 @@ func Main() {
 	}
 
 	pflag.Parse()
-	if r.Flags.LiteServerFlag != "" {
-		r.Config.LiteServer = r.Flags.LiteServerFlag
+
+	err := r.loadConfig(config.LoadOptions{
+		ConfigFile: configFile,
+		FlagSet:    pflag.CommandLine,
+	})
+	if err != nil {
+		fmt.Printf("load Config failed: %v\n", err)
+		return
 	}
-	r.Config.AlacMax = *alac_max
-	r.Config.AtmosMax = *atmos_max
-	r.Config.AacType = *aac_type
-	r.Config.MVAudioType = *mv_audio_type
-	r.Config.MVMax = *mv_max
+	if r.Flags.LiteServerFlag == "" {
+		r.Flags.LiteServerFlag = r.Config.General.LiteServer
+	}
+
+	if regions, err := r.getLiteRegions(); err != nil {
+		fmt.Println("Warning: failed to query lite-server /status:", err)
+	} else {
+		fmt.Printf("lite-server regions: %s\n", regions)
+	}
+	if err := download.Init(r.Config.General.Proxy); err != nil {
+		fmt.Printf("proxy config error: %v\n", err)
+		return
+	}
+	if err := fairplayrip.Init(); err != nil {
+		fmt.Printf("temari library error: %v\n", err)
+		return
+	}
+	token, err := ampapi.GetToken()
+	if err != nil {
+		if r.Config.General.AuthorizationToken != "" && r.Config.General.AuthorizationToken != "your-authorization-token" {
+			token = strings.Replace(r.Config.General.AuthorizationToken, "Bearer ", "", -1)
+		} else {
+			fmt.Println("Failed to get token.")
+			return
+		}
+	}
 
 	args := pflag.Args()
 
@@ -116,10 +114,10 @@ func Main() {
 			fmt.Println("Failed to get artistname.")
 			return
 		}
-		r.Config.ArtistFolderFormat = strings.NewReplacer(
+		r.Config.Metadata.Format.ArtistFolder = strings.NewReplacer(
 			"{UrlArtistName}", r.LimitString(urlArtistName),
 			"{ArtistId}", urlArtistID,
-		).Replace(r.Config.ArtistFolderFormat)
+		).Replace(r.Config.Metadata.Format.ArtistFolder)
 		albumArgs, err := r.checkArtist(os.Args[0], token, "albums")
 		if err != nil {
 			fmt.Println("Failed to get artist albums.")
@@ -143,7 +141,7 @@ func Main() {
 					continue
 				}
 				r.State.Counter.Total++
-				if r.Config.LiteServer == "" {
+				if r.Config.General.LiteServer == "" {
 					fmt.Println(": lite-server is not set, skip MV dl")
 					r.State.Counter.Success++
 					continue
@@ -152,11 +150,11 @@ func Main() {
 					"{ArtistName}", "",
 					"{UrlArtistName}", "",
 					"{ArtistId}", "",
-				).Replace(r.Config.ArtistFolderFormat)
+				).Replace(r.Config.Metadata.Format.ArtistFolder)
 				if mvSaveDir != "" {
-					mvSaveDir = filepath.Join(r.Config.MVSaveFolder, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
+					mvSaveDir = filepath.Join(r.Config.Paths.MV, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
 				} else {
-					mvSaveDir = r.Config.MVSaveFolder
+					mvSaveDir = r.Config.Paths.MV
 				}
 				storefront, albumId = checkUrl(urlRaw, "mv")
 				err := r.mvDownloader(albumId, mvSaveDir, token, storefront, nil)
@@ -175,7 +173,7 @@ func Main() {
 					fmt.Println("Invalid song URL format.")
 					continue
 				}
-				err := r.ripSong(songId, token, storefront, r.Config.MediaUserToken)
+				err := r.ripSong(songId, token, storefront, r.Config.General.MediaUserToken)
 				if err != nil {
 					fmt.Println("Failed to rip song:", err)
 				}
@@ -192,25 +190,25 @@ func Main() {
 			if strings.Contains(urlRaw, "/album/") {
 				fmt.Println("Album")
 				storefront, albumId = checkUrl(urlRaw, "album")
-				err := r.ripAlbum(albumId, token, storefront, r.Config.MediaUserToken, urlArg_i)
+				err := r.ripAlbum(albumId, token, storefront, r.Config.General.MediaUserToken, urlArg_i)
 				if err != nil {
 					fmt.Println("Failed to rip album:", err)
 				}
 			} else if strings.Contains(urlRaw, "/playlist/") {
 				fmt.Println("Playlist")
 				storefront, albumId = checkUrl(urlRaw, "playlist")
-				err := r.ripPlaylist(albumId, token, storefront, r.Config.MediaUserToken)
+				err := r.ripPlaylist(albumId, token, storefront, r.Config.General.MediaUserToken)
 				if err != nil {
 					fmt.Println("Failed to rip playlist:", err)
 				}
 			} else if strings.Contains(urlRaw, "/station/") {
 				fmt.Printf("Station")
 				storefront, albumId = checkUrl(urlRaw, "station")
-				if len(r.Config.MediaUserToken) <= 50 {
+				if len(r.Config.General.MediaUserToken) <= 50 {
 					fmt.Println(": meida-user-token is not set, skip station dl")
 					continue
 				}
-				err := r.ripStation(albumId, token, storefront, r.Config.MediaUserToken)
+				err := r.ripStation(albumId, token, storefront, r.Config.General.MediaUserToken)
 				if err != nil {
 					fmt.Println("Failed to rip station:", err)
 				}
@@ -221,7 +219,7 @@ func Main() {
 		fmt.Printf("=======  [\u2714 ] Completed: %d/%d  |  [\u26A0 ] Warnings: %d  |  [\u2716 ] Errors: %d  =======\n", r.State.Counter.Success, r.State.Counter.Total, r.State.Counter.Unavailable+r.State.Counter.NotSong, r.State.Counter.Error)
 		if r.State.Counter.Error == 0 {
 			break
-		} else if r.Config.ExitOnError {
+		} else if r.Config.General.ExitOnError {
 			fmt.Println("Error detected, exiting...")
 			os.Exit(1)
 		} else {
@@ -230,7 +228,7 @@ func Main() {
 			fmt.Println("Start trying again...")
 		}
 
-		r.State.Counter = config.Counter{}
+		r.State.Counter = Counter{}
 	}
 
 	// Print JSON output

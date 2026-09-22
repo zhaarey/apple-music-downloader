@@ -24,20 +24,20 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 	originalUrl := url
 	var ext string
 	var covPath string
-	if r.Config.CoverFormat == "original" {
+	if r.Config.Metadata.Artwork.Format == "original" {
 		ext = strings.Split(url, "/")[len(strings.Split(url, "/"))-2]
 		ext = ext[strings.LastIndex(ext, ".")+1:]
 		covPath = filepath.Join(sanAlbumFolder, name+"."+ext)
 	} else {
-		covPath = filepath.Join(sanAlbumFolder, name+"."+r.Config.CoverFormat)
+		covPath = filepath.Join(sanAlbumFolder, name+"."+r.Config.Metadata.Artwork.Format)
 	}
-	if r.Config.CoverFormat == "png" {
+	if r.Config.Metadata.Artwork.Format == "png" {
 		re := regexp.MustCompile(`\{w\}x\{h\}`)
 		parts := re.Split(url, 2)
 		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
 	}
-	url = strings.Replace(url, "{w}x{h}", r.Config.CoverSize, 1)
-	if r.Config.CoverFormat == "original" {
+	url = strings.Replace(url, "{w}x{h}", r.Config.Metadata.Artwork.Size, 1)
+	if r.Config.Metadata.Artwork.Format == "original" {
 		url = strings.Replace(url, "is1-ssl.mzstatic.com/image/thumb", "a5.mzstatic.com/us/r1000/0", 1)
 		url = url[:strings.LastIndex(url, "/")]
 	}
@@ -56,13 +56,13 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 	}()
 
 	if err := r.getCover(url, tmpFile); err != nil {
-		if r.Config.CoverFormat != "original" {
+		if r.Config.Metadata.Artwork.Format != "original" {
 			return "", err
 		}
 		splitByDot := strings.Split(originalUrl, ".")
 		last := splitByDot[len(splitByDot)-1]
 		fallback := originalUrl[:len(originalUrl)-len(last)] + ext
-		fallback = strings.Replace(fallback, "{w}x{h}", r.Config.CoverSize, 1)
+		fallback = strings.Replace(fallback, "{w}x{h}", r.Config.Metadata.Artwork.Size, 1)
 		if err := r.getCover(fallback, tmpFile); err != nil {
 			return "", err
 		}
@@ -159,7 +159,7 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		Album:       track.Resp.Attributes.AlbumName,
 	}
 
-	if r.Config.EmbedCover && track.CoverPath != "" {
+	if r.Config.Metadata.Artwork.Embed && track.CoverPath != "" {
 		cover, err := os.ReadFile(track.CoverPath)
 		if err != nil {
 			return fmt.Errorf("read cover: %w", err)
@@ -170,14 +170,14 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		}}
 	}
 
-	if r.Config.TagSortOrder {
+	if r.Config.Metadata.Tags.SortOrder {
 		t.TitleSort = track.Resp.Attributes.Name
 		t.ArtistSort = track.Resp.Attributes.ArtistName
 		t.ComposerSort = track.Resp.Attributes.ComposerName
 		t.AlbumSort = track.Resp.Attributes.AlbumName
 	}
 
-	if r.Config.TagItunesID {
+	if r.Config.Metadata.Tags.ItunesID {
 		if track.PreType == "albums" {
 			albumID, err := strconv.ParseUint(track.PreID, 10, 64)
 			if err != nil {
@@ -195,18 +195,18 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		}
 	}
 
-	if (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.UseSongInfoForPlaylist {
+	if (track.PreType == "playlists" || track.PreType == "stations") && !r.Config.Metadata.Format.UseSongInfoForPlaylist {
 		t.DiscNumber = 1
 		t.DiscTotal = 1
 		t.TrackNumber = int16(track.TaskNum)
 		t.TrackTotal = int16(track.TaskTotal)
 		t.Album = track.PlaylistData.Attributes.Name
 		t.AlbumArtist = track.PlaylistData.Attributes.ArtistName
-		if r.Config.TagSortOrder {
+		if r.Config.Metadata.Tags.SortOrder {
 			t.AlbumSort = track.PlaylistData.Attributes.Name
 			t.AlbumArtistSort = track.PlaylistData.Attributes.ArtistName
 		}
-	} else if (track.PreType == "playlists" || track.PreType == "stations") && r.Config.UseSongInfoForPlaylist {
+	} else if (track.PreType == "playlists" || track.PreType == "stations") && r.Config.Metadata.Format.UseSongInfoForPlaylist {
 		t.DiscTotal = int16(track.DiscTotal)
 		t.TrackTotal = int16(track.AlbumData.Attributes.TrackCount)
 		t.AlbumArtist = track.AlbumData.Attributes.ArtistName
@@ -215,7 +215,7 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		t.Date = track.AlbumData.Attributes.ReleaseDate
 		t.Copyright = track.AlbumData.Attributes.Copyright
 		t.Publisher = track.AlbumData.Attributes.RecordLabel
-		if r.Config.TagSortOrder {
+		if r.Config.Metadata.Tags.SortOrder {
 			t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
 		}
 	} else {
@@ -226,7 +226,7 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		t.Date = track.AlbumData.Attributes.ReleaseDate
 		t.Copyright = track.AlbumData.Attributes.Copyright
 		t.Publisher = track.AlbumData.Attributes.RecordLabel
-		if r.Config.TagSortOrder {
+		if r.Config.Metadata.Tags.SortOrder {
 			t.AlbumArtistSort = track.AlbumData.Attributes.ArtistName
 		}
 	}
@@ -293,7 +293,7 @@ func (r *Runner) extractMvAudio(c string) (string, error) {
 			if alt.URI == "" {
 				continue
 			}
-			score := audioScore(alt.GroupId, r.Config.MVAudioType)
+			score := audioScore(alt.GroupId, r.Config.Media.MV.AudioType)
 			if score < 0 {
 				continue
 			}
@@ -365,7 +365,7 @@ func parseAudioBitrate(groupID, prefix string) int {
 }
 
 func (r *Runner) checkM3u8(b string, f string) (string, error) {
-	EnhancedHls, err := wrapper.GetM3U8(r.Config.LiteServer, b)
+	EnhancedHls, err := wrapper.GetM3U8(r.Config.General.LiteServer, b)
 	if err != nil {
 		if errors.Is(err, wrapper.ErrNotConfigured) {
 			return "", err
@@ -513,7 +513,7 @@ func (r *Runner) extractMedia(b string, more_mode bool) (string, string, error) 
 		fmt.Printf("r.Flags.Atmos=%v r.Flags.AAC=%v AlacMax=%d\n",
 			r.Flags.Atmos,
 			r.Flags.AAC,
-			r.Config.AlacMax,
+			r.Config.Media.AlacMax,
 		)
 		fmt.Println("====================")
 
@@ -533,7 +533,7 @@ func (r *Runner) extractMedia(b string, more_mode bool) (string, string, error) 
 				if err != nil {
 					return "", "", err
 				}
-				if length_int <= r.Config.AtmosMax {
+				if length_int <= r.Config.Media.AtmosMax {
 					if !r.Flags.Debug && !more_mode {
 						fmt.Printf("%s\n", variant.Audio)
 					}
@@ -566,7 +566,7 @@ func (r *Runner) extractMedia(b string, more_mode bool) (string, string, error) 
 				}
 				aacregex := regexp.MustCompile(`audio-stereo-\d+`)
 				replaced := aacregex.ReplaceAllString(variant.Audio, "aac")
-				if replaced == r.Config.AacType {
+				if replaced == r.Config.Media.AacType {
 					if !r.Flags.Debug && !more_mode {
 						fmt.Printf("%s\n", variant.Audio)
 					}
@@ -588,11 +588,11 @@ func (r *Runner) extractMedia(b string, more_mode bool) (string, string, error) 
 				if err != nil {
 					return "", "", err
 				}
-				max := r.Config.AlacMax
+				max := r.Config.Media.AlacMax
 				if max == 0 {
 					max = 192000
 				}
-				if length_int <= r.Config.AlacMax {
+				if length_int <= r.Config.Media.AlacMax {
 					if !r.Flags.Debug && !more_mode {
 						fmt.Printf("%s-bit / %s Hz\n", split[length-1], split[length-2])
 					}
@@ -656,7 +656,7 @@ func (r *Runner) extractVideoVariant(c string) (string, bool, error) {
 		return video.Variants[i].AverageBandwidth > video.Variants[j].AverageBandwidth
 	})
 
-	maxHeight := r.Config.MVMax
+	maxHeight := r.Config.Media.MV.Max
 
 	for _, variant := range video.Variants {
 		matches := re.FindStringSubmatch(variant.URI)

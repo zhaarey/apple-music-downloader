@@ -13,7 +13,7 @@ func (r *Runner) saveAnimatedArtwork(dir string, squareVideoURL string, tallVide
 		if err := r.downloadAnimatedArtwork(dir, "square", squareVideoURL); err != nil {
 			fmt.Printf("no motion video square: %v\n", err)
 		}
-		if r.Config.EmbyAnimatedArtwork {
+		if r.Config.Metadata.Artwork.EmbyAnimated {
 			cmd := exec.Command("ffmpeg", "-i", filepath.Join(dir, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(dir, "folder.jpg"))
 			if err := cmd.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)

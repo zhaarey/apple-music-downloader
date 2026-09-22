@@ -26,7 +26,7 @@ func TestRunv5ExtMvDataMissingFile(t *testing.T) {
 
 func TestRipTrackCountsAACLCMissingLiteServer(t *testing.T) {
 	r := NewRunner(config.ConfigSet{})
-	r.Config.LiteServer = ""
+	r.Config.General.LiteServer = ""
 
 	track := &model.Track{Type: "songs", ID: "1", SaveDir: t.TempDir()}
 	r.ripTrack(track, "token", "token")
@@ -37,7 +37,7 @@ func TestRipTrackCountsAACLCMissingLiteServer(t *testing.T) {
 
 func TestRipTrackSkipsMVWithoutLiteServer(t *testing.T) {
 	r := NewRunner(config.ConfigSet{})
-	r.Config.LiteServer = ""
+	r.Config.General.LiteServer = ""
 
 	track := &model.Track{Type: "music-videos", ID: "1", SaveDir: t.TempDir()}
 	r.ripTrack(track, "token", "token")

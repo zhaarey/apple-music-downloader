@@ -110,8 +110,8 @@ func TestWriteCoverFailurePreservesExisting(t *testing.T) {
 		download.Client = originalClient
 	})
 	r := NewRunner(config.ConfigSet{})
-	r.Config.CoverFormat = "jpg"
-	r.Config.CoverSize = "600x600"
+	r.Config.Metadata.Artwork.Format = "jpg"
+	r.Config.Metadata.Artwork.Size = "600x600"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

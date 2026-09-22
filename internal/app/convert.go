@@ -26,7 +26,7 @@ func (r *Runner) isLossySource(ext string, codec string) bool {
 
 func (r *Runner) buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraArgs string) ([]string, error) {
 	args := []string{"-y", "-i", inPath, "-loglevel", "error", "-map_metadata"}
-	if r.Config.ConvertWithMetadata {
+	if r.Config.Convert.WithMetadata {
 		args = append(args, "0")
 	} else {
 		args = append(args, "-1")
@@ -62,10 +62,10 @@ func (r *Runner) buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraAr
 // CONVERSION FEATURE: Perform conversion if enabled.
 
 func (r *Runner) convertIfNeeded(track *model.Track) {
-	if !r.Config.ConvertAfterDownload {
+	if !r.Config.Convert.AfterDownload {
 		return
 	}
-	if r.Config.ConvertFormat == "" {
+	if r.Config.Convert.Format == "" {
 		return
 	}
 	srcPath := track.SavePath
@@ -73,7 +73,7 @@ func (r *Runner) convertIfNeeded(track *model.Track) {
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(srcPath))
-	targetFmt := strings.ToLower(r.Config.ConvertFormat)
+	targetFmt := strings.ToLower(r.Config.Convert.Format)
 
 	// Map extension for output
 	if targetFmt == "copy" {
@@ -81,7 +81,7 @@ func (r *Runner) convertIfNeeded(track *model.Track) {
 		return
 	}
 
-	if r.Config.ConvertSkipIfSourceMatch {
+	if r.Config.Convert.SkipIfSourceMatch {
 		if ext == "."+targetFmt {
 			fmt.Printf("Conversion skipped (already %s)\n", targetFmt)
 			return
@@ -93,30 +93,30 @@ func (r *Runner) convertIfNeeded(track *model.Track) {
 
 	// Handle lossy -> lossless cases: optionally skip or warn
 	if (targetFmt == "flac" || targetFmt == "wav") && r.isLossySource(ext, track.Codec) {
-		if r.Config.ConvertSkipLossyToLossless {
+		if r.Config.Convert.SkipLossyToLossless {
 			fmt.Println("Skipping conversion: source appears lossy and target is lossless; configured to skip.")
 			return
 		}
-		if r.Config.ConvertWarnLossyToLossless {
+		if r.Config.Convert.WarnLossyToLossless {
 			fmt.Println("Warning: Converting lossy source to lossless container will not improve quality.")
 		}
 	}
 
-	if _, err := exec.LookPath(r.Config.FFmpegPath); err != nil {
-		fmt.Printf("ffmpeg not found at '%s'; skipping conversion.\n", r.Config.FFmpegPath)
+	if _, err := exec.LookPath(r.Config.Convert.FFmpegPath); err != nil {
+		fmt.Printf("ffmpeg not found at '%s'; skipping conversion.\n", r.Config.Convert.FFmpegPath)
 		return
 	}
 
-	args, err := r.buildFFmpegArgs(r.Config.FFmpegPath, srcPath, outPath, targetFmt, r.Config.ConvertExtraArgs)
+	args, err := r.buildFFmpegArgs(r.Config.Convert.FFmpegPath, srcPath, outPath, targetFmt, r.Config.Convert.ExtraArgs)
 	if err != nil {
 		fmt.Println("Conversion config error:", err)
 		return
 	}
 
 	fmt.Printf("Converting -> %s ...\n", targetFmt)
-	cmd := exec.Command(r.Config.FFmpegPath, args...)
+	cmd := exec.Command(r.Config.Convert.FFmpegPath, args...)
 	var stderr bytes.Buffer
-	if r.Config.ConvertCheckBadALAC {
+	if r.Config.Convert.CheckBadALAC {
 		cmd.Stderr = &stderr
 	} else {
 		cmd.Stderr = nil
@@ -128,9 +128,9 @@ func (r *Runner) convertIfNeeded(track *model.Track) {
 		// leave original
 		return
 	}
-	if r.Config.ConvertCheckBadALAC && stderr.Len() > 0 {
+	if r.Config.Convert.CheckBadALAC && stderr.Len() > 0 {
 		fmt.Print("Detected ALAC Error.", "\n")
-		if r.Config.ConvertDeleteBadALAC {
+		if r.Config.Convert.DeleteBadALAC {
 			delPath := strings.TrimSuffix(srcPath, "m4a") + targetFmt
 			logPath := strings.TrimSuffix(srcPath, "m4a") + "log"
 			if err := os.Remove(delPath); err != nil {
@@ -149,7 +149,7 @@ func (r *Runner) convertIfNeeded(track *model.Track) {
 	} else {
 		fmt.Printf("Conversion completed in %s: %s\n", time.Since(start).Truncate(time.Millisecond), filepath.Base(outPath))
 
-		if !r.Config.ConvertKeepOriginal {
+		if !r.Config.Convert.KeepOriginal {
 			if err := os.Remove(srcPath); err != nil {
 				fmt.Println("Failed to remove original after conversion:", err)
 			} else {
