@@ -371,6 +371,7 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 		r.saveAnimatedArtwork(playlistFolderPath, meta.Data[0].Attributes.EditorialVideo.MotionSquare.Video, "")
 	}
 	if station.Type == "stream" {
+		startIdx := len(r.State.AddedTracks)
 		r.State.Counter.Total++
 		if contains(r.State.OKDict[station.ID], 1) {
 			r.State.Counter.Success++
@@ -401,6 +402,7 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 				Album:    station.Name,
 				Song:     station.Name,
 			})
+			r.saveM3UPlaylist(playlistFolderPath, playlistFolder, startIdx)
 			return nil
 		}
 		assetsUrl, serverUrl, err := ampapi.GetStationAssetsUrlAndServerUrl(station.ID, mediaUserToken, token)
@@ -484,6 +486,7 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 		})
 		r.State.Counter.Success++
 		r.State.OKDict[station.ID] = append(r.State.OKDict[station.ID], 1)
+		r.saveM3UPlaylist(playlistFolderPath, playlistFolder, startIdx)
 		return nil
 	}
 
@@ -505,13 +508,14 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 	} else {
 		selected = station.ShowSelect()
 	}
+	startIdx := len(r.State.AddedTracks)
 	for i := range station.Tracks {
 		i++
 		if contains(selected, i) {
 			r.ripTrack(&station.Tracks[i-1], token, mediaUserToken)
 		}
 	}
-	r.saveM3UPlaylist(playlistFolderPath, playlistFolder)
+	r.saveM3UPlaylist(playlistFolderPath, playlistFolder, startIdx)
 	return nil
 }
 
@@ -726,6 +730,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	} else {
 		selected = album.ShowSelect()
 	}
+	startIdx := len(r.State.AddedTracks)
 	for i := range album.Tracks {
 		i++
 		if contains(r.State.OKDict[albumId], i) {
@@ -737,7 +742,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 			r.ripTrack(&album.Tracks[i-1], token, mediaUserToken)
 		}
 	}
-	r.saveM3UPlaylist(albumFolderPath, albumFolderName)
+	r.saveM3UPlaylist(albumFolderPath, albumFolderName, startIdx)
 	return nil
 
 }
@@ -924,6 +929,7 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 	} else {
 		selected = playlist.ShowSelect()
 	}
+	startIdx := len(r.State.AddedTracks)
 	for i := range playlist.Tracks {
 		i++
 		if contains(r.State.OKDict[playlistId], i) {
@@ -935,7 +941,7 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 			r.ripTrack(&playlist.Tracks[i-1], token, mediaUserToken)
 		}
 	}
-	r.saveM3UPlaylist(playlistFolderPath, playlistFolder)
+	r.saveM3UPlaylist(playlistFolderPath, playlistFolder, startIdx)
 	return nil
 }
 

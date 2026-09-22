@@ -72,11 +72,15 @@ func (r *Runner) prepareCollectionFolder(base string, displayName string) (strin
 	return folderPath, nil
 }
 
-func (r *Runner) saveM3UPlaylist(dir string, name string) {
-	startIdx := len(r.State.AddedTracks)
+func (r *Runner) saveM3UPlaylist(dir string, name string, startIdx int) {
+	if !r.Flags.SaveM3U8 {
+		return
+	}
 	if len(r.State.AddedTracks) > startIdx {
 		if err := r.writeM3UPlaylist(dir, name, r.State.AddedTracks[startIdx:]); err != nil {
 			fmt.Printf("Failed to write M3U8 playlist: %v\n", err)
+		} else {
+			fmt.Println("M3U8 playlist saved.")
 		}
 	}
 }

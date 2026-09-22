@@ -128,7 +128,12 @@ func (r *Runner) writeM3UPlaylist(folderPath string, name string, tracks []Added
 	fmt.Fprintln(f, "#EXTM3U")
 	for _, track := range tracks {
 		fmt.Fprintf(f, "#EXTINF:-1,%s - %s\n", track.Artist, track.Song)
-		fmt.Fprintln(f, filepath.Base(track.Path))
+		rel, err := filepath.Rel(folderPath, track.Path)
+		if err == nil && !strings.HasPrefix(rel, "..") {
+			fmt.Fprintln(f, filepath.ToSlash(rel))
+		} else {
+			fmt.Fprintln(f, filepath.Base(track.Path))
+		}
 	}
 	return nil
 }
