@@ -289,9 +289,18 @@ func getProgName(arg0 string) string {
 	if strings.Contains(arg0, "go-build") {
 		return "go run main.go"
 	}
-	base := filepath.Base(arg0)
-	if base != "" && base != "." && base != "/" && base != "\\" {
-		return base
+	// Normalize backslashes to forward slashes so Windows paths work across platforms (e.g. Linux CI).
+	s := strings.ReplaceAll(arg0, "\\", "/")
+	s = strings.TrimRight(s, "/")
+	if idx := strings.LastIndex(s, "/"); idx != -1 {
+		s = s[idx+1:]
+	}
+	// Strip Windows volume/drive prefix if present (e.g. C:amdl.exe)
+	if len(s) >= 2 && s[1] == ':' && ((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= 'A' && s[0] <= 'Z')) {
+		s = s[2:]
+	}
+	if s != "" && s != "." && s != "/" {
+		return s
 	}
 	return "amdl"
 }

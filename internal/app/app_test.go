@@ -144,6 +144,12 @@ func TestGetProgName(t *testing.T) {
 		{`C:\Users\qwer\AppData\Local\Temp\go-build3482394\b001\exe\main.exe`, "go run main.go"},
 		{"/tmp/go-build123/b001/exe/main", "go run main.go"},
 		{"", "amdl"},
+		{".", "amdl"},
+		{"/", "amdl"},
+		{`\`, "amdl"},
+		{`C:\`, "amdl"},
+		{"C:amdl.exe", "amdl.exe"},
+		{`\\server\share\amdl.exe`, "amdl.exe"},
 		{"main.exe", "main.exe"},
 		{"main", "main"},
 	}
