@@ -11,15 +11,13 @@ This command-line tool downloads albums, songs, playlists, stations and music vi
 - [Features](#features)
 - [Supported formats](#supported-formats)
 - [Requirements](#requirements)
+- [Quick Start](#quick-start)
 - [Configuration](#configuration)
-- [Install on Windows](#install-on-windows)
-- [Install on macOS](#install-on-macos)
-- [Install on Linux](#install-on-linux)
-- [Install on Android with Termux](#install-on-android-with-termux)
 - [Usage](#usage)
+- [Upgrade](#upgrade)
+- [For Developers](#for-developers)
 - [Get media-user-token](#get-media-user-token)
 - [Lyrics options](#lyrics-options)
-- [Upgrade](#upgrade)
 - [Credits](#credits)
 
 ## Features
@@ -47,34 +45,188 @@ Stations require a valid `media-user-token` from an active subscription.
 
 ## Requirements
 
-Install these before running the downloader:
+Install and prepare these before running the downloader:
 
-1. **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
-2. **wrapper-lite**: [github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite). Start it before using this downloader and set its HTTP endpoint in `lite-server`, for example `http://127.0.0.1:12340`.
-3. **ffmpeg**: required only for post-download conversion, animated artwork, or `ffmpeg`-dependent features. See [ffmpeg.org](https://ffmpeg.org/).
+1. **wrapper-lite**: [github.com/WorldObservationLog/wrapper/tree/lite](https://github.com/WorldObservationLog/wrapper/tree/lite). Required backend decryption service. Start it before using this downloader and set its HTTP endpoint in `lite-server`, for example `http://127.0.0.1:12340`.
+2. **ffmpeg** (Optional): Required only for post-download conversion, animated artwork, or `ffmpeg`-dependent features. See [ffmpeg.org](https://ffmpeg.org/).
+
+> **Note**: If you are using the precompiled release binaries, **Go is NOT required**. Go (1.23.1+) is only needed if you build from source (see [For Developers](#for-developers)).
+
+## Quick Start
+
+Download the precompiled binary for your operating system and architecture from the [latest GitHub Releases](https://github.com/itouakirai/apple-music-downloader/releases/latest):
+
+| Platform | Architecture | Precompiled Binary |
+|---|---|---|
+| **Windows** | x86_64 (64-bit) | `amdl_windows_amd64.exe` |
+| **Windows** | ARM64 | `amdl_windows_arm64.exe` |
+| **macOS** | Apple Silicon (M1/M2/M3/M4) | `amdl_darwin_arm64` |
+| **macOS** | Intel (x86_64) | `amdl_darwin_amd64` |
+| **Linux** | x86_64 (amd64) | `amdl_linux_amd64` |
+| **Linux** | ARM64 (aarch64) | `amdl_linux_arm64` |
+| **Android (Termux)** | ARM64 (aarch64) | `amdl_android_arm64` |
+
+---
+
+### Windows (PowerShell)
+
+1. Open PowerShell and run the following command to download the executable:
+
+```powershell
+# Download precompiled binary (example for 64-bit Windows)
+Invoke-WebRequest -Uri "https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_windows_amd64.exe" -OutFile "amdl.exe"
+```
+
+2. Run `amdl.exe` once to automatically generate the default `config.yaml`:
+
+```powershell
+.\amdl.exe
+```
+
+3. Open and edit `config.yaml` to set your `lite-server` address and destination paths.
+4. Test running the downloader:
+
+```powershell
+.\amdl.exe --help
+```
+
+Example:
+
+```powershell
+.\amdl.exe "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+---
+
+### macOS
+
+1. Download the precompiled binary:
+
+```bash
+# For Apple Silicon (M-series):
+curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_darwin_arm64
+
+# For Intel Macs:
+# curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_darwin_amd64
+
+# Grant execution permission
+chmod +x amdl
+```
+
+> **Tip (macOS Gatekeeper)**: If macOS blocks running `amdl` because it is from an unidentified developer, remove the quarantine attribute:
+> ```bash
+> xattr -d com.apple.quarantine amdl
+> ```
+
+2. Run `amdl` once to automatically generate the default `config.yaml`:
+
+```bash
+./amdl
+```
+
+3. Edit `config.yaml` with your settings.
+4. Run the downloader:
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+---
+
+### Linux
+
+1. Download the precompiled binary:
+
+```bash
+# For x86_64 / amd64:
+curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_linux_amd64
+
+# For ARM64:
+# curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_linux_arm64
+
+# Grant execution permission
+chmod +x amdl
+```
+
+2. Run `amdl` once to automatically generate the default `config.yaml`:
+
+```bash
+./amdl
+```
+
+3. Edit `config.yaml` with your settings.
+4. Run the downloader:
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+---
+
+### Android (Termux)
+
+Install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/) or the [official GitHub releases](https://github.com/termux/termux-app/releases) (do not use the obsolete Play Store version).
+
+1. Update packages and install curl (and optionally ffmpeg):
+
+```bash
+pkg update && pkg upgrade
+pkg install -y curl ffmpeg
+```
+
+2. Grant access to shared Android storage (creates `~/storage/shared`):
+
+```bash
+termux-setup-storage
+```
+
+3. Download precompiled binary:
+
+```bash
+curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_android_arm64
+chmod +x amdl
+```
+
+4. Run `amdl` once to automatically generate the default `config.yaml`:
+
+```bash
+./amdl
+```
+
+5. Edit `config.yaml`. To save downloads into Android's shared Music directory, point the paths in `config.yaml` to the shared mount:
+
+```yaml
+paths:
+  alac: "/sdcard/Music/amdl"
+  atmos: "/sdcard/Music/amdl-atmos"
+  aac: "/sdcard/Music/amdl-aac"
+  mv: "/sdcard/Music/amdl-mv"
+```
+
+6. Run:
+
+```bash
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+> **Tips for Termux**:
+> - For long downloads, prevent Android from sleeping with `termux-wake-lock` (release with `termux-wake-unlock` when done).
+> - If wrapper-lite runs on another device on your network, point `lite-server` to that device's LAN IP, not `127.0.0.1`.
+> - These instructions target current Android arm64 Termux environments; 32-bit Android is not a documented target.
 
 ## Configuration
 
-Copy the example config to `config.yaml` in the project root:
-
-```bash
-cp config.yaml.example config.yaml
-```
-
-On Windows PowerShell, use:
-
-```powershell
-copy config.yaml.example config.yaml
-```
+When `amdl` is run for the first time without an existing configuration file, it automatically creates `config.yaml` in the current directory from an embedded default template.
 
 At minimum, review and set:
 
 ```yaml
-# wrapper-lite HTTP API endpoint.
-lite-server: "http://127.0.0.1:12340"
+general:
+  # wrapper-lite HTTP API endpoint.
+  lite-server: "http://127.0.0.1:12340"
 
-# Required for stations. See "Get media-user-token" below.
-media-user-token: "your-media-user-token"
+  # Required for stations. See "Get media-user-token" below.
+  media-user-token: "your-media-user-token"
 
 # Destination folders. Relative paths are resolved from the working directory.
 paths:
@@ -86,170 +238,6 @@ paths:
 
 If wrapper-lite runs on another machine or container, replace `127.0.0.1` with that host's reachable LAN or public address.
 
-## Install on Windows
-
-1. Install **Git**: [git-scm.com/download/win](https://git-scm.com/download/win).
-2. Install **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
-3. Install **ffmpeg** if you plan to convert files or save animated artwork: [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
-
-From PowerShell:
-
-```powershell
-git clone https://github.com/zhaarey/apple-music-downloader.git
-cd apple-music-downloader
-copy config.yaml.example config.yaml
-go build -o amdl.exe .
-.\amdl.exe --help
-```
-
-Example:
-
-```powershell
-.\amdl.exe "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
-```
-
-## Install on macOS
-
-1. Install Homebrew: [brew.sh](https://brew.sh/).
-2. Install the runtime and media tools:
-
-```bash
-brew install go git ffmpeg
-```
-
-Then clone, configure and build:
-
-```bash
-git clone https://github.com/zhaarey/apple-music-downloader.git
-cd apple-music-downloader
-cp config.yaml.example config.yaml
-go build -o amdl .
-./amdl --help
-```
-
-Example:
-
-```bash
-./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
-```
-
-## Install on Linux
-
-Choose the commands for your distribution. Package names may differ on other distributions.
-
-### Debian / Ubuntu
-
-```bash
-sudo apt update
-sudo apt install -y git build-essential ffmpeg
-```
-
-If your repository's Go package is older than `1.23.1`, install Go from [go.dev/dl](https://go.dev/dl/) instead of using the distro package.
-
-### Fedora
-
-```bash
-sudo dnf install -y git gcc make ffmpeg
-```
-
-If needed, install Go manually from the official site.
-
-### Arch Linux
-
-```bash
-sudo pacman -S --needed git base-devel ffmpeg
-```
-
-If needed, install Go manually from the official site.
-
-Then clone, configure and build:
-
-```bash
-git clone https://github.com/zhaarey/apple-music-downloader.git
-cd apple-music-downloader
-cp config.yaml.example config.yaml
-go build -o amdl .
-./amdl --help
-```
-
-Example:
-
-```bash
-./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
-```
-
-## Install on Android with Termux
-
-Install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/) or the [official GitHub releases](https://github.com/termux/termux-app/releases). Do not use the outdated Play Store build.
-
-1. Update the package index and installed packages:
-
-```bash
-pkg update && pkg upgrade
-```
-
-2. Install necessary tools (ffmpeg is optional, used for conversion or animated artwork):
-
-```bash
-pkg install ffmpeg curl
-```
-
-3. Optionally grant access to shared Android storage. Termux creates the `~/storage/shared` tree after you approve the prompt:
-
-```bash
-termux-setup-storage
-```
-
-4. Get the binary:
-
-**Option A: Direct precompiled binary (Recommended)**:
-
-```bash
-curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_android_arm64
-chmod +x amdl
-curl -L -o config.yaml https://raw.githubusercontent.com/itouakirai/apple-music-downloader/main/config.yaml.example
-```
-
-**Option B: Build from source**:
-
-```bash
-pkg install golang git
-git clone https://github.com/itouakirai/apple-music-downloader.git
-cd apple-music-downloader
-cp config.yaml.example config.yaml
-go build -o amdl .
-```
-
-5. To save into Android shared music storage, point the save folders at the shared storage mount:
-
-```yaml
-paths:
-  alac: "/sdcard/Music/amdl"
-  atmos: "/sdcard/Music/amdl-atmos"
-  aac: "/sdcard/Music/amdl-aac"
-  mv: "/sdcard/Music/amdl-mv"
-```
-
-Run normally:
-
-```bash
-./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
-```
-
-For long downloads, keep Android from suspending Termux:
-
-```bash
-termux-wake-lock
-```
-
-Release the lock when finished:
-
-```bash
-termux-wake-unlock
-```
-
-If wrapper-lite runs on another device, set `lite-server` to that device's LAN or public address, not `127.0.0.1`. These instructions target current Android arm64 Termux environments; 32-bit Android is not a documented target.
-
 ## Usage
 
 Before running any command, make sure:
@@ -260,13 +248,13 @@ Before running any command, make sure:
 ### Album
 
 ```bash
-go run . "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
 ```
 
-Or use the built binary:
+On Windows:
 
-```bash
-./amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```powershell
+.\amdl.exe "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
 ```
 
 ### Single song
@@ -341,28 +329,32 @@ Enter track numbers separated by spaces.
 2. Open browser developer tools with `F12`.
 3. Go to `Application` > `Storage` > `Cookies` > `https://music.apple.com`.
 4. Find the cookie named `media-user-token` and copy its value.
-5. Paste it into `media-user-token` in `config.yaml`.
+5. Paste it into `general.media-user-token` in `config.yaml`.
 6. Restart the downloader.
 
 ## Lyrics options
 
-Key settings in `config.yaml`:
+Configure lyrics settings under `metadata.lyrics` in `config.yaml`:
 
 ```yaml
-lrc-type: "lyrics"          # lyrics or syllable-lyrics
-lrc-format: "lrc"           # lrc or ttml
-lrc-extra: ""               # translation or pronunciation
-embed-lrc: true             # embed lyrics in the media file
-save-lrc-file: false        # also save an external .lrc file
+metadata:
+  lyrics:
+    save-file: false                      # Save .lrc or .ttml file to disk
+    embed: true                           # Embed lyrics directly into audio container tags
+    type: "lyrics"                        # Lyrics type: "lyrics" (standard line-by-line) or "syllable-lyrics" (word-by-word)
+    format: "lrc"                         # Lyrics file format: "lrc" or "ttml"
+    extra: ""                             # Additional options: "" (default), "translation", or "pronunciation"
 ```
 
-Set `lrc-extra` according to the service's language or feature code when you want translated or phonetic lyrics.
+> **Tips**:
+> - Set `general.language` in `config.yaml` (e.g. `"en-US"`, `"zh-Hans-CN"`, `"ja"`) to control the target language for translated lyrics.
+> - `extra`: set to `"translation"` for translated lyrics or `"pronunciation"` for phonetic/romanized lyrics (when provided by Apple Music).
 
 ## Upgrade
- 
-### Precompiled Binary Users (Recommended)
 
-Use the built-in self-update command to upgrade to the latest official release with automatic checksum verification and interactive configuration migration:
+### Built-in Self Update (Recommended)
+
+Upgrade to the latest official release with automatic checksum verification and interactive configuration migration:
 
 ```bash
 # Check and perform self-update with interactive config migration
@@ -378,18 +370,70 @@ Use the built-in self-update command to upgrade to the latest official release w
 ./amdl -U -y
 ```
 
+On Windows PowerShell:
+
+```powershell
+# Perform self-update
+.\amdl.exe --update
+
+# Shorthand flag
+.\amdl.exe -U
+```
+
 > **Note**: Self-update automatically creates a timestamped `config.yaml.bak_...` backup and safely guides the migration of new settings without overwriting your credentials, custom paths, or comments. If a proxy is configured in `config.yaml`, the updater automatically routes through it.
 
-### Source Build Users
+### Manual Binary Update
 
-Pull the latest source and rebuild:
+Download the latest precompiled executable from [GitHub Releases](https://github.com/itouakirai/apple-music-downloader/releases/latest) and replace your current `amdl` / `amdl.exe` binary.
+
+> For developers building from source, see [For Developers](#for-developers).
+
+## For Developers
+
+If you want to contribute, modify the code, or build the downloader from source:
+
+### Prerequisites
+
+1. **Go 1.23.1 or newer**: [go.dev/dl](https://go.dev/dl/).
+2. **Git**: [git-scm.com](https://git-scm.com/).
+3. **ffmpeg**: [ffmpeg.org](https://ffmpeg.org/) (optional for audio conversion or animated artwork).
+
+### Clone and Build
+
+**macOS / Linux**:
+
+```bash
+git clone https://github.com/itouakirai/apple-music-downloader.git
+cd apple-music-downloader
+cp config.yaml.example config.yaml
+go build -o amdl .
+./amdl --help
+```
+
+**Windows (PowerShell)**:
+
+```powershell
+git clone https://github.com/itouakirai/apple-music-downloader.git
+cd apple-music-downloader
+copy config.yaml.example config.yaml
+go build -o amdl.exe .
+.\amdl.exe --help
+```
+
+### Run in Development
+
+```bash
+go run . "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+```
+
+### Update Source Code
 
 ```bash
 git pull
 go build -o amdl .
 ```
 
-On Windows:
+On Windows (PowerShell):
 
 ```powershell
 git pull
