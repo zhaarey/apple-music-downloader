@@ -77,14 +77,11 @@ lite-server: "http://127.0.0.1:12340"
 media-user-token: "your-media-user-token"
 
 # 保存目录。相对路径从运行目录解析。
-alac-save-folder: "AM-DL downloads"
-atmos-save-folder: "AM-DL-Atmos downloads"
-aac-save-folder: "AM-DL-AAC downloads"
-mv-save-folder: "AM-DL-MV downloads"
-
-# 使用 ffmpeg 转换或动态封面时需要开启。
-convert-after-download: false
-save-animated-artwork: false
+paths:
+  alac: "AM-Lossless"
+  atmos: "AM-Atmos"
+  aac: "AM-AAC"
+  mv: "AM-MV"
 ```
 
 如果 wrapper-lite 运行在其他机器或容器中，把 `127.0.0.1` 换成该主机的局域网地址或公网可达地址。
@@ -226,10 +223,11 @@ go build -o amdl .
 5. 如果要保存到 Android 共享音乐目录，把保存目录指向共享存储挂载位置：
 
 ```yaml
-alac-save-folder: "/sdcard/Music/amdl"
-atmos-save-folder: "/sdcard/Music/amdl-atmos"
-aac-save-folder: "/sdcard/Music/amdl-aac"
-mv-save-folder: "/sdcard/Music/amdl-mv"
+paths:
+  alac: "/sdcard/Music/amdl"
+  atmos: "/sdcard/Music/amdl-atmos"
+  aac: "/sdcard/Music/amdl-aac"
+  mv: "/sdcard/Music/amdl-mv"
 ```
 
 正常下载：

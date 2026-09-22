@@ -26,8 +26,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Media.MV.AudioType != "atmos" {
 		t.Errorf("Media.MV.AudioType = %q, want 'atmos'", cfg.Media.MV.AudioType)
 	}
-	if cfg.Paths.Alac != "AM-DL downloads" {
-		t.Errorf("Paths.Alac = %q, want 'AM-DL downloads'", cfg.Paths.Alac)
+	if cfg.Paths.Alac != "AM-Lossless" {
+		t.Errorf("Paths.Alac = %q, want 'AM-Lossless'", cfg.Paths.Alac)
 	}
 	if !cfg.Metadata.Artwork.Embed {
 		t.Errorf("Metadata.Artwork.Embed = %v, want true", cfg.Metadata.Artwork.Embed)

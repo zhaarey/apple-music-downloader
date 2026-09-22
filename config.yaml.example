@@ -31,10 +31,10 @@ media:
 # 3. Storage Paths (Save Folders)
 # ------------------------------------------------------------------------------
 paths:
-  alac: "AM-DL downloads"                 # Save folder for ALAC (Lossless / Hi-Res) downloads
-  atmos: "AM-DL-Atmos downloads"          # Save folder for Dolby Atmos (Spatial Audio) downloads
-  aac: "AM-DL-AAC downloads"              # Save folder for AAC downloads
-  mv: "AM-DL-MV downloads"                # Save folder for Music Videos
+  alac: "AM-Lossless"                     # Save folder for ALAC (Lossless / Hi-Res) downloads
+  atmos: "AM-Atmos"                       # Save folder for Dolby Atmos (Spatial Audio) downloads
+  aac: "AM-AAC"                           # Save folder for AAC downloads
+  mv: "AM-MV"                             # Save folder for Music Videos
 
 # ------------------------------------------------------------------------------
 # 4. Metadata Settings (Lyrics, Artwork, Tags & Naming Templates)

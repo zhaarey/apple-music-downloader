@@ -130,3 +130,29 @@ func TestWriteCoverFailurePreservesExisting(t *testing.T) {
 		t.Fatalf("existing cover changed to %q", string(data))
 	}
 }
+
+func TestGetProgName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"amdl_windows_amd64.exe", "amdl_windows_amd64.exe"},
+		{`C:\tools\amdl_windows_amd64.exe`, "amdl_windows_amd64.exe"},
+		{`.\amdl.exe`, "amdl.exe"},
+		{"/usr/local/bin/amdl", "amdl"},
+		{"./amdl_linux_arm64", "amdl_linux_arm64"},
+		{`C:\Users\qwer\AppData\Local\Temp\go-build3482394\b001\exe\main.exe`, "go run main.go"},
+		{"/tmp/go-build123/b001/exe/main", "go run main.go"},
+		{"", "amdl"},
+		{"main.exe", "main.exe"},
+		{"main", "main"},
+	}
+
+	for _, tt := range tests {
+		got := getProgName(tt.input)
+		if got != tt.want {
+			t.Errorf("getProgName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+

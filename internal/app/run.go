@@ -46,8 +46,9 @@ func Main() {
 	pflag.BoolVarP(&r.Flags.Yes, "yes", "y", false, "Automatically accept defaults during update")
 
 	pflag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", "[main | main.exe | go run main.go]")
-		fmt.Fprintf(os.Stderr, "Search Usage: %s --search [album|song|artist] [query]\n", "[main | main.exe | go run main.go]")
+		prog := progName()
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [url1 url2 ...]\n", prog)
+		fmt.Fprintf(os.Stderr, "Search Usage: %s --search [album|song|artist] [query]\n", prog)
 		fmt.Println("\nOptions:")
 		pflag.PrintDefaults()
 	}
@@ -280,3 +281,25 @@ func Main() {
 		}
 	}
 }
+
+func getProgName(arg0 string) string {
+	if arg0 == "" {
+		return "amdl"
+	}
+	if strings.Contains(arg0, "go-build") {
+		return "go run main.go"
+	}
+	base := filepath.Base(arg0)
+	if base != "" && base != "." && base != "/" && base != "\\" {
+		return base
+	}
+	return "amdl"
+}
+
+func progName() string {
+	if len(os.Args) > 0 {
+		return getProgName(os.Args[0])
+	}
+	return "amdl"
+}
+

@@ -26,10 +26,10 @@ func Default() Config {
 			},
 		},
 		Paths: PathsConfig{
-			Alac:  "AM-DL downloads",
-			Atmos: "AM-DL-Atmos downloads",
-			Aac:   "AM-DL-AAC downloads",
-			MV:    "AM-DL-MV downloads",
+			Alac:  "AM-Lossless",
+			Atmos: "AM-Atmos",
+			Aac:   "AM-AAC",
+			MV:    "AM-MV",
 		},
 		Metadata: MetadataConfig{
 			Lyrics: LyricsConfig{

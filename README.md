@@ -77,14 +77,11 @@ lite-server: "http://127.0.0.1:12340"
 media-user-token: "your-media-user-token"
 
 # Destination folders. Relative paths are resolved from the working directory.
-alac-save-folder: "AM-DL downloads"
-atmos-save-folder: "AM-DL-Atmos downloads"
-aac-save-folder: "AM-DL-AAC downloads"
-mv-save-folder: "AM-DL-MV downloads"
-
-# Required for ffmpeg-based conversion or animated artwork.
-convert-after-download: false
-save-animated-artwork: false
+paths:
+  alac: "AM-Lossless"
+  atmos: "AM-Atmos"
+  aac: "AM-AAC"
+  mv: "AM-MV"
 ```
 
 If wrapper-lite runs on another machine or container, replace `127.0.0.1` with that host's reachable LAN or public address.
@@ -226,10 +223,11 @@ go build -o amdl .
 5. To save into Android shared music storage, point the save folders at the shared storage mount:
 
 ```yaml
-alac-save-folder: "/sdcard/Music/amdl"
-atmos-save-folder: "/sdcard/Music/amdl-atmos"
-aac-save-folder: "/sdcard/Music/amdl-aac"
-mv-save-folder: "/sdcard/Music/amdl-mv"
+paths:
+  alac: "/sdcard/Music/amdl"
+  atmos: "/sdcard/Music/amdl-atmos"
+  aac: "/sdcard/Music/amdl-aac"
+  mv: "/sdcard/Music/amdl-mv"
 ```
 
 Run normally:
