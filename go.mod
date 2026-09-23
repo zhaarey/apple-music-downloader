@@ -43,7 +43,7 @@ require (
 	github.com/beevik/etree v1.7.1
 	github.com/fatih/color v1.18.0
 	github.com/go-resty/resty/v2 v2.16.5
-	github.com/itouakirai/go-mp4tag v0.0.0-20260910161811-7dcccd0cc361
+	github.com/itouakirai/go-mp4tag v0.0.0-20260923112055-472a1d1f73ca
 	github.com/itouakirai/mp4ff v0.0.0-20250930132656-98812935a1c7
 	github.com/knadh/koanf/parsers/yaml v1.1.1
 	github.com/knadh/koanf/providers/file v1.2.1
