@@ -61,9 +61,20 @@ func DownloadSegments(ctx context.Context, client *http.Client, urls []string, o
 	results := make(chan segmentResult, workerCount*2)
 	errCh := make(chan error, workerCount+1)
 
+	// window bounds how many segments may be downloaded but not yet written.
+	// Without it a single slow segment lets the other workers run ahead and
+	// buffer the rest of the stream in memory.
+	window := make(chan struct{}, workerCount*2)
+	onWritten := func(n int) {
+		<-window
+		if config.Progress != nil {
+			config.Progress(n)
+		}
+	}
+
 	writerDone := make(chan error, 1)
 	go func() {
-		writerDone <- writeSegmentsInOrder(results, output, len(urls), config.Progress)
+		writerDone <- writeSegmentsInOrder(results, output, len(urls), onWritten)
 	}()
 
 	var workerWg sync.WaitGroup
@@ -73,8 +84,14 @@ func DownloadSegments(ctx context.Context, client *http.Client, urls []string, o
 		go func() {
 			defer workerWg.Done()
 			for {
+				select {
+				case window <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
 				index := int(atomic.AddInt64(&nextJob, 1)) - 1
 				if index >= len(urls) {
+					<-window
 					return
 				}
 

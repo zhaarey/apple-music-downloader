@@ -134,3 +134,44 @@ type failingWriter struct{}
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, fmt.Errorf("disk full")
 }
+
+func TestDownloadSegmentsBoundsLookahead(t *testing.T) {
+	const total = 20
+	release := make(chan struct{})
+	var started int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("index") == "0" {
+			<-release
+		} else {
+			atomic.AddInt32(&started, 1)
+		}
+		_, _ = w.Write([]byte("x"))
+	}))
+	defer server.Close()
+
+	urls := make([]string, total)
+	for i := range urls {
+		urls[i] = fmt.Sprintf("%s/segment?index=%d", server.URL, i)
+	}
+
+	done := make(chan error, 1)
+	var output bytes.Buffer
+	go func() {
+		done <- DownloadSegments(context.Background(), server.Client(), urls, &output, SegmentConfig{Concurrency: 2})
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	// Window is Concurrency*2 = 4 segments, one of which is the stalled
+	// segment 0, so at most 3 later segments may be fetched ahead of it.
+	if got := atomic.LoadInt32(&started); got > 3 {
+		t.Fatalf("fetched %d segments ahead of a stalled segment, want at most 3", got)
+	}
+	close(release)
+
+	if err := <-done; err != nil {
+		t.Fatalf("DownloadSegments() error = %v", err)
+	}
+	if output.Len() != total {
+		t.Fatalf("output length = %d, want %d", output.Len(), total)
+	}
+}
