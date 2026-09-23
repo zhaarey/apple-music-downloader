@@ -303,3 +303,35 @@ func TestAlacFix_MultiplePackets(t *testing.T) {
 		t.Fatalf("expected %q, got %q", expected, trimmed)
 	}
 }
+
+func TestAlacFix_OutputPathLeavesInputUntouched(t *testing.T) {
+	path := buildTestMP4Multi(t, []bool{false, true, false})
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "out.m4a")
+
+	res, err := Fix(path, false, out)
+	if err != nil {
+		t.Fatalf("Fix failed: %v", err)
+	}
+	if res.Patched != 2 {
+		t.Fatalf("expected 2 patched, got %d", res.Patched)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(orig, after) {
+		t.Fatal("input file was modified")
+	}
+
+	res, err = Fix(out, false)
+	if err != nil {
+		t.Fatalf("Fix on output failed: %v", err)
+	}
+	if res.Patched != 0 {
+		t.Fatalf("expected repaired output, got %d packets still patched", res.Patched)
+	}
+}
