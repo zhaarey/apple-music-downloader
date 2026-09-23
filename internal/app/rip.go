@@ -18,6 +18,11 @@ import (
 	"strings"
 )
 
+type lyricsResult struct {
+	lrc string
+	err error
+}
+
 func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken string) {
 	var err error
 	r.State.Counter.Total++
@@ -184,28 +189,41 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 	}
 
-	//get lrc
-	var lrc string = ""
+	// Fetch lyrics concurrently with the audio download; the result (and any
+	// message) is handled once the download is done, or on early return.
+	var lrc string
+	var lyricsCh chan lyricsResult
 	if r.Config.Metadata.Lyrics.Embed || r.Config.Metadata.Lyrics.SaveFile {
-		lrcStr, err := lyrics.Get(track.ID, r.Config.Metadata.Lyrics.Type, r.Config.General.Language, r.Config.Metadata.Lyrics.Format, r.Config.General.LiteServer, r.Config.Metadata.Lyrics.Extra)
-		if err != nil {
-			if errors.Is(err, lyrics.ErrLyricsNotFound) {
+		lyricsCh = make(chan lyricsResult, 1)
+		go func() {
+			lrcStr, err := lyrics.Get(track.ID, r.Config.Metadata.Lyrics.Type, r.Config.General.Language, r.Config.Metadata.Lyrics.Format, r.Config.General.LiteServer, r.Config.Metadata.Lyrics.Extra)
+			lyricsCh <- lyricsResult{lrc: lrcStr, err: err}
+		}()
+	}
+	collectLyrics := func() {
+		if lyricsCh == nil {
+			return
+		}
+		res := <-lyricsCh
+		lyricsCh = nil
+		if res.err != nil {
+			if errors.Is(res.err, lyrics.ErrLyricsNotFound) {
 				fmt.Println("No lyrics available for this song")
 			} else {
-				fmt.Println(err)
+				fmt.Println(res.err)
 			}
-		} else {
-			if r.Config.Metadata.Lyrics.SaveFile && lrcStr != "" {
-				err := r.writeLyrics(track.SaveDir, lrcFilename, lrcStr)
-				if err != nil {
-					fmt.Printf("Failed to write lyrics")
-				}
-			}
-			if r.Config.Metadata.Lyrics.Embed && lrcStr != "" {
-				lrc = lrcStr
+			return
+		}
+		if r.Config.Metadata.Lyrics.SaveFile && res.lrc != "" {
+			if err := r.writeLyrics(track.SaveDir, lrcFilename, res.lrc); err != nil {
+				fmt.Printf("Failed to write lyrics")
 			}
 		}
+		if r.Config.Metadata.Lyrics.Embed && res.lrc != "" {
+			lrc = res.lrc
+		}
 	}
+	defer collectLyrics()
 
 	if needDlAacLc {
 		if r.Config.General.LiteServer == "" {
@@ -240,6 +258,8 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 
 	}
+	collectLyrics()
+
 	// 将 fMP4 解碎片为普通 MP4；元数据和封面统一交给后续 writeMP4Tags 写入。
 	removeCoverAfterWrite := false
 	if r.Config.Metadata.Artwork.Embed {

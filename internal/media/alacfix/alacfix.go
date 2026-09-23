@@ -4,7 +4,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/bits"
 	"os"
+	"runtime"
+	"sync"
 )
 
 // alacfix.go — Patch malformed ALAC packets in an .m4a/.mp4 file in place.
@@ -40,28 +43,42 @@ func newBitReader(buf []byte) *bitReader {
 
 func (b *bitReader) left() int { return b.nbits - b.pos }
 
-func (b *bitReader) read(n int) (uint32, error) {
+// peek returns the next n (0..32) bits without consuming them; the caller
+// must have checked that n bits are available.
+func (b *bitReader) peek(n int) uint32 {
 	if n == 0 {
-		return 0, nil
+		return 0
 	}
+	i := b.pos >> 3
+	var w uint64
+	if i+8 <= len(b.buf) {
+		w = binary.BigEndian.Uint64(b.buf[i:])
+	} else {
+		for j := 0; j < 8; j++ {
+			w <<= 8
+			if i+j < len(b.buf) {
+				w |= uint64(b.buf[i+j])
+			}
+		}
+	}
+	// at most 7 + 32 = 39 bits are needed, all within the 64-bit window
+	return uint32((w << uint(b.pos&7)) >> uint(64-n))
+}
+
+func (b *bitReader) read(n int) (uint32, error) {
 	if b.pos+n > b.nbits {
 		return 0, errEOF
 	}
-	var v uint32
-	p := b.pos
-	for i := 0; i < n; i++ {
-		v = (v << 1) | uint32((b.buf[p>>3]>>(7-uint(p&7)))&1)
-		p++
-	}
-	b.pos = p
+	v := b.peek(n)
+	b.pos += n
 	return v, nil
 }
 
 func (b *bitReader) show(n int) (uint32, error) {
-	save := b.pos
-	v, err := b.read(n)
-	b.pos = save
-	return v, err
+	if b.pos+n > b.nbits {
+		return 0, errEOF
+	}
+	return b.peek(n), nil
 }
 
 func (b *bitReader) skip(n int) error {
@@ -83,31 +100,34 @@ func (b *bitReader) readSigned(n int) (int32, error) {
 	return int32(v), nil
 }
 
+// unary09 counts leading 1 bits (up to 9), consuming them plus the
+// terminating 0 bit if one is found within the 9.
 func (b *bitReader) unary09() (uint32, error) {
-	cnt := uint32(0)
-	for cnt < 9 {
-		v, err := b.read(1)
-		if err != nil {
-			return 0, err
-		}
-		if v == 0 {
-			return cnt, nil
-		}
-		cnt++
+	avail := b.left()
+	if avail > 9 {
+		avail = 9
 	}
-	return 9, nil
+	ones := bits.LeadingZeros32(^(b.peek(avail) << uint(32-avail)))
+	if ones > avail {
+		ones = avail
+	}
+	if ones < avail {
+		b.pos += ones + 1
+		return uint32(ones), nil
+	}
+	if ones == 9 {
+		b.pos += 9
+		return 9, nil
+	}
+	b.pos += ones // ran out of bits before a terminating 0
+	return 0, errEOF
 }
 
 func avLog2(x uint32) int {
 	if x == 0 {
 		return 0
 	}
-	r := 0
-	for x > 1 {
-		x >>= 1
-		r++
-	}
-	return r
+	return bits.Len32(x) - 1
 }
 
 // ---------- ALAC element body scanner --------------------------------------
@@ -265,7 +285,7 @@ func scanOneElement(br *bitReader, p *alacParams) (int, bool, error) {
 		if _, err := br.read(8); err != nil { // decorr_left_weight
 			return 0, false, err
 		}
-		rhms := make([]uint32, channels)
+		var rhms [2]uint32
 		for c := 0; c < channels; c++ {
 			if _, err := br.read(4); err != nil { // pred_type
 				return 0, false, err
@@ -695,6 +715,33 @@ type Result struct {
 	Report      []BadPacket
 }
 
+// scanBodyEnds runs findBodyEndBit for every packet. Packets are
+// independent and only read their own bytes, so the scan is spread across
+// all CPUs; the result slice is indexed like locs.
+func scanBodyEnds(data []byte, locs []packetLoc, params *alacParams) []int {
+	out := make([]int, len(locs))
+	workers := runtime.NumCPU()
+	chunk := (len(locs) + workers - 1) / workers
+	if chunk < 64 {
+		chunk = 64
+	}
+	var wg sync.WaitGroup
+	for start := 0; start < len(locs); start += chunk {
+		end := min(start+chunk, len(locs))
+		wg.Add(1)
+		go func(start, end int) {
+			defer wg.Done()
+			p := *params
+			for i := start; i < end; i++ {
+				loc := locs[i]
+				out[i] = findBodyEndBit(data[loc.offset:loc.offset+int64(loc.size)], &p)
+			}
+		}(start, end)
+	}
+	wg.Wait()
+	return out
+}
+
 func fixFile(path string, force bool, verbose bool, outPath ...string) (Result, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -721,9 +768,10 @@ func fixFile(path string, force bool, verbose bool, outPath ...string) (Result, 
 				td.trackID, len(td.locs), params.maxSamplesPerFrame, params.sampleSize, params.channels)
 		}
 
+		bodyEnds := scanBodyEnds(data, td.locs, &params)
 		for idx, loc := range td.locs {
 			pkt := data[loc.offset : loc.offset+int64(loc.size)]
-			bodyEnd := findBodyEndBit(pkt, &params)
+			bodyEnd := bodyEnds[idx]
 			if bodyEnd < 0 {
 				continue
 			}
