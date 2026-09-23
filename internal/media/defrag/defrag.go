@@ -154,7 +154,15 @@ func defragmentMP4(input string, ftypOverride *mp4.FtypBox) error {
 		return fmt.Errorf("prepare metadata for go-mp4tag: %w", err)
 	}
 
-	// stco is required by go-mp4tag.
+	// go-mp4tag reads box sizes as signed 32-bit values and does not
+	// support largesize, so media data is split across mdat boxes that
+	// each stay below 2 GiB.
+	mdatPayloadSizes, err := planMdats(tracks)
+	if err != nil {
+		return fmt.Errorf("plan output mdat boxes: %w", err)
+	}
+
+	// go-mp4tag requires stco or co64 to move samples when tags grow.
 	if err := installOutputChunkOffsets(
 		compatibleFtyp.Size(),
 		moov,
@@ -163,26 +171,13 @@ func defragmentMP4(input string, ftypOverride *mp4.FtypBox) error {
 		return fmt.Errorf("calculate output chunk offsets: %w", err)
 	}
 
-	// Recalculate output mdat size.
-	var mdatPayloadSize uint64
-
-	for _, tr := range tracks {
-		for _, ch := range tr.Chunks {
-			mdatPayloadSize += ch.Source.Size
-		}
-	}
-
-	if mdatPayloadSize == 0 {
-		return errors.New("output contains no media data")
-	}
-
 	if err := writeProgressiveMP4(
 		input,
 		output,
 		compatibleFtyp,
 		moov,
 		tracks,
-		mdatPayloadSize,
+		mdatPayloadSizes,
 	); err != nil {
 		return fmt.Errorf("write progressive MP4: %w", err)
 	}
@@ -1247,9 +1242,8 @@ func rebuildTrackSampleTable(
 		stbl.AddChild(stss)
 	}
 
-	// Use stco because go-mp4tag's read/write path requires it.
-	// Offsets are checked against the 32-bit stco limit when they
-	// are installed below.
+	// Start with stco; installOutputChunkOffsets switches to co64 when
+	// the output is too large for 32-bit offsets.
 	stco := &mp4.StcoBox{}
 	stbl.AddChild(stco)
 
@@ -1645,28 +1639,51 @@ func hasBoxType(
 // Output chunk offsets
 // -----------------------------------------------------------------------------
 
+// mdatHeaderSize is the size of a normal (32-bit) mdat header.
+const mdatHeaderSize = uint64(8)
+
+// maxMdatPayload keeps every output mdat box size within int32, the widest
+// box size go-mp4tag can parse.
+var maxMdatPayload = uint64(1<<31-1) - mdatHeaderSize
+
+// planMdats groups output chunks, in write order, into consecutive mdat
+// boxes and returns each box's payload size. A chunk never spans two boxes.
+func planMdats(tracks []*trackData) ([]uint64, error) {
+	var sizes []uint64
+	var current uint64
+
+	for _, tr := range tracks {
+		for i, ch := range tr.Chunks {
+			if ch.Source.Size > maxMdatPayload {
+				return nil, fmt.Errorf(
+					"track %d chunk %d size %d exceeds the mdat size limit",
+					tr.TrackID,
+					i,
+					ch.Source.Size,
+				)
+			}
+
+			if current > 0 && current+ch.Source.Size > maxMdatPayload {
+				sizes = append(sizes, current)
+				current = 0
+			}
+
+			current += ch.Source.Size
+		}
+	}
+
+	if current == 0 {
+		return nil, errors.New("output contains no media data")
+	}
+
+	return append(sizes, current), nil
+}
+
 func installOutputChunkOffsets(
 	ftypSize uint64,
 	moov *mp4.MoovBox,
 	tracks []*trackData,
 ) error {
-	// We always use a normal/large mdat header depending on the final
-	// payload size. The payload start therefore depends on the header
-	// size, not on sample data.
-	var payloadSize uint64
-
-	for _, tr := range tracks {
-		for _, ch := range tr.Chunks {
-			payloadSize += ch.Source.Size
-		}
-	}
-
-	mdatHeaderSize := uint64(8)
-
-	if payloadSize+mdatHeaderSize >= 1<<32 {
-		mdatHeaderSize = 16
-	}
-
 	// stco size depends on its number of entries. Populate the final
 	// entry count before writing moov.
 	for _, tr := range tracks {
@@ -1696,30 +1713,92 @@ func installOutputChunkOffsets(
 		stbl.Stco.ChunkOffset = make([]uint32, len(tr.Chunks))
 	}
 
-	// ftyp + moov + mdat header, because the output layout is:
-	// ftyp, moov, mdat.
-	payloadOffset := ftypSize + moov.Size() + mdatHeaderSize
+	offsets, maxOffset := computeChunkOffsets(ftypSize, moov, tracks)
 
-	for _, tr := range tracks {
-		stbl := findStbl(moov, tr.TrackID)
-		offsets := stbl.Stco.ChunkOffset
+	if maxOffset > stcoOffsetLimit {
+		// co64 entries are twice as large, so moov grows and every
+		// offset has to be computed again.
+		for _, tr := range tracks {
+			useCo64(findStbl(moov, tr.TrackID), len(tr.Chunks))
+		}
 
-		for i, ch := range tr.Chunks {
-			if payloadOffset > maxUint32 {
-				return fmt.Errorf(
-					"track %d chunk %d offset %d exceeds stco's 32-bit limit required by go-mp4tag",
-					tr.TrackID,
-					i,
-					payloadOffset,
-				)
-			}
+		offsets, _ = computeChunkOffsets(ftypSize, moov, tracks)
 
-			offsets[i] = uint32(payloadOffset)
-			payloadOffset += ch.Source.Size
+		for t, tr := range tracks {
+			copy(findStbl(moov, tr.TrackID).Co64.ChunkOffset, offsets[t])
+		}
+
+		return nil
+	}
+
+	for t, tr := range tracks {
+		stco := findStbl(moov, tr.TrackID).Stco.ChunkOffset
+
+		for i, offset := range offsets[t] {
+			stco[i] = uint32(offset)
 		}
 	}
 
 	return nil
+}
+
+// stcoOffsetLimit is the largest chunk offset written with 32-bit stco.
+// The headroom below the stco maximum leaves room for go-mp4tag to insert
+// tags and cover art before mdat, which shifts every offset up.
+var stcoOffsetLimit = maxUint32 - 64<<20
+
+// computeChunkOffsets returns the absolute output offset of every chunk,
+// per track, and the largest of them, for the current moov size.
+func computeChunkOffsets(
+	ftypSize uint64,
+	moov *mp4.MoovBox,
+	tracks []*trackData,
+) ([][]uint64, uint64) {
+	// ftyp + moov + mdat header, because the output layout is:
+	// ftyp, moov, mdat[, mdat...]. Chunks are grouped into mdat boxes
+	// exactly as planMdats does.
+	payloadOffset := ftypSize + moov.Size() + mdatHeaderSize
+	var currentMdat uint64
+	var maxOffset uint64
+
+	offsets := make([][]uint64, len(tracks))
+
+	for t, tr := range tracks {
+		offsets[t] = make([]uint64, len(tr.Chunks))
+
+		for i, ch := range tr.Chunks {
+			if currentMdat > 0 && currentMdat+ch.Source.Size > maxMdatPayload {
+				payloadOffset += mdatHeaderSize
+				currentMdat = 0
+			}
+			currentMdat += ch.Source.Size
+
+			offsets[t][i] = payloadOffset
+			if payloadOffset > maxOffset {
+				maxOffset = payloadOffset
+			}
+			payloadOffset += ch.Source.Size
+		}
+	}
+
+	return offsets, maxOffset
+}
+
+// useCo64 replaces stbl's stco with a co64 box of entryCount entries,
+// keeping its position among the stbl children.
+func useCo64(stbl *mp4.StblBox, entryCount int) {
+	co64 := &mp4.Co64Box{
+		ChunkOffset: make([]uint64, entryCount),
+	}
+
+	for i, child := range stbl.Children {
+		if child == stbl.Stco {
+			stbl.Children[i] = co64
+		}
+	}
+
+	stbl.Stco = nil
+	stbl.Co64 = co64
 }
 
 func findStbl(
@@ -1745,7 +1824,7 @@ func writeProgressiveMP4(
 	ftyp *mp4.FtypBox,
 	moov *mp4.MoovBox,
 	tracks []*trackData,
-	mdatPayloadSize uint64,
+	mdatPayloadSizes []uint64,
 ) error {
 	in, err := os.Open(inputPath)
 	if err != nil {
@@ -1787,29 +1866,42 @@ func writeProgressiveMP4(
 		return fmt.Errorf("write moov: %w", err)
 	}
 
-	// 3. mdat header
-	mdatHeaderSize := uint64(8)
-
-	if mdatPayloadSize+mdatHeaderSize >= 1<<32 {
-		mdatHeaderSize = 16
-	}
-
-	mdatSize := mdatPayloadSize + mdatHeaderSize
-
-	if err := writeMdatHeader(
-		w,
-		mdatSize,
-		mdatHeaderSize == 16,
-	); err != nil {
-		return fmt.Errorf("write mdat header: %w", err)
-	}
-
-	// 4. Copy media data.
+	// 3. mdat boxes and media data.
 	//
 	// Each output chunk corresponds to one contiguous source range.
-	// Therefore we don't seek for every sample.
+	// Therefore we don't seek for every sample. A new mdat header is
+	// written whenever the planned payload of the current one is used up.
+	nextMdat := 0
+	var mdatRemaining uint64
+
 	for _, tr := range tracks {
 		for chunkIndex, chunk := range tr.Chunks {
+			if mdatRemaining == 0 {
+				if nextMdat >= len(mdatPayloadSizes) {
+					return errors.New("media data exceeds planned mdat boxes")
+				}
+
+				mdatRemaining = mdatPayloadSizes[nextMdat]
+				nextMdat++
+
+				if err := writeMdatHeader(
+					w,
+					mdatRemaining+mdatHeaderSize,
+					false,
+				); err != nil {
+					return fmt.Errorf("write mdat header: %w", err)
+				}
+			}
+
+			if chunk.Source.Size > mdatRemaining {
+				return fmt.Errorf(
+					"track %d chunk %d does not fit its planned mdat box",
+					tr.TrackID,
+					chunkIndex,
+				)
+			}
+			mdatRemaining -= chunk.Source.Size
+
 			if chunk.Source.Mdat == nil {
 				return fmt.Errorf(
 					"track %d chunk %d has nil source mdat",
@@ -1846,6 +1938,10 @@ func writeProgressiveMP4(
 				)
 			}
 		}
+	}
+
+	if nextMdat != len(mdatPayloadSizes) || mdatRemaining != 0 {
+		return errors.New("media data does not match planned mdat boxes")
 	}
 
 	// Close the source before replacing outputPath. In-place conversion passes
