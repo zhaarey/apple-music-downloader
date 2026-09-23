@@ -15,10 +15,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	temarimod "github.com/WorldObservationLog/Temari/bindings/go"
-
 	"amdl/internal/config"
 	"amdl/internal/download"
+	"amdl/internal/temari"
 	"amdl/internal/wrapper"
 
 	"github.com/grafov/m3u8"
@@ -28,30 +27,14 @@ import (
 
 var ErrTimeout = errors.New("response timed out")
 
-// lib is the loaded Temari cdylib handle, set by Init.
-var lib *temarimod.Library
-
-// Init loads the Temari decryption library bundled with the module.
-func Init() error {
-	var err error
-	lib, err = temarimod.LoadDefault()
-	if err != nil {
-		return fmt.Errorf("runv4: load temari library: %w", err)
-	}
-	return nil
-}
-
 // fetchTemplate obtains the decryption template for adamId/uri from lite-server
-// and hands the 40020-style JSON body to Temari.
-func fetchTemplate(baseURL, adam, uri string) (*temarimod.Temari, error) {
-	if lib == nil {
-		return nil, errors.New("runv4: temari library not initialized (call runv4.Init)")
-	}
+// and parses the 40020-style JSON body with the pure-Go Temari port.
+func fetchTemplate(baseURL, adam, uri string) (*temari.Template, error) {
 	body, err := wrapper.GetKeyTemplateJSON(baseURL, adam, uri)
 	if err != nil {
 		return nil, err
 	}
-	return lib.FromJSON(body)
+	return temari.FromJSON(body)
 }
 
 // streamBody resets an idle timer on every read; when no bytes arrive within
@@ -77,9 +60,9 @@ func (b *streamBody) Read(p []byte) (int, error) {
 const downloadIdleTimeout = 30 * time.Second
 
 type decryptJob struct {
-	Seq       int               // fragment sequence number, used for ordering
-	Frag      *mp4.Fragment     // original fragment
-	Tmpl      *temarimod.Temari // key template
+	Seq       int              // fragment sequence number, used for ordering
+	Frag      *mp4.Fragment    // original fragment
+	Tmpl      *temari.Template // key template
 	RawOffset int64
 }
 
@@ -92,9 +75,6 @@ type decryptResult struct {
 // Run streams fragmented MP4 and decrypts on the fly: HTTP body is fed directly
 // through a fragment-reader -> decrypt-workers -> in-order-writer pipeline.
 func Run(adamId string, playlistUrl string, outfile string, Config config.ConfigSet) error {
-	if lib == nil {
-		return errors.New("runv4: temari library not initialized (call runv4.Init)")
-	}
 	if Config.General.LiteServer == "" {
 		return errors.New("lite-server is not configured in config.yaml")
 	}
@@ -172,13 +152,6 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 	var err error
 	MaxMemorySize := int64(Config.General.MaxMemoryLimit * 1024 * 1024)
 	inBuf := bufio.NewReader(in)
-
-	var fetchedTemplates []*temarimod.Temari
-	defer func() {
-		for _, t := range fetchedTemplates {
-			t.Close()
-		}
-	}()
 
 	if totalLen <= MaxMemorySize {
 		outBuf = bufio.NewWriter(&buffer)
@@ -309,7 +282,7 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 	eg.Go(func() error {
 		defer close(jobs)
 		seq := 0
-		var tmpl *temarimod.Temari
+		var tmpl *temari.Template
 
 		for i := 0; ; i++ {
 			if ctx.Err() != nil {
@@ -342,7 +315,6 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 				if err != nil {
 					return err
 				}
-				fetchedTemplates = append(fetchedTemplates, tmpl)
 			}
 
 			job := &decryptJob{
@@ -545,20 +517,16 @@ func TransformInit(init *mp4.InitSegment) (map[uint32]mp4.DecryptTrackInfo, erro
 
 // --- Temari-based decryption -------------------------------------------------
 
-func cbcsDecryptRaw(data []byte, decryptBlockLen, skipBlockLen int, tmpl *temarimod.Temari) error {
+func cbcsDecryptRaw(data []byte, decryptBlockLen, skipBlockLen int, tmpl *temari.Template) error {
 	if skipBlockLen != 0 {
 		return fmt.Errorf("not full encryption of subsamples")
 	}
 	truncatedLen := len(data) & ^0xf
-	decrypted, err := tmpl.Decrypt(data[:truncatedLen])
-	if err != nil {
-		return err
-	}
-	copy(data[:truncatedLen], decrypted)
+	tmpl.DecryptInto(data[:truncatedLen], data[:truncatedLen])
 	return nil
 }
 
-func cbcsDecryptSample(sample []byte, subSamplePatterns []mp4.SubSamplePattern, tenc *mp4.TencBox, tmpl *temarimod.Temari) error {
+func cbcsDecryptSample(sample []byte, subSamplePatterns []mp4.SubSamplePattern, tenc *mp4.TencBox, tmpl *temari.Template) error {
 	decryptBlockLen := int(tenc.DefaultCryptByteBlock) * 16
 	skipBlockLen := int(tenc.DefaultSkipByteBlock) * 16
 	var pos uint32 = 0
@@ -585,7 +553,7 @@ func cbcsDecryptSample(sample []byte, subSamplePatterns []mp4.SubSamplePattern, 
 	return nil
 }
 
-func cbcsDecryptSamples(samples []mp4.FullSample, tmpl *temarimod.Temari,
+func cbcsDecryptSamples(samples []mp4.FullSample, tmpl *temari.Template,
 	tenc *mp4.TencBox, senc *mp4.SencBox) error {
 
 	for i := range samples {
@@ -601,7 +569,7 @@ func cbcsDecryptSamples(samples []mp4.FullSample, tmpl *temarimod.Temari,
 	return nil
 }
 
-func DecryptFragment(frag *mp4.Fragment, tracks map[uint32]mp4.DecryptTrackInfo, tmpl *temarimod.Temari) error {
+func DecryptFragment(frag *mp4.Fragment, tracks map[uint32]mp4.DecryptTrackInfo, tmpl *temari.Template) error {
 	moof := frag.Moof
 	var bytesRemoved uint64 = 0
 

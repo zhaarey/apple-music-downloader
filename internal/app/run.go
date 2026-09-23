@@ -13,7 +13,6 @@ import (
 	ampapi "amdl/internal/amp-api"
 	"amdl/internal/config"
 	"amdl/internal/download"
-	fairplayrip "amdl/internal/fairplay-rip"
 	"amdl/internal/updater"
 	"amdl/internal/version"
 )
@@ -105,10 +104,6 @@ func Main() {
 	}
 	if err := download.Init(r.Config.General.Proxy); err != nil {
 		fmt.Printf("proxy config error: %v\n", err)
-		return
-	}
-	if err := fairplayrip.Init(); err != nil {
-		fmt.Printf("temari library error: %v\n", err)
 		return
 	}
 	token, err := ampapi.GetToken()

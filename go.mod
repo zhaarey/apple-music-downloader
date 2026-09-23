@@ -13,7 +13,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
@@ -32,7 +31,6 @@ require (
 	github.com/stretchr/testify v1.10.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.3 // indirect
 	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
@@ -42,7 +40,6 @@ require (
 	git.gay/itouakirai/puppyready v0.0.0-20260913143313-17be0787ee7f
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/Eyevinn/mp4ff v0.55.0
-	github.com/WorldObservationLog/Temari/bindings/go v0.5.1
 	github.com/beevik/etree v1.7.1
 	github.com/fatih/color v1.18.0
 	github.com/go-resty/resty/v2 v2.16.5
@@ -56,5 +53,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	golang.org/x/net v0.38.0
 	golang.org/x/sync v0.12.0
+	golang.org/x/term v0.30.0
 	gopkg.in/yaml.v2 v2.2.8
 )
