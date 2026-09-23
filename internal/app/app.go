@@ -23,6 +23,8 @@ type Flags struct {
 	Update         bool
 	CheckUpdate    bool
 	Yes            bool
+	ForceUpdate    bool
+	MigrateConfig  bool
 }
 
 type State struct {

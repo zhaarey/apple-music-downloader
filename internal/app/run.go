@@ -43,6 +43,10 @@ func Main() {
 	pflag.BoolVarP(&r.Flags.Update, "update", "U", false, "Perform self-update and interactive config migration")
 	pflag.BoolVar(&r.Flags.CheckUpdate, "check-update", false, "Check for available updates without downloading")
 	pflag.BoolVarP(&r.Flags.Yes, "yes", "y", false, "Automatically accept defaults during update")
+	pflag.BoolVar(&r.Flags.ForceUpdate, "force-update", false, "With --update, reinstall the latest release even if already up to date")
+	// Invoked by --update on the freshly installed binary, so migration uses that release's config.yaml.example.
+	pflag.BoolVar(&r.Flags.MigrateConfig, "migrate-config", false, "Add options introduced by this version to the config file")
+	_ = pflag.CommandLine.MarkHidden("migrate-config")
 
 	pflag.Usage = func() {
 		prog := progName()
@@ -56,6 +60,14 @@ func Main() {
 
 	if r.Flags.Version {
 		fmt.Println(version.Info())
+		return
+	}
+
+	if r.Flags.MigrateConfig {
+		if err := updater.RunConfigMigration(configFile, r.Flags.Yes); err != nil {
+			fmt.Printf("Config migration failed: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -75,7 +87,7 @@ func Main() {
 		}
 
 		if r.Flags.Update {
-			if err := updater.ExecuteSelfUpdate(configFile, proxyURL, r.Flags.Yes); err != nil {
+			if err := updater.ExecuteSelfUpdate(configFile, proxyURL, r.Flags.Yes, r.Flags.ForceUpdate); err != nil {
 				fmt.Printf("Self-update failed: %v\n", err)
 				os.Exit(1)
 			}

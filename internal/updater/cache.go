@@ -51,18 +51,32 @@ func saveCache(res *CheckResult) {
 }
 
 // CheckUpdateCached checks if a newer version is available, using a local cache to throttle checks.
+// It is meant for the startup notice, so the request uses a short timeout.
 func CheckUpdateCached(currentVersion, proxyURL string, interval time.Duration) (*CheckResult, error) {
-	cached, err := readCache()
-	if err == nil && cached != nil {
-		if time.Since(cached.LastChecked) < interval && cached.CurrentVersion == currentVersion {
-			return cached, nil
-		}
+	cached, _ := readCache()
+	if cached != nil && cached.CurrentVersion != currentVersion {
+		// Result computed for another version (e.g. before an upgrade) says nothing about this one.
+		cached = nil
+	}
+	if cached != nil && time.Since(cached.LastChecked) < interval {
+		return cached, nil
 	}
 
 	// Fetch fresh release from GitHub
-	rel, err := FetchLatestRelease(proxyURL)
+	client, err := NewHTTPClient(proxyURL, startupCheckTimeout)
 	if err != nil {
-		// If fetch fails, return cached if available
+		return nil, err
+	}
+	rel, err := fetchLatestRelease(client)
+	if err != nil {
+		// Record the failed attempt too, so an unreachable GitHub is not retried
+		// (and does not delay startup) on every run within the interval.
+		failed := &CheckResult{CurrentVersion: currentVersion}
+		if cached != nil {
+			failed = cached
+		}
+		failed.LastChecked = time.Now()
+		saveCache(failed)
 		if cached != nil {
 			return cached, nil
 		}

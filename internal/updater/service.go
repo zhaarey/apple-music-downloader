@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -56,7 +57,8 @@ func CheckUpdateOnly(proxyURL string) error {
 }
 
 // ExecuteSelfUpdate coordinates the complete update flow: check -> download -> verify -> swap -> migrate config.
-func ExecuteSelfUpdate(configFile, proxyURL string, autoYes bool) error {
+// force reinstalls the latest release even when already up to date.
+func ExecuteSelfUpdate(configFile, proxyURL string, autoYes, force bool) error {
 	fmt.Println("==================================================================")
 	fmt.Println("               AMDL Self-Update Assistant                         ")
 	fmt.Println("==================================================================")
@@ -69,7 +71,12 @@ func ExecuteSelfUpdate(configFile, proxyURL string, autoYes bool) error {
 		fmt.Println("\n\033[1;33mNotice: You are running a development or locally built version (dev).\033[0m")
 		fmt.Println("Self-update installs official precompiled release binaries from GitHub.")
 		fmt.Println("If you cloned this repository, consider running: 'git pull && go build' instead.")
-		if !autoYes && isTTY {
+		if !autoYes {
+			if !isTTY {
+				// Never overwrite a local build without explicit consent.
+				fmt.Println("Update canceled: non-interactive session. Re-run with --yes to overwrite this build.")
+				return nil
+			}
 			fmt.Print("Do you want to proceed and overwrite with official release? [y/N]: ")
 			ans, _ := reader.ReadString('\n')
 			if !strings.EqualFold(strings.TrimSpace(ans), "y") {
@@ -80,28 +87,30 @@ func ExecuteSelfUpdate(configFile, proxyURL string, autoYes bool) error {
 	}
 
 	fmt.Printf("Querying GitHub for latest release (%s/%s)...\n", RepoOwner, RepoName)
-	client, err := NewHTTPClient(proxyURL)
-	if err != nil {
-		return err
-	}
-
 	rel, err := FetchLatestRelease(proxyURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch latest release: %w", err)
 	}
 
 	cmp := version.Compare(version.Version, rel.TagName)
-	if cmp >= 0 && !version.IsDev() {
+	if cmp >= 0 && !version.IsDev() && !force {
 		fmt.Printf("✔ amdl is already up to date (%s).\n", version.Version)
-		if !autoYes && isTTY {
-			fmt.Print("Do you want to reinstall/force update anyway? [y/N]: ")
-			ans, _ := reader.ReadString('\n')
-			if !strings.EqualFold(strings.TrimSpace(ans), "y") {
-				return nil
-			}
-		} else if !autoYes {
+		// --yes only accepts prompts; reinstalling needs an explicit prompt answer or --force-update.
+		if autoYes || !isTTY {
 			return nil
 		}
+		fmt.Print("Do you want to reinstall/force update anyway? [y/N]: ")
+		ans, _ := reader.ReadString('\n')
+		if !strings.EqualFold(strings.TrimSpace(ans), "y") {
+			return nil
+		}
+	}
+
+	// No overall timeout: DownloadAsset aborts on stalls instead, so large binaries
+	// over slow links can still complete.
+	client, err := NewHTTPClient(proxyURL, 0)
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("\nTarget version: \033[1;32m%s\033[0m\n", rel.TagName)
@@ -162,32 +171,55 @@ func ExecuteSelfUpdate(configFile, proxyURL string, autoYes bool) error {
 
 	// 4. Atomically apply binary update
 	fmt.Println("Applying binary replacement...")
-	if err := ApplyBinaryUpdate(binBytes); err != nil {
+	exePath, err := ApplyBinaryUpdate(binBytes)
+	if err != nil {
 		return fmt.Errorf("binary replacement failed: %w", err)
 	}
 	fmt.Println("✔ Binary executable updated successfully.")
 
-	// 5. Config migration
-	if configFile == "" {
-		configFile = "config.yaml"
-	}
-	exampleContent := DefaultConfigExample
-	if exampleContent == "" {
-		// Fallback to reading config.yaml.example from disk if available
-		if data, err := os.ReadFile("config.yaml.example"); err == nil {
-			exampleContent = string(data)
-		}
-	}
-
-	if exampleContent != "" {
-		_, err := RunConfigMigrationGuide(configFile, exampleContent, rel.TagName, autoYes)
-		if err != nil {
-			fmt.Printf("\033[1;33mWarning: config migration had an issue: %v\033[0m\n", err)
-		}
+	// 5. Config migration runs in the new binary: this process only embeds the
+	// old config.yaml.example and would never see options added by the release.
+	if err := runMigrationInBinary(exePath, configFile, autoYes); err != nil {
+		fmt.Printf("\033[1;33mWarning: config migration had an issue: %v\033[0m\n", err)
+		fmt.Println("Run 'amdl --migrate-config' to retry.")
 	}
 
 	fmt.Println("\n==================================================================")
 	fmt.Printf("✨ Update to %s completed successfully!\n", rel.TagName)
 	fmt.Println("==================================================================")
 	return nil
+}
+
+// runMigrationInBinary runs `<exePath> --migrate-config` so the migration
+// compares against the config.yaml.example embedded in that binary.
+func runMigrationInBinary(exePath, configFile string, autoYes bool) error {
+	args := []string{"--migrate-config"}
+	if configFile != "" {
+		args = append(args, "--config", configFile)
+	}
+	if autoYes {
+		args = append(args, "--yes")
+	}
+
+	cmd := exec.Command(exePath, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// RunConfigMigration adds options missing from the user config, using the
+// config.yaml.example embedded in the running binary. It backs --migrate-config.
+func RunConfigMigration(configFile string, autoYes bool) error {
+	if configFile == "" {
+		configFile = "config.yaml"
+	}
+	// A config.yaml.example in the working directory is deliberately not used:
+	// it may be left over from an older release.
+	if DefaultConfigExample == "" {
+		return fmt.Errorf("this build has no embedded config.yaml.example to compare against")
+	}
+
+	_, err := RunConfigMigrationGuide(configFile, DefaultConfigExample, version.Version, autoYes)
+	return err
 }
