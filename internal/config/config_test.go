@@ -372,6 +372,44 @@ media:
 	}
 }
 
+func TestEmbeddedTemplateWinsOverStaleExampleInWorkingDir(t *testing.T) {
+	dir := t.TempDir()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	// A config.yaml.example left over from an older release.
+	stale := "general:\n  storefront: fr\nmedia:\n  alac-max: 44100\n"
+	if err := os.WriteFile("config.yaml.example", []byte(stale), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("config.yaml", []byte("general:\n  storefront: jp\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldTemplate := DefaultConfigTemplate
+	DefaultConfigTemplate = "general:\n  storefront: gb\nmedia:\n  alac-max: 48000\n"
+	t.Cleanup(func() {
+		DefaultConfigTemplate = oldTemplate
+	})
+
+	cfg, err := Load(LoadOptions{DisableMissingWarnings: true})
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+	if cfg.Media.AlacMax != 48000 {
+		t.Errorf("Media.AlacMax = %d, want 48000 from the embedded template", cfg.Media.AlacMax)
+	}
+	if cfg.General.Storefront != "jp" {
+		t.Errorf("General.Storefront = %q, want 'jp' from the user config", cfg.General.Storefront)
+	}
+}
+
 func TestCustomConfigMissingDoesNotAutoCreate(t *testing.T) {
 	dir := t.TempDir()
 	customFile := filepath.Join(dir, "custom.yaml")

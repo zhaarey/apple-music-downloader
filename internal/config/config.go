@@ -30,13 +30,24 @@ func (b bytesProvider) Read() (map[string]any, error) {
 	return nil, nil
 }
 
-func getExampleContent(exampleFile string) string {
-	if fileExists(exampleFile) {
-		if data, err := os.ReadFile(exampleFile); err == nil {
+// getExampleContent returns the template used for defaults and auto-creation.
+// An explicitly requested example file wins. Otherwise the template embedded in
+// the binary is preferred over a config.yaml.example in the working directory,
+// which may be left over from an older release; that file is only a fallback
+// for builds without an embedded template.
+func getExampleContent(explicitFile string) string {
+	if explicitFile != "" && fileExists(explicitFile) {
+		if data, err := os.ReadFile(explicitFile); err == nil {
 			return string(data)
 		}
 	}
-	return DefaultConfigTemplate
+	if DefaultConfigTemplate != "" {
+		return DefaultConfigTemplate
+	}
+	if data, err := os.ReadFile("config.yaml.example"); err == nil {
+		return string(data)
+	}
+	return ""
 }
 
 // flagKeyMap maps flat command line flag names to nested configuration keys.
@@ -53,7 +64,9 @@ var flagKeyMap = map[string]string{
 type LoadOptions struct {
 	// ConfigFile specifies the path to the user config file (default: "config.yaml").
 	ConfigFile string
-	// ExampleFile specifies the path to the example/default config file (default: "config.yaml.example").
+	// ExampleFile optionally overrides the embedded default config template with a file.
+	// When empty, the embedded template is used, falling back to ./config.yaml.example
+	// only if the binary has none.
 	ExampleFile string
 	// FlagSet optionally passes command line flags to override configuration values.
 	FlagSet *pflag.FlagSet
@@ -63,7 +76,7 @@ type LoadOptions struct {
 
 // Load loads configuration using koanf with layered precedence:
 // 1. In-code defaults (Default())
-// 2. Example file or embedded template (config.yaml.example or DefaultConfigTemplate)
+// 2. Default config template (opts.ExampleFile, else embedded DefaultConfigTemplate)
 // 3. User configuration file (config.yaml or custom path)
 // 4. Command line flags (*pflag.FlagSet via posflag)
 func Load(opts LoadOptions) (*Config, error) {
@@ -71,22 +84,17 @@ func Load(opts LoadOptions) (*Config, error) {
 	if configFile == "" {
 		configFile = "config.yaml"
 	}
-	exampleFile := opts.ExampleFile
-	if exampleFile == "" {
-		exampleFile = "config.yaml.example"
-	}
+	exampleContent := getExampleContent(opts.ExampleFile)
 
 	userFileExists := fileExists(configFile)
-	exampleFileExists := fileExists(exampleFile)
 
 	// Automatically create default config file if it does not exist.
 	if !userFileExists && (opts.ConfigFile == "" || filepath.Base(configFile) == "config.yaml") {
-		templateContent := getExampleContent(exampleFile)
-		if templateContent != "" {
+		if exampleContent != "" {
 			if dir := filepath.Dir(configFile); dir != "" && dir != "." {
 				_ = os.MkdirAll(dir, 0755)
 			}
-			if err := os.WriteFile(configFile, []byte(templateContent), 0644); err == nil {
+			if err := os.WriteFile(configFile, []byte(exampleContent), 0644); err == nil {
 				userFileExists = true
 				if !opts.DisableMissingWarnings {
 					fmt.Printf("Config file %s not found, created from default template.\n", configFile)
@@ -101,7 +109,7 @@ func Load(opts LoadOptions) (*Config, error) {
 	}
 
 	// Neither user config nor example file/embedded template exists.
-	if !userFileExists && !exampleFileExists && DefaultConfigTemplate == "" {
+	if !userFileExists && exampleContent == "" {
 		return nil, errors.New("config file not found: provide " + configFile)
 	}
 
@@ -114,7 +122,6 @@ func Load(opts LoadOptions) (*Config, error) {
 
 	// Layer 2: Example file or embedded template (if available)
 	var exampleK *koanf.Koanf
-	exampleContent := getExampleContent(exampleFile)
 	if exampleContent != "" {
 		exampleBytes := []byte(exampleContent)
 		exampleK = koanf.New(".")
@@ -125,7 +132,7 @@ func Load(opts LoadOptions) (*Config, error) {
 			return nil, fmt.Errorf("load example config: %w", err)
 		}
 	} else if userFileExists && !opts.DisableMissingWarnings {
-		fmt.Printf("Warning: %s not found, using %s only\n", exampleFile, configFile)
+		fmt.Printf("Warning: no default config template available, using %s only\n", configFile)
 	}
 
 	// Layer 3: User configuration file
