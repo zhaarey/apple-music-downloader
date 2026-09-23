@@ -1,8 +1,8 @@
 package playreadyrip
 
 import (
+	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -14,24 +14,25 @@ import (
 
 const playReadyKeyFormat = "com.microsoft.playready"
 
-// Run obtains a PlayReady content key from wrapper-lite and returns the same
-// key-and-URLs format used by the existing MV downloader.
-func Run(adamID string, playlistURL string, liteServerURL string) (string, error) {
+// FetchStream obtains a PlayReady content key from wrapper-lite and returns
+// the stream in the same form as the Widevine backends, ready for
+// widevinerip.DownloadAndDecryptStream.
+func FetchStream(ctx context.Context, adamID string, playlistURL string, liteServerURL string) (widevine.EncryptedStream, error) {
 	if liteServerURL == "" {
-		return "", errors.New("lite-server is not configured")
+		return widevine.EncryptedStream{}, errors.New("lite-server is not configured")
 	}
 
-	keyPayload, fileURLs, uriPrefix, err := widevine.ExtractKeyAndURLs(playlistURL, playReadyKeyFormat, true)
+	playlist, err := widevine.FetchMediaPlaylist(ctx, playlistURL, playReadyKeyFormat)
 	if err != nil {
-		return "", err
+		return widevine.EncryptedStream{}, err
 	}
 
-	key, err := getContentKey(adamID, keyPayload, uriPrefix, liteServerURL)
+	key, err := getContentKey(adamID, playlist.KeyPayload, playlist.KeyURIPrefix, liteServerURL)
 	if err != nil {
-		return "", err
+		return widevine.EncryptedStream{}, err
 	}
 
-	return "1:" + hex.EncodeToString(key) + ";" + fileURLs, nil
+	return widevine.EncryptedStream{Key: key, URLs: playlist.StreamURLs()}, nil
 }
 
 func getContentKey(adamID string, keyPayload string, uriPrefix string, liteServerURL string) ([]byte, error) {

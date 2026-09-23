@@ -9,6 +9,7 @@ import (
 	"amdl/internal/model"
 	"amdl/internal/widevine-rip"
 	"amdl/internal/widevine-rip/runv5"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/itouakirai/go-mp4tag"
@@ -212,7 +213,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 			r.State.Counter.Error++
 			return
 		}
-		_, err := runv5.Run(track.ID, trackPath, token, false, r.Config.General.LiteServer)
+		err := runv5.DownloadSong(context.Background(), track.ID, trackPath, r.Config.General.LiteServer)
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc via lite-server:", err)
 			if err.Error() == "Unavailable" {
@@ -416,19 +417,21 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 			r.State.Counter.Error++
 			return err
 		}
-		trackM3U8, err := widevinerip.ResolveStationVariantPlaylist(assetsUrl, token, mediaUserToken)
+		creds := widevinerip.Credentials{AuthToken: token, MediaUserToken: mediaUserToken}
+		trackM3U8, err := widevinerip.ResolveStationVariantPlaylist(assetsUrl, creds)
 		if err != nil {
 			fmt.Println("Failed to resolve station variant playlist.", err)
 			r.State.Counter.Error++
 			return err
 		}
-		keyAndUrls, err := widevinerip.Run(station.ID, trackM3U8, token, mediaUserToken, true, serverUrl)
+		ctx := context.Background()
+		stream, err := widevinerip.FetchStationStream(ctx, station.ID, trackM3U8, creds, serverUrl)
 		if err != nil {
 			fmt.Println("Failed to get station stream decryption key.", err)
 			r.State.Counter.Error++
 			return err
 		}
-		err = widevinerip.ExtMvData(keyAndUrls, trackPath)
+		err = widevinerip.DownloadAndDecryptStream(ctx, stream, trackPath)
 		if err != nil {
 			_ = os.Remove(trackPath)
 			fmt.Println("Failed to download station stream.", err)

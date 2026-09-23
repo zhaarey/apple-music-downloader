@@ -8,8 +8,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -18,258 +18,276 @@ import (
 	"lukechampine.com/frand"
 )
 
-type CDM struct {
-	privateKey *rsa.PrivateKey
-	clientID   []byte
-	sessionID  [32]byte
+// PSSHBoxHeaderSize is the size of the ISO BMFF 'pssh' box header (size,
+// type, version/flags, system ID, data size) that precedes the
+// WidevineCencHeader payload.
+const PSSHBoxHeaderSize = 32
 
-	widevineCencHeader      *WidevineCencHeader
-	signedDeviceCertificate SignedDeviceCertificate
-	privacyMode             bool
-}
-
+// Key is a key decrypted from a Widevine license.
 type Key struct {
 	ID    []byte
 	Type  License_KeyContainer_KeyType
 	Value []byte
 }
 
-// Creates a new CDM object with the specified device information.
-func NewCDM(privateKey string, clientID []byte, initData []byte) (CDM, error) {
-	block, _ := pem.Decode([]byte(privateKey))
-	if block == nil || block.Type != "RSA PRIVATE KEY" {
-		return CDM{}, errors.New("failed to decode device private key")
+// CDM is a single Widevine license session: it builds one signed license
+// request and decrypts the keys from the matching license response.
+type CDM struct {
+	device     *Device
+	sessionID  [32]byte
+	cencHeader *WidevineCencHeader
+
+	// serviceCertificate enables privacy mode (encrypted client ID) when set.
+	serviceCertificate *SignedDeviceCertificate
+}
+
+// NewCDM creates a license session for pssh (a complete 'pssh' box) using
+// the given device.
+func NewCDM(device *Device, pssh []byte) (*CDM, error) {
+	if device == nil {
+		return nil, errors.New("nil Widevine device")
 	}
-	keyParsed, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return CDM{}, err
+	if len(pssh) < PSSHBoxHeaderSize {
+		return nil, errors.New("PSSH box is too short")
 	}
-
-	widevineCencHeader := new(WidevineCencHeader)
-	if len(initData) < 32 {
-		return CDM{}, errors.New("initData not long enough")
+	cencHeader := new(WidevineCencHeader)
+	if err := proto.Unmarshal(pssh[PSSHBoxHeaderSize:], cencHeader); err != nil {
+		return nil, fmt.Errorf("parse Widevine PSSH data: %w", err)
 	}
-	if err := proto.Unmarshal(initData[32:], widevineCencHeader); err != nil {
-		return CDM{}, err
-	}
-
-	sessionID := func() (s [32]byte) {
-		c := []byte("ABCDEF0123456789")
-		for i := 0; i < 16; i++ {
-			s[i] = c[frand.Intn(len(c))]
-		}
-		s[16] = '0'
-		s[17] = '1'
-		for i := 18; i < 32; i++ {
-			s[i] = '0'
-		}
-		return s
-	}()
-
-	return CDM{
-		privateKey: keyParsed,
-		clientID:   clientID,
-
-		widevineCencHeader: widevineCencHeader,
-
-		sessionID: sessionID,
+	return &CDM{
+		device:     device,
+		sessionID:  newSessionID(),
+		cencHeader: cencHeader,
 	}, nil
 }
 
-// Creates a new CDM object using the default device configuration.
-func NewDefaultCDM(initData []byte) (CDM, error) {
-	return NewCDM(DefaultPrivateKey, DefaultClientID, initData)
+// NewDefaultCDM creates a license session using the built-in device.
+func NewDefaultCDM(pssh []byte) (*CDM, error) {
+	device, err := DefaultDevice()
+	if err != nil {
+		return nil, err
+	}
+	return NewCDM(device, pssh)
 }
 
-// Sets a device certificate.  This is makes generating the license request
-// more complicated but is supported.  This is usually not necessary for most
-// Widevine applications.
+// newSessionID returns a request ID in the format used by Chrome CDMs:
+// 16 random upper-case hex characters, "01", then zero padding.
+func newSessionID() (id [32]byte) {
+	const hexChars = "ABCDEF0123456789"
+	for i := 0; i < 16; i++ {
+		id[i] = hexChars[frand.Intn(len(hexChars))]
+	}
+	copy(id[16:], "01")
+	for i := 18; i < len(id); i++ {
+		id[i] = '0'
+	}
+	return id
+}
+
+// SetServiceCertificate enables privacy mode. certData is a serialized
+// SignedMessage carrying the license server's service certificate. Most
+// Widevine license servers do not require this.
 func (c *CDM) SetServiceCertificate(certData []byte) error {
 	var message SignedMessage
 	if err := proto.Unmarshal(certData, &message); err != nil {
-		return err
+		return fmt.Errorf("parse service certificate message: %w", err)
 	}
-	if err := proto.Unmarshal(message.Msg, &c.signedDeviceCertificate); err != nil {
-		return err
+	certificate := new(SignedDeviceCertificate)
+	if err := proto.Unmarshal(message.Msg, certificate); err != nil {
+		return fmt.Errorf("parse service certificate: %w", err)
 	}
-	c.privacyMode = true
+	c.serviceCertificate = certificate
 	return nil
 }
 
-func (c *CDM) GetServiceCertificate() *SignedDeviceCertificate {
-
-	return &c.signedDeviceCertificate
+// ServiceCertificate returns the certificate set by SetServiceCertificate,
+// or nil when privacy mode is off.
+func (c *CDM) ServiceCertificate() *SignedDeviceCertificate {
+	return c.serviceCertificate
 }
 
-// Generates the license request data.  This is sent to the license server via
-// HTTP POST and the server in turn returns the license response.
-func (c *CDM) GetLicenseRequest() ([]byte, error) {
-	var licenseRequest SignedLicenseRequest
-	licenseRequest.Msg = new(LicenseRequest)
-	licenseRequest.Msg.ContentId = new(LicenseRequest_ContentIdentification)
-	licenseRequest.Msg.ContentId.CencId = new(LicenseRequest_ContentIdentification_CENC)
-
-	// this is probably really bad for the GC but protobuf uses pointers for optional
-	// fields so it is necessary and this is not a long running program
-	{
-		v := SignedLicenseRequest_LICENSE_REQUEST
-		licenseRequest.Type = &v
+// BuildLicenseRequest returns the serialized SignedLicenseRequest (the
+// license "challenge") to send to the license server.
+func (c *CDM) BuildLicenseRequest() ([]byte, error) {
+	msg := &LicenseRequest{
+		ContentId: &LicenseRequest_ContentIdentification{
+			CencId: &LicenseRequest_ContentIdentification_CENC{
+				Pssh:        c.cencHeader,
+				LicenseType: LicenseType_DEFAULT.Enum(),
+				RequestId:   c.sessionID[:],
+			},
+		},
+		Type:            LicenseRequest_NEW.Enum(),
+		RequestTime:     proto.Uint32(uint32(time.Now().Unix())),
+		ProtocolVersion: ProtocolVersion_CURRENT.Enum(),
+		KeyControlNonce: proto.Uint32(uint32(frand.Uint64n(math.MaxUint32))),
 	}
 
-	licenseRequest.Msg.ContentId.CencId.Pssh = c.widevineCencHeader
-
-	{
-		v := LicenseType_DEFAULT
-		licenseRequest.Msg.ContentId.CencId.LicenseType = &v
-	}
-
-	licenseRequest.Msg.ContentId.CencId.RequestId = c.sessionID[:]
-
-	{
-		v := LicenseRequest_NEW
-		licenseRequest.Msg.Type = &v
-	}
-
-	{
-		v := uint32(time.Now().Unix())
-		licenseRequest.Msg.RequestTime = &v
-	}
-
-	{
-		v := ProtocolVersion_CURRENT
-		licenseRequest.Msg.ProtocolVersion = &v
-	}
-
-	{
-		v := uint32(frand.Uint64n(math.MaxUint32))
-		licenseRequest.Msg.KeyControlNonce = &v
-	}
-
-	if c.privacyMode {
-		pad := func(data []byte, blockSize int) []byte {
-			padlen := blockSize - (len(data) % blockSize)
-			if padlen == 0 {
-				padlen = blockSize
-			}
-			return append(data, bytes.Repeat([]byte{byte(padlen)}, padlen)...)
-		}
-		const blockSize = 16
-
-		var cidKey, cidIV [blockSize]byte
-		frand.Read(cidKey[:])
-		frand.Read(cidIV[:])
-
-		block, err := aes.NewCipher(cidKey[:])
+	if c.serviceCertificate != nil {
+		encryptedClientID, err := c.encryptClientID()
 		if err != nil {
 			return nil, err
 		}
-
-		paddedClientID := pad(c.clientID, blockSize)
-		encryptedClientID := make([]byte, len(paddedClientID))
-		cipher.NewCBCEncrypter(block, cidIV[:]).CryptBlocks(encryptedClientID, paddedClientID)
-
-		servicePublicKey, err := x509.ParsePKCS1PublicKey(c.signedDeviceCertificate.XDeviceCertificate.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-
-		encryptedCIDKey, err := rsa.EncryptOAEP(sha1.New(), frand.Reader, servicePublicKey, cidKey[:], nil)
-		if err != nil {
-			return nil, err
-		}
-
-		licenseRequest.Msg.EncryptedClientId = new(EncryptedClientIdentification)
-		{
-			v := string(c.signedDeviceCertificate.XDeviceCertificate.ServiceId)
-			licenseRequest.Msg.EncryptedClientId.ServiceId = &v
-		}
-		licenseRequest.Msg.EncryptedClientId.ServiceCertificateSerialNumber = c.signedDeviceCertificate.XDeviceCertificate.SerialNumber
-		licenseRequest.Msg.EncryptedClientId.EncryptedClientId = encryptedClientID
-		licenseRequest.Msg.EncryptedClientId.EncryptedClientIdIv = cidIV[:]
-		licenseRequest.Msg.EncryptedClientId.EncryptedPrivacyKey = encryptedCIDKey
+		msg.EncryptedClientId = encryptedClientID
 	} else {
-		licenseRequest.Msg.ClientId = new(ClientIdentification)
-		if err := proto.Unmarshal(c.clientID, licenseRequest.Msg.ClientId); err != nil {
-			return nil, err
+		clientID := new(ClientIdentification)
+		if err := proto.Unmarshal(c.device.ClientID, clientID); err != nil {
+			return nil, fmt.Errorf("parse device client ID: %w", err)
 		}
+		msg.ClientId = clientID
 	}
 
-	{
-		data, err := proto.Marshal(licenseRequest.Msg)
+	signature, err := c.sign(msg)
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(&SignedLicenseRequest{
+		Type:      SignedLicenseRequest_LICENSE_REQUEST.Enum(),
+		Msg:       msg,
+		Signature: signature,
+	})
+}
+
+// encryptClientID encrypts the device client ID with a fresh AES privacy key,
+// which is itself wrapped with the service certificate's RSA public key.
+func (c *CDM) encryptClientID() (*EncryptedClientIdentification, error) {
+	certificate := c.serviceCertificate.GetXDeviceCertificate()
+	servicePublicKey, err := x509.ParsePKCS1PublicKey(certificate.GetPublicKey())
+	if err != nil {
+		return nil, fmt.Errorf("parse service public key: %w", err)
+	}
+
+	var privacyKey, iv [aes.BlockSize]byte
+	frand.Read(privacyKey[:])
+	frand.Read(iv[:])
+
+	block, err := aes.NewCipher(privacyKey[:])
+	if err != nil {
+		return nil, err
+	}
+	padded := pkcs7Pad(c.device.ClientID, aes.BlockSize)
+	encryptedClientID := make([]byte, len(padded))
+	cipher.NewCBCEncrypter(block, iv[:]).CryptBlocks(encryptedClientID, padded)
+
+	encryptedPrivacyKey, err := rsa.EncryptOAEP(sha1.New(), frand.Reader, servicePublicKey, privacyKey[:], nil)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt privacy key: %w", err)
+	}
+
+	return &EncryptedClientIdentification{
+		ServiceId:                      proto.String(string(certificate.GetServiceId())),
+		ServiceCertificateSerialNumber: certificate.GetSerialNumber(),
+		EncryptedClientId:              encryptedClientID,
+		EncryptedClientIdIv:            iv[:],
+		EncryptedPrivacyKey:            encryptedPrivacyKey,
+	}, nil
+}
+
+// sign returns the RSA-PSS (SHA-1) signature of msg with the device key.
+func (c *CDM) sign(msg proto.Message) ([]byte, error) {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+	hash := sha1.Sum(data)
+	return rsa.SignPSS(frand.Reader, c.device.PrivateKey, crypto.SHA1, hash[:], &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash})
+}
+
+// DecryptLicenseKeys decrypts every key container in licenseResponse.
+// licenseRequest must be the exact bytes returned by BuildLicenseRequest,
+// because the key-wrapping key is derived from it.
+func (c *CDM) DecryptLicenseKeys(licenseRequest []byte, licenseResponse []byte) ([]Key, error) {
+	var license SignedLicense
+	if err := proto.Unmarshal(licenseResponse, &license); err != nil {
+		return nil, fmt.Errorf("parse license response: %w", err)
+	}
+	var request SignedLicenseRequest
+	if err := proto.Unmarshal(licenseRequest, &request); err != nil {
+		return nil, fmt.Errorf("parse license request: %w", err)
+	}
+	requestMsg, err := proto.Marshal(request.Msg)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionKey, err := rsa.DecryptOAEP(sha1.New(), frand.Reader, c.device.PrivateKey, license.SessionKey, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt license session key: %w", err)
+	}
+	encryptionKey, err := deriveEncryptionKey(sessionKey, requestMsg)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return nil, err
+	}
+
+	containers := license.GetMsg().GetKey()
+	keys := make([]Key, 0, len(containers))
+	for _, container := range containers {
+		value, err := decryptKeyContainer(block, container)
 		if err != nil {
 			return nil, err
 		}
-		hash := sha1.Sum(data)
-		if licenseRequest.Signature, err = rsa.SignPSS(frand.Reader, c.privateKey, crypto.SHA1, hash[:], &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash}); err != nil {
-			return nil, err
-		}
-	}
-
-	return proto.Marshal(&licenseRequest)
-}
-
-// Retrieves the keys from the license response data.  These keys can be
-// used to decrypt the DASH-MP4.
-func (c *CDM) GetLicenseKeys(licenseRequest []byte, licenseResponse []byte) (keys []Key, err error) {
-	var license SignedLicense
-	if err = proto.Unmarshal(licenseResponse, &license); err != nil {
-		return
-	}
-
-	var licenseRequestParsed SignedLicenseRequest
-	if err = proto.Unmarshal(licenseRequest, &licenseRequestParsed); err != nil {
-		return
-	}
-	licenseRequestMsg, err := proto.Marshal(licenseRequestParsed.Msg)
-	if err != nil {
-		return
-	}
-
-	sessionKey, err := rsa.DecryptOAEP(sha1.New(), frand.Reader, c.privateKey, license.SessionKey, nil)
-	if err != nil {
-		return
-	}
-
-	sessionKeyBlock, err := aes.NewCipher(sessionKey)
-	if err != nil {
-		return
-	}
-
-	encryptionKey := []byte{1, 'E', 'N', 'C', 'R', 'Y', 'P', 'T', 'I', 'O', 'N', 0}
-	encryptionKey = append(encryptionKey, licenseRequestMsg...)
-	encryptionKey = append(encryptionKey, []byte{0, 0, 0, 0x80}...)
-	encryptionKeyCmac, err := cmac.Sum(encryptionKey, sessionKeyBlock, sessionKeyBlock.BlockSize())
-	if err != nil {
-		return
-	}
-	encryptionKeyCipher, err := aes.NewCipher(encryptionKeyCmac)
-	if err != nil {
-		return
-	}
-
-	unpad := func(b []byte) []byte {
-		if len(b) == 0 {
-			return b
-		}
-		// pks padding is designed so that the value of all the padding bytes is
-		// the number of padding bytes repeated so to figure out how many
-		// padding bytes there are we can just look at the value of the last
-		// byte
-		// i.e if there are 6 padding bytes then it will look at like
-		// <data> 0x6 0x6 0x6 0x6 0x6 0x6
-		count := int(b[len(b)-1])
-		return b[0 : len(b)-count]
-	}
-	for _, key := range license.Msg.Key {
-		decrypter := cipher.NewCBCDecrypter(encryptionKeyCipher, key.Iv)
-		decryptedKey := make([]byte, len(key.Key))
-		decrypter.CryptBlocks(decryptedKey, key.Key)
 		keys = append(keys, Key{
-			ID:    key.Id,
-			Type:  *key.Type,
-			Value: unpad(decryptedKey),
+			ID:    container.GetId(),
+			Type:  container.GetType(),
+			Value: value,
 		})
 	}
+	return keys, nil
+}
 
-	return
+// deriveEncryptionKey derives the key that wraps the content keys in a
+// license: AES-CMAC(sessionKey, 0x01 || "ENCRYPTION" || 0x00 || requestMsg || uint32be(128)).
+func deriveEncryptionKey(sessionKey []byte, requestMsg []byte) ([]byte, error) {
+	block, err := aes.NewCipher(sessionKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid license session key: %w", err)
+	}
+	var derivationContext []byte
+	derivationContext = append(derivationContext, 0x01)
+	derivationContext = append(derivationContext, "ENCRYPTION"...)
+	derivationContext = append(derivationContext, 0x00)
+	derivationContext = append(derivationContext, requestMsg...)
+	derivationContext = append(derivationContext, 0x00, 0x00, 0x00, 0x80) // key size in bits
+	return cmac.Sum(derivationContext, block, block.BlockSize())
+}
+
+// decryptKeyContainer AES-CBC decrypts and unpads one key container.
+func decryptKeyContainer(block cipher.Block, container *License_KeyContainer) ([]byte, error) {
+	iv, encrypted := container.GetIv(), container.GetKey()
+	if len(iv) != block.BlockSize() {
+		return nil, fmt.Errorf("key container IV has invalid length %d", len(iv))
+	}
+	if len(encrypted) == 0 || len(encrypted)%block.BlockSize() != 0 {
+		return nil, fmt.Errorf("key container has invalid length %d", len(encrypted))
+	}
+	decrypted := make([]byte, len(encrypted))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(decrypted, encrypted)
+	return pkcs7Unpad(decrypted, block.BlockSize())
+}
+
+func pkcs7Pad(data []byte, blockSize int) []byte {
+	padLen := blockSize - len(data)%blockSize
+	padded := make([]byte, len(data), len(data)+padLen)
+	copy(padded, data)
+	return append(padded, bytes.Repeat([]byte{byte(padLen)}, padLen)...)
+}
+
+// pkcs7Unpad strips PKCS#7 padding: the last byte holds the pad length, and
+// every pad byte carries that same value.
+func pkcs7Unpad(data []byte, blockSize int) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, errors.New("pkcs7: empty data")
+	}
+	padLen := int(data[len(data)-1])
+	if padLen == 0 || padLen > blockSize || padLen > len(data) {
+		return nil, errors.New("pkcs7: invalid padding length")
+	}
+	if !bytes.Equal(data[len(data)-padLen:], bytes.Repeat([]byte{byte(padLen)}, padLen)) {
+		return nil, errors.New("pkcs7: invalid padding bytes")
+	}
+	return data[:len(data)-padLen], nil
 }

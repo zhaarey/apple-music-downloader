@@ -1,12 +1,13 @@
 package app
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
-	"amdl/internal/model"
 	"amdl/internal/config"
-	"amdl/internal/widevine-rip/runv5"
+	"amdl/internal/model"
+	widevinerip "amdl/internal/widevine-rip"
 )
 
 func TestTrackGetAlbumDataError(t *testing.T) {
@@ -17,10 +18,10 @@ func TestTrackGetAlbumDataError(t *testing.T) {
 	}
 }
 
-func TestRunv5ExtMvDataMissingFile(t *testing.T) {
-	err := runv5.ExtMvData("key-and-urls", filepath.Join(t.TempDir(), "missing.mp4"))
+func TestDownloadAndDecryptStreamRejectsEmptyStream(t *testing.T) {
+	err := widevinerip.DownloadAndDecryptStream(context.Background(), widevinerip.EncryptedStream{}, filepath.Join(t.TempDir(), "missing.mp4"))
 	if err == nil {
-		t.Fatal("ExtMvData() error = nil, want missing file failure")
+		t.Fatal("DownloadAndDecryptStream() error = nil, want empty stream failure")
 	}
 }
 

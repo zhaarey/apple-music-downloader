@@ -1,88 +1,66 @@
-package wv
+// Package key acquires Widevine content keys: it runs one CDM license
+// session and delegates the network round trip to a pluggable ExchangeFunc,
+// so each license backend (Apple, wrapper-lite, ...) only supplies transport.
+package key
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
-	"log/slog"
-
-	"github.com/go-resty/resty/v2"
+	"errors"
+	"fmt"
 
 	wv "amdl/internal/widevine-rip/cdm"
 )
 
-type Key struct {
-	ReqCli *resty.Client
+// ExchangeFunc sends a serialized Widevine license request (the challenge)
+// to a license server and returns the serialized SignedLicense it answers
+// with, already unwrapped from any backend-specific envelope.
+type ExchangeFunc func(ctx context.Context, challenge []byte) ([]byte, error)
 
-	BeforeRequest func(cl *resty.Client, ctx context.Context, url string, body []byte) (*resty.Response, error)
-
-	AfterRequest func(*resty.Response) ([]byte, error)
+// AcquireContentKey obtains the content key for pssh using the built-in
+// device.
+func AcquireContentKey(ctx context.Context, pssh []byte, exchange ExchangeFunc) ([]byte, error) {
+	device, err := wv.DefaultDevice()
+	if err != nil {
+		return nil, fmt.Errorf("load Widevine device: %w", err)
+	}
+	return AcquireContentKeyWithDevice(ctx, device, pssh, exchange)
 }
 
-// NewKey creates a Key with CDM constants initialized and a clean client.
-func NewKey(before func(cl *resty.Client, ctx context.Context, url string, body []byte) (*resty.Response, error),
-	after func(*resty.Response) ([]byte, error)) Key {
-	w := Key{ReqCli: resty.New(), BeforeRequest: before, AfterRequest: after}
-	w.CdmInit()
-	return w
+// AcquireContentKeyWithDevice obtains the content key for pssh using device.
+func AcquireContentKeyWithDevice(ctx context.Context, device *wv.Device, pssh []byte, exchange ExchangeFunc) ([]byte, error) {
+	if exchange == nil {
+		return nil, errors.New("no license exchange configured")
+	}
+	cdm, err := wv.NewCDM(device, pssh)
+	if err != nil {
+		return nil, fmt.Errorf("create Widevine session: %w", err)
+	}
+	challenge, err := cdm.BuildLicenseRequest()
+	if err != nil {
+		return nil, fmt.Errorf("build license request: %w", err)
+	}
+	license, err := exchange(ctx, challenge)
+	if err != nil {
+		return nil, err
+	}
+	keys, err := cdm.DecryptLicenseKeys(challenge, license)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt license keys: %w", err)
+	}
+	return selectContentKey(keys)
 }
 
-func (w *Key) CdmInit() {
-	wv.InitConstants()
-}
-
-func (w *Key) GetKey(ctx context.Context, licenseServerURL string, PSSH string, headers map[string][]string) (string, []byte, error) {
-	initData, err := base64.StdEncoding.DecodeString(PSSH)
-	var keybt []byte
-	if err != nil {
-		slog.Error("pssh decode error", slog.Any("err", err))
-		return "", keybt, err
-	}
-	cdm, err := wv.NewDefaultCDM(initData)
-	if err != nil {
-		slog.Error("cdm init error", slog.Any("err", err))
-		return "", keybt, err
-	}
-	licenseRequest, err := cdm.GetLicenseRequest()
-	if err != nil {
-		slog.Error("license request error", slog.Any("err", err))
-		return "", keybt, err
-	}
-
-	var response *resty.Response
-
-	if w.BeforeRequest != nil {
-		response, err = w.BeforeRequest(w.ReqCli, ctx, licenseServerURL, licenseRequest)
-	} else {
-		response, err = w.ReqCli.R().
-			SetContext(ctx).
-			SetBody(licenseRequest).
-			Post(licenseServerURL)
-	}
-
-	if err != nil {
-		slog.Error("license request error", slog.Any("err", err))
-		return "", keybt, err
-	}
-
-	var licenseResponse []byte
-	if w.AfterRequest != nil {
-		licenseResponse, err = w.AfterRequest(response)
-		if err != nil {
-			return "", keybt, err
-		}
-	} else {
-		licenseResponse = response.Body()
-	}
-
-	keys, err := cdm.GetLicenseKeys(licenseRequest, licenseResponse)
-	command := ""
-
+// selectContentKey returns the last CONTENT key in the license. Apple
+// licenses carry exactly one; other key types (e.g. SIGNING) are skipped.
+func selectContentKey(keys []wv.Key) ([]byte, error) {
+	var contentKey []byte
 	for _, key := range keys {
 		if key.Type == wv.License_KeyContainer_CONTENT {
-			command += hex.EncodeToString(key.Value)
-			keybt = key.Value
+			contentKey = key.Value
 		}
 	}
-	return command, keybt, nil
+	if len(contentKey) == 0 {
+		return nil, errors.New("license contains no content key")
+	}
+	return contentKey, nil
 }

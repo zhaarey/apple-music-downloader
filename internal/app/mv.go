@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	mvmedia "amdl/internal/media/mv"
 	"amdl/internal/model"
 	playreadyrip "amdl/internal/playready-rip"
+	widevinerip "amdl/internal/widevine-rip"
 	"amdl/internal/widevine-rip/runv5"
 	"amdl/internal/wrapper"
 
@@ -78,17 +80,18 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	if err != nil {
 		return fmt.Errorf("extract video manifest: %w", err)
 	}
-	var videokeyAndUrls string
+	ctx := context.Background()
+	var videoStream widevinerip.EncryptedStream
 	if usePlayReady {
 		fmt.Println("Video DRM: PlayReady")
-		videokeyAndUrls, err = playreadyrip.Run(adamID, videom3u8url, r.Config.General.LiteServer)
+		videoStream, err = playreadyrip.FetchStream(ctx, adamID, videom3u8url, r.Config.General.LiteServer)
 	} else {
-		videokeyAndUrls, err = runv5.Run(adamID, videom3u8url, token, true, r.Config.General.LiteServer)
+		videoStream, err = runv5.FetchStream(ctx, adamID, videom3u8url, r.Config.General.LiteServer)
 	}
 	if err != nil {
 		return fmt.Errorf("download video stream: %w", err)
 	}
-	if err := runv5.ExtMvData(videokeyAndUrls, vidPath); err != nil {
+	if err := widevinerip.DownloadAndDecryptStream(ctx, videoStream, vidPath); err != nil {
 		return fmt.Errorf("write video stream: %w", err)
 	}
 	defer os.Remove(vidPath)
@@ -97,11 +100,11 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	if err != nil {
 		return fmt.Errorf("extract audio manifest: %w", err)
 	}
-	audiokeyAndUrls, err := runv5.Run(adamID, audiom3u8url, token, true, r.Config.General.LiteServer)
+	audioStream, err := runv5.FetchStream(ctx, adamID, audiom3u8url, r.Config.General.LiteServer)
 	if err != nil {
 		return fmt.Errorf("download audio stream: %w", err)
 	}
-	if err := runv5.ExtMvData(audiokeyAndUrls, audPath); err != nil {
+	if err := widevinerip.DownloadAndDecryptStream(ctx, audioStream, audPath); err != nil {
 		return fmt.Errorf("write audio stream: %w", err)
 	}
 	defer os.Remove(audPath)
