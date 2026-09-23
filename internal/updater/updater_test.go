@@ -341,17 +341,13 @@ func TestFindBinaryAssetExactOnly(t *testing.T) {
 		t.Fatalf("expected no asset for windows/arm, got %s", a.Name)
 	}
 
-	// android falls back to the linux build.
-	asset, err := FindBinaryAsset(rel, "android", "arm64")
-	if err != nil || asset.Name != "amdl_linux_arm64" {
-		t.Fatalf("expected android/arm64 to fall back to amdl_linux_arm64, got %v, %v", asset, err)
+	// android and linux builds are not interchangeable.
+	if a, err := FindBinaryAsset(rel, "android", "arm64"); err == nil {
+		t.Fatalf("expected no asset for android/arm64, got %s", a.Name)
 	}
-
-	// linux/arm64 falls back to the android build.
 	onlyAndroid := &Release{TagName: "v1.2.0", Assets: []Asset{{Name: "amdl_android_arm64"}}}
-	asset, err = FindBinaryAsset(onlyAndroid, "linux", "arm64")
-	if err != nil || asset.Name != "amdl_android_arm64" {
-		t.Fatalf("expected linux/arm64 to fall back to amdl_android_arm64, got %v, %v", asset, err)
+	if a, err := FindBinaryAsset(onlyAndroid, "linux", "arm64"); err == nil {
+		t.Fatalf("expected no asset for linux/arm64, got %s", a.Name)
 	}
 }
 

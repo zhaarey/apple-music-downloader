@@ -225,6 +225,7 @@ paths:
 > - 长时间或后台批量下载前，建议使用 `termux-wake-lock` 防止系统休眠，下载完成后执行 `termux-wake-unlock` 释放。
 > - 如果 wrapper-lite 运行在局域网内其他设备上，`lite-server` 需填写该设备的局域网 IP，不能填写 `127.0.0.1`。
 > - 本说明面向 Android arm64 环境；32 位 Android 不在文档支持范围内。
+> - 旧版本自更新若报错 `lookup api.github.com on [::1]:53 ... connection refused`，请按第 3 步重新下载一次，此后即可正常自更新。
 
 ## 配置
 

@@ -213,6 +213,7 @@ paths:
 > - For long downloads, prevent Android from sleeping with `termux-wake-lock` (release with `termux-wake-unlock` when done).
 > - If wrapper-lite runs on another device on your network, point `lite-server` to that device's LAN IP, not `127.0.0.1`.
 > - These instructions target current Android arm64 Termux environments; 32-bit Android is not a documented target.
+> - If self-update on an older version fails with `lookup api.github.com on [::1]:53 ... connection refused`, re-download the binary once as in step 3; later versions update normally.
 
 ## Configuration
 

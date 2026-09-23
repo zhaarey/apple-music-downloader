@@ -28,9 +28,13 @@ jobs:
           - goos: linux
             goarch: arm64
             target: amdl_linux_arm64
-          - goos: linux
+          - goos: android
             goarch: arm64
             target: amdl_android_arm64
+            # Android needs cgo so DNS goes through bionic's resolver; the pure-Go
+            # resolver reads /etc/resolv.conf, which Android does not have.
+            cgo: 1
+            cc: aarch64-linux-android24-clang
           - goos: darwin
             goarch: amd64
             target: amdl_darwin_amd64
@@ -52,8 +56,11 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
+          CGO_ENABLED: ${{ matrix.cgo || 0 }}
         run: |
+          if [ -n "${{ matrix.cc }}" ]; then
+            export CC="${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ matrix.cc }}"
+          fi
           BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           OUTPUT_NAME="${{ matrix.target }}"
           go build -trimpath -ldflags="-s -w \

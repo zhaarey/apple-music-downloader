@@ -115,20 +115,12 @@ func fetchLatestRelease(client *http.Client) (*Release, error) {
 // Only exact release file names are accepted: a loose substring match would let
 // e.g. linux/arm pick amdl_linux_arm64, whose checksum still verifies.
 func FindBinaryAsset(rel *Release, goos, goarch string) (*Asset, error) {
-	candidates := []string{binaryAssetName(goos, goarch)}
-	// Android/Termux and linux/arm64 releases are the same GOOS=linux build.
-	switch {
-	case goos == "android":
-		candidates = append(candidates, binaryAssetName("linux", goarch))
-	case goos == "linux" && goarch == "arm64":
-		candidates = append(candidates, binaryAssetName("android", goarch))
-	}
-
-	for _, name := range candidates {
-		for i := range rel.Assets {
-			if strings.EqualFold(rel.Assets[i].Name, name) {
-				return &rel.Assets[i], nil
-			}
+	// No cross-OS fallback: the android build is linked against bionic and does
+	// not run on glibc linux, and the linux build cannot resolve DNS on Android.
+	name := binaryAssetName(goos, goarch)
+	for i := range rel.Assets {
+		if strings.EqualFold(rel.Assets[i].Name, name) {
+			return &rel.Assets[i], nil
 		}
 	}
 
