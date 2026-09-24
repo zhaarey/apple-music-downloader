@@ -267,6 +267,19 @@ Or use the built binary:
 ./amdl "https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520"
 ```
 
+### Classical recording
+
+Apple Music Classical recording links download only the tracks of that recording, tagged with work, movement, composer and conductor.
+
+```bash
+./amdl "https://classical.music.apple.com/us/recording/ludwig-van-beethoven-1770-pp193-1873004116"
+```
+
+- The `l` query parameter (for example `?l=en-US`) sets the language for that recording only; otherwise `language` from the config is used.
+- Files are saved under `classical-folder-format` / `classical-file-format` (default `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle} [{RecordingId}]/{DiscNumber}-{TrackNumber} - {MovementTitle}`).
+- Running the same link again skips finished tracks. An existing file from another recording is reported as a conflict and not overwritten.
+- Classical work links (`/work/...`) are not supported yet.
+
 ### Artist albums
 
 ```bash

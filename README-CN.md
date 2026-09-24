@@ -267,6 +267,19 @@ go run . "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remas
 ./amdl "https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520"
 ```
 
+### 古典乐录音
+
+Apple Music Classical 的录音（recording）链接只下载该录音包含的曲目，并写入作品、乐章、作曲家和指挥标签。
+
+```bash
+./amdl "https://classical.music.apple.com/us/recording/ludwig-van-beethoven-1770-pp193-1873004116"
+```
+
+- 链接中的 `l` 参数（例如 `?l=en-US`）只对这个录音生效；没有时使用配置中的 `language`。
+- 保存路径由 `classical-folder-format` / `classical-file-format` 决定（默认 `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle} [{RecordingId}]/{DiscNumber}-{TrackNumber} - {MovementTitle}`）。
+- 重复运行同一链接会跳过已完成的曲目；若同名文件属于其他录音，会报告冲突且不覆盖。
+- 暂不支持古典乐作品（`/work/...`）链接。
+
 ### 歌手全部专辑
 
 ```bash
