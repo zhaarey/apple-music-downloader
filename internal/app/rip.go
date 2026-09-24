@@ -112,6 +112,14 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		"{Tag}", Tag_string,
 		"{Codec}", track.Codec,
 	).Replace(r.Config.SongFileFormat)
+	if track.Classical != nil {
+		songName, err = r.classicalFileName(track)
+		if err != nil {
+			fmt.Println("Failed to build classical file name:", err)
+			r.State.Counter.Error++
+			return
+		}
+	}
 	fmt.Println(songName)
 	filename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
 	track.SaveName = filename
@@ -132,6 +140,13 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	existsOriginal, err := fileExists(trackPath)
 	if err != nil {
 		fmt.Println("Failed to check if track exists.")
+	}
+	if existsOriginal && track.Classical != nil {
+		if err := checkClassicalExisting(trackPath, track); err != nil {
+			fmt.Println("Classical track conflict, not overwriting:", err)
+			r.State.Counter.Error++
+			return
+		}
 	}
 	if existsOriginal {
 		fmt.Println("Track already exists locally.")
