@@ -40,17 +40,24 @@ func NewAlbum(st string, id string) *Album {
 }
 
 func (a *Album) GetResp(token, l string) error {
-	var err error
 	a.Language = l
 	resp, err := ampapi.GetAlbumResp(a.Storefront, a.ID, a.Language, token)
 	if err != nil {
 		return errors.New("error getting album response")
 	}
-	a.Resp = *resp
+	return a.SetResp(*resp)
+}
+
+// SetResp stores a Catalog album response and builds its Track list.
+func (a *Album) SetResp(resp ampapi.AlbumResp) error {
+	if len(resp.Data) == 0 || len(resp.Data[0].Relationships.Tracks.Data) == 0 {
+		return fmt.Errorf("album %s: empty catalog response", a.ID)
+	}
+	a.Resp = resp
 	//简化高频调用名称
 	a.Name = a.Resp.Data[0].Attributes.Name
-	//fmt.Println("Getting album response")
 	//从resp中的Tracks数据中提取trackData信息到新的Track结构体中
+	a.Tracks = nil
 	for i, trackData := range a.Resp.Data[0].Relationships.Tracks.Data {
 		len := len(a.Resp.Data[0].Relationships.Tracks.Data)
 		a.Tracks = append(a.Tracks, Track{
@@ -60,13 +67,10 @@ func (a *Album) GetResp(token, l string) error {
 			Language:   a.Language,
 			Storefront: a.Storefront,
 
-			//SaveDir:   filepath.Join(a.SaveDir, a.SaveName),
-			//Codec:     a.Codec,
 			TaskNum:   i + 1,
 			TaskTotal: len,
 			M3u8:      trackData.Attributes.ExtendedAssetUrls.EnhancedHls,
 			WebM3u8:   trackData.Attributes.ExtendedAssetUrls.EnhancedHls,
-			//CoverPath: a.CoverPath,
 
 			Resp:      trackData,
 			PreType:   "albums",

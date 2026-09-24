@@ -1,0 +1,114 @@
+package app
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+
+	ampapi "amdl/internal/amp-api"
+	"amdl/internal/classical"
+	"amdl/internal/model"
+)
+
+func beethovenAlbum(t *testing.T) *model.Album {
+	t.Helper()
+	data, err := os.ReadFile("../classical/testdata/catalog/us_beethoven_en-US.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp ampapi.AlbumResp
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatal(err)
+	}
+	album := model.NewAlbum("us", "1873004116")
+	album.Language = "en-US"
+	if err := album.SetResp(resp); err != nil {
+		t.Fatal(err)
+	}
+	return album
+}
+
+func beethovenRecording(ids ...string) *classical.Recording {
+	rec := &classical.Recording{
+		Request:   classical.Request{Storefront: "us", Language: "en-US", RecordingID: "ludwig-van-beethoven-1770-pp193-1873004116"},
+		AlbumID:   "1873004116",
+		WorkTitle: "Piano Sonata No. 16 in G Major, Op. 31/1",
+		Composer:  "Ludwig van Beethoven",
+	}
+	for i, id := range ids {
+		rec.Tracks = append(rec.Tracks, classical.Track{
+			SongID:     id,
+			Title:      "movement " + id,
+			Position:   i + 1,
+			Count:      len(ids),
+			Conductors: []string{"A", "B", "A"},
+		})
+	}
+	return rec
+}
+
+func TestBuildRecordingTracksSelectsInRecordingOrder(t *testing.T) {
+	album := beethovenAlbum(t)
+	// The last Catalog track proves selection is not limited to a first page.
+	last := album.Tracks[len(album.Tracks)-1]
+	rec := beethovenRecording("1873004590", "1873004347", last.ID)
+
+	tracks, err := buildRecordingTracks(rec, album)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 3 {
+		t.Fatalf("got %d tracks, want 3", len(tracks))
+	}
+	for i, track := range tracks {
+		want := rec.Tracks[i]
+		catalog := album.Tracks[indexOfTrack(album, want.SongID)]
+		if track.ID != want.SongID || track.TaskNum != i+1 || track.TaskTotal != 3 {
+			t.Fatalf("track %d = %s task %d/%d", i, track.ID, track.TaskNum, track.TaskTotal)
+		}
+		if track.Resp.Attributes.TrackNumber != catalog.Resp.Attributes.TrackNumber || track.DiscTotal != catalog.DiscTotal {
+			t.Fatalf("track %s lost parent numbering", track.ID)
+		}
+		c := track.Classical
+		if c == nil || c.Position != i+1 || c.Count != 3 || c.MovementTitle != want.Title || c.WorkTitle != rec.WorkTitle {
+			t.Fatalf("classical context = %#v", c)
+		}
+		if c.Conductor != "A; B" || c.RecordingID != rec.Request.RecordingID {
+			t.Fatalf("classical context = %#v", c)
+		}
+	}
+	if album.Tracks[0].Classical != nil {
+		t.Fatal("parent album tracks must not be modified")
+	}
+}
+
+func TestBuildRecordingTracksReportsMissingSongs(t *testing.T) {
+	_, err := buildRecordingTracks(beethovenRecording("1873004347", "111", "222"), beethovenAlbum(t))
+	if err == nil || !strings.Contains(err.Error(), "111") || !strings.Contains(err.Error(), "222") {
+		t.Fatalf("err = %v, want both missing ids", err)
+	}
+}
+
+func TestBuildRecordingTracksRejectsOtherAlbum(t *testing.T) {
+	rec := beethovenRecording("1873004347")
+	rec.AlbumID = "1"
+	if _, err := buildRecordingTracks(rec, beethovenAlbum(t)); err == nil {
+		t.Fatal("expected album mismatch error")
+	}
+}
+
+func TestAlbumSetRespRejectsEmptyResponse(t *testing.T) {
+	if err := model.NewAlbum("us", "1").SetResp(ampapi.AlbumResp{}); err == nil {
+		t.Fatal("expected error for empty album response")
+	}
+}
+
+func indexOfTrack(album *model.Album, id string) int {
+	for i, track := range album.Tracks {
+		if track.ID == id {
+			return i
+		}
+	}
+	return -1
+}
