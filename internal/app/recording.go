@@ -155,6 +155,12 @@ func (r *Runner) ripRecording(rec *classical.Recording, token, mediaUserToken st
 	if err != nil {
 		return err
 	}
+	// Check every file name before anything is written.
+	for i := range tracks {
+		if _, err := r.classicalFileName(&tracks[i]); err != nil {
+			return err
+		}
+	}
 	if err := createDirectory(dir); err != nil {
 		return err
 	}
