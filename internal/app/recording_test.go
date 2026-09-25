@@ -11,9 +11,10 @@ import (
 	"amdl/internal/model"
 )
 
-func beethovenAlbum(t *testing.T) *model.Album {
+// catalogAlbum loads a captured Catalog album response.
+func catalogAlbum(t *testing.T, file, storefront, id, language string) *model.Album {
 	t.Helper()
-	data, err := os.ReadFile("../classical/testdata/catalog/us_beethoven_en-US.json")
+	data, err := os.ReadFile("../classical/testdata/catalog/" + file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,12 +22,16 @@ func beethovenAlbum(t *testing.T) *model.Album {
 	if err := json.Unmarshal(data, &resp); err != nil {
 		t.Fatal(err)
 	}
-	album := model.NewAlbum("us", "1873004116")
-	album.Language = "en-US"
+	album := model.NewAlbum(storefront, id)
+	album.Language = language
 	if err := album.SetResp(resp); err != nil {
 		t.Fatal(err)
 	}
 	return album
+}
+
+func beethovenAlbum(t *testing.T) *model.Album {
+	return catalogAlbum(t, "us_beethoven_en-US.json", "us", "1873004116", "en-US")
 }
 
 func beethovenRecording(ids ...string) *classical.Recording {
@@ -50,7 +55,7 @@ func beethovenRecording(ids ...string) *classical.Recording {
 
 func TestBuildRecordingTracksSelectsInRecordingOrder(t *testing.T) {
 	album := beethovenAlbum(t)
-	// The last Catalog track proves selection is not limited to a first page.
+	// The album's last track shows songs are picked by ID, not by position.
 	last := album.Tracks[len(album.Tracks)-1]
 	rec := beethovenRecording("1873004590", "1873004347", last.ID)
 

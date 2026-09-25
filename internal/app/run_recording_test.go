@@ -154,29 +154,46 @@ func TestRecordingLanguageFallsBackToStorefront(t *testing.T) {
 }
 
 func TestRipRecordingWarnsWhenCatalogUsesAnotherLanguage(t *testing.T) {
-	stubAlbum(t, beethovenAlbum(t)) // its href records l=en-US
 	origShow := showTrackQuality
 	t.Cleanup(func() { showTrackQuality = origShow })
 	showTrackQuality = func(*Runner, int, string, string, []string, string, string) {}
+	pachelbel := func(language string) *classical.Recording {
+		return &classical.Recording{
+			Request:   classical.Request{Storefront: "cn", Language: language, RecordingID: "johann-pachelbel-1653-pp429-1452536848"},
+			AlbumID:   "1452536848",
+			WorkTitle: "D 大调卡农与吉格，P. 37",
+			Tracks:    []classical.Track{{SongID: "1452537828", Title: "I. Canon", Position: 1, Count: 1}},
+		}
+	}
+	beethoven := func(language string) *classical.Recording {
+		rec := beethovenRecording("1873004347")
+		rec.Request.Language = language
+		return rec
+	}
 	cases := []struct {
-		requested string
-		warn      bool
+		name  string
+		album *model.Album // its href records the language the Catalog used
+		rec   *classical.Recording
+		warn  bool
 	}{
-		{"de-DE", true},  // the storefront does not offer German
-		{"en-GB", false}, // same language, other region
-		{"", false},      // nothing was requested
+		{"us served en-US for de-DE", beethovenAlbum(t), beethoven("de-DE"), true},
+		{"us served en-US for en-GB", beethovenAlbum(t), beethoven("en-GB"), false},
+		{"nothing requested", beethovenAlbum(t), beethoven(""), false},
+		{"cn normalized zh-CN", catalogAlbum(t, "cn_pachelbel_zh-CN.json", "cn", "1452536848", "zh-CN"), pachelbel("zh-CN"), false},
+		{"cn served zh-Hans-CN for en-US", catalogAlbum(t, "cn_pachelbel_zh-CN.json", "cn", "1452536848", "en-US"), pachelbel("en-US"), true},
 	}
 	for _, tc := range cases {
-		r := NewRunner(config.ConfigSet{LimitMax: 200, AlacSaveFolder: t.TempDir()})
-		r.Flags.Debug = true
-		rec := beethovenRecording("1873004347")
-		rec.Request.Language = tc.requested
+		t.Run(tc.name, func(t *testing.T) {
+			stubAlbum(t, tc.album)
+			r := NewRunner(config.ConfigSet{LimitMax: 200, AlacSaveFolder: t.TempDir()})
+			r.Flags.Debug = true
 
-		if err := r.ripRecording(rec, "", ""); err != nil {
-			t.Fatal(err)
-		}
-		if got := len(rec.Warnings) > 0; got != tc.warn {
-			t.Errorf("requested %q: warnings = %v, want a warning = %v", tc.requested, rec.Warnings, tc.warn)
-		}
+			if err := r.ripRecording(tc.rec, "", ""); err != nil {
+				t.Fatal(err)
+			}
+			if got := len(tc.rec.Warnings) > 0; got != tc.warn {
+				t.Errorf("warnings = %v, want a warning = %v", tc.rec.Warnings, tc.warn)
+			}
+		})
 	}
 }

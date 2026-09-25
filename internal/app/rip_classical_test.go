@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,5 +88,29 @@ func TestRipTrackClassicalDiscardsUnfinishedFile(t *testing.T) {
 	// An untagged file left behind makes every later run report a conflict.
 	if _, err := os.Stat(filepath.Join(track.SaveDir, "1-5 - I. Allegro vivace.m4a")); !os.IsNotExist(err) {
 		t.Fatalf("unfinished file is still there (stat error %v)", err)
+	}
+}
+
+func TestRipTrackClassicalConflictKeepsFile(t *testing.T) {
+	r := NewRunner(config.ConfigSet{LimitMax: 200})
+	track := classicalRipTrack(t)
+	other := *track
+	c := *track.Classical
+	c.RecordingID = "another-recording-1873004116"
+	other.Classical = &c
+	putFinishedFile(t, r, &other)
+	path := filepath.Join(track.SaveDir, "1-5 - I. Allegro vivace.m4a")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.ripTrack(track, "", "")
+
+	if r.State.Counter.Error != 1 || r.State.Counter.Success != 0 {
+		t.Fatalf("error/success = %d/%d, want 1/0", r.State.Counter.Error, r.State.Counter.Success)
+	}
+	if after, _ := os.ReadFile(path); !bytes.Equal(before, after) {
+		t.Fatal("the other recording's file was changed")
 	}
 }

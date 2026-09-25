@@ -249,3 +249,70 @@ func TestRedirectPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestFetchWithoutLanguageSendsNoL(t *testing.T) {
+	// Used when the storefront's language cannot be looked up.
+	rp := &replayer{replies: map[string]reply{
+		apiPath("us", beethovenID):                     jsonReply(fixture(t, "api/us_beethoven_default.json")),
+		apiPath("us", beethovenID) + "/tracksMetadata": jsonReply(fixture(t, "metadata/us_beethoven_default.json")),
+	}}
+	rec, err := fetch(t, rp, Request{Storefront: "us", RecordingID: beethovenID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIDs(t, rec, "1873004347", "1873004590", "1873004600")
+	if rec.WorkTitle != "Piano Sonata No. 16 in G Major, Op. 31/1" || len(rec.Warnings) != 0 {
+		t.Fatalf("work = %q, warnings = %v", rec.WorkTitle, rec.Warnings)
+	}
+	for _, key := range rp.requests {
+		if strings.Contains(key, "l=") {
+			t.Fatalf("request %s carries a language", key)
+		}
+	}
+}
+
+func TestFetchAPIInChinese(t *testing.T) {
+	rp := &replayer{replies: map[string]reply{
+		apiPath("cn", pachelbelID) + "?l=zh-CN":                jsonReply(fixture(t, "api/cn_pachelbel_zh-CN.json")),
+		apiPath("cn", pachelbelID) + "/tracksMetadata?l=zh-CN": jsonReply(fixture(t, "metadata/cn_pachelbel_zh-CN.json")),
+	}}
+	rec, err := fetch(t, rp, Request{Storefront: "cn", Language: "zh-CN", RecordingID: pachelbelID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIDs(t, rec, "1452537828", "1452537822", "1452537956")
+	if rec.WorkTitle != "D 大调卡农与吉格，P. 37" || rec.Source != "api" {
+		t.Fatalf("work = %q, source = %s", rec.WorkTitle, rec.Source)
+	}
+	for _, track := range rec.Tracks {
+		if len(track.Conductors) != 1 {
+			t.Fatalf("conductors for %s = %v", track.SongID, track.Conductors)
+		}
+	}
+}
+
+func TestFetchRejectsHomepageServedAsRecordingPage(t *testing.T) {
+	rp := &replayer{replies: map[string]reply{
+		apiPath("jp", pachelbelID) + "?l=ja":  jsonReply([]byte(`{"type":"screen-error"}`)),
+		pagePath("jp", pachelbelID) + "?l=ja": htmlReply(fixture(t, "redirects/cn_homepage.html")),
+	}}
+	if rec, err := fetch(t, rp, Request{Storefront: "jp", Language: "ja", RecordingID: pachelbelID}); err == nil {
+		t.Fatalf("homepage accepted as recording %#v", rec)
+	}
+}
+
+func TestFetchFallsBackToSSRWhenAPIBodyIsEmpty(t *testing.T) {
+	rp := &replayer{replies: map[string]reply{
+		apiPath("cn", pachelbelID) + "?l=en-US":                jsonReply(fixture(t, "redirects/empty_response.bin")),
+		pagePath("cn", pachelbelID) + "?l=en-US":               htmlReply(fixture(t, "ssr/cn_pachelbel_en-US.html")),
+		apiPath("cn", pachelbelID) + "/tracksMetadata?l=en-US": jsonReply(fixture(t, "metadata/cn_pachelbel_en-US.json")),
+	}}
+	rec, err := fetch(t, rp, Request{Storefront: "cn", Language: "en-US", RecordingID: pachelbelID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIDs(t, rec, "1452537828", "1452537822", "1452537956")
+	if rec.Source != "ssr" || len(rec.Warnings) != 1 || len(rec.Tracks[0].Conductors) != 1 {
+		t.Fatalf("source = %s, warnings = %v, conductors = %v", rec.Source, rec.Warnings, rec.Tracks[0].Conductors)
+	}
+}
