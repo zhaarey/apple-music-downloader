@@ -44,7 +44,7 @@ func TestClassicalFolderKeepsSlashInsideComponent(t *testing.T) {
 	want := []string{
 		"Ludwig van Beethoven",
 		"Beethoven_ Piano Sonatas (2014) [Christian Leotta] [1873004116]",
-		"Piano Sonata No. 16 in G Major, Op. 31_1 [ludwig-van-beethoven-1770-pp193-1873004116]",
+		"Piano Sonata No. 16 in G Major, Op. 31_1",
 	}
 	if strings.Join(parts, "|") != strings.Join(want, "|") {
 		t.Fatalf("folder components = %q, want %q", parts, want)

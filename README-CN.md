@@ -276,7 +276,7 @@ Apple Music Classical 的录音（recording）链接只下载该录音包含的�
 ```
 
 - 链接中的 `l` 参数（例如 `?l=en-US`）只对这个录音生效；没有时使用配置中的 `language`。
-- 保存路径由 `classical-folder-format` / `classical-file-format` 决定（默认 `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle} [{RecordingId}]/{DiscNumber}-{TrackNumber} - {MovementTitle}`）。
+- 保存路径由 `classical-folder-format` / `classical-file-format` 决定（默认 `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle}/{DiscNumber}-{TrackNumber} - {MovementTitle}`）。每首曲目各不相同的占位符（`{MovementTitle}`、`{SongId}`、`{DiscNumber}`、`{TrackNumber}`、`{MovementIndex}`）只能用在文件名里。
 - 重复运行同一链接会跳过已完成的曲目；若同名文件属于其他录音，会报告冲突且不覆盖。
 - 暂不支持古典乐作品（`/work/...`）链接。
 

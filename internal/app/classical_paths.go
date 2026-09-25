@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultClassicalFolderFormat = "{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle} [{RecordingId}]"
+	defaultClassicalFolderFormat = "{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle}"
 	defaultClassicalFileFormat   = "{DiscNumber}-{TrackNumber} - {MovementTitle}"
 
 	// classicalIdentityTag is a freeform tag that marks which Recording and
