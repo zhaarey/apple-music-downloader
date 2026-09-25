@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf16"
 
 	"amdl/internal/model"
 
@@ -20,9 +23,19 @@ const (
 	// classicalIdentityTag is a freeform tag that marks which Recording and
 	// song a file belongs to, so repeated runs can reuse finished files.
 	classicalIdentityTag = "AMDL_CLASSICAL_RECORDING"
+
+	// maxFolderName is the longest path component common file systems accept.
+	maxFolderName = 255
+	// maxFileName leaves room for the extension and the suffixes the download
+	// and conversion steps add, such as ".m4a.part".
+	maxFileName = maxFolderName - 20
 )
 
 var classicalPlaceholder = regexp.MustCompile(`\{[^{}]*\}`)
+
+// windowsDeviceName matches names Windows reserves for devices, which it
+// refuses as file names even with an extension.
+var windowsDeviceName = regexp.MustCompile(`(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]) *$`)
 
 // perTrackPlaceholders differ between the tracks of one Recording. The folder
 // is shared by all of them, so these belong in the file name only.
@@ -55,7 +68,8 @@ func classicalValues(track *model.Track) map[string]string {
 
 // fillClassicalSegment replaces placeholders in one path component. Values
 // are sanitized individually so a "/" inside a title never adds a directory.
-func (r *Runner) fillClassicalSegment(segment string, values map[string]string) (string, error) {
+// The result is at most maxLen long (see nameLength).
+func (r *Runner) fillClassicalSegment(segment string, values map[string]string, maxLen int) (string, error) {
 	var unknown []string
 	out := classicalPlaceholder.ReplaceAllStringFunc(segment, func(p string) string {
 		v, ok := values[p]
@@ -68,11 +82,35 @@ func (r *Runner) fillClassicalSegment(segment string, values map[string]string) 
 	if len(unknown) > 0 {
 		return "", fmt.Errorf("unknown classical placeholder %s", strings.Join(unknown, ", "))
 	}
-	out = strings.TrimSpace(sanitizeFolderName(strings.TrimSpace(out)))
+	out = strings.Map(func(c rune) rune {
+		if unicode.IsControl(c) {
+			return '_'
+		}
+		return c
+	}, forbiddenNames.ReplaceAllString(out, "_"))
+	// Windows drops trailing dots and spaces, so "..." would name the parent.
+	out = strings.TrimRightFunc(strings.TrimSpace(out), func(c rune) bool {
+		return c == '.' || unicode.IsSpace(c)
+	})
 	if out == "" {
-		return "", fmt.Errorf("classical template segment %q is empty", segment)
+		return "", fmt.Errorf("classical template segment %q gives an empty name", segment)
+	}
+	if base, _, _ := strings.Cut(out, "."); windowsDeviceName.MatchString(base) {
+		out = "_" + out
+	}
+	if n := nameLength(out); n > maxLen {
+		return "", fmt.Errorf("classical name is %d long, over the limit of %d; shorten the template or lower limit-max: %s", n, maxLen, out)
 	}
 	return out, nil
+}
+
+// nameLength measures a path component the way file systems limit it:
+// UTF-16 units on Windows, bytes elsewhere.
+func nameLength(name string) int {
+	if runtime.GOOS == "windows" {
+		return len(utf16.Encode([]rune(name)))
+	}
+	return len(name)
 }
 
 func (r *Runner) classicalFolder(root string, track *model.Track) (string, error) {
@@ -88,7 +126,7 @@ func (r *Runner) classicalFolder(root string, track *model.Track) (string, error
 	values := classicalValues(track)
 	parts := []string{root}
 	for _, segment := range strings.Split(format, "/") {
-		part, err := r.fillClassicalSegment(segment, values)
+		part, err := r.fillClassicalSegment(segment, values, maxFolderName)
 		if err != nil {
 			return "", err
 		}
@@ -106,7 +144,7 @@ func (r *Runner) classicalFileName(track *model.Track) (string, error) {
 	if strings.ContainsAny(format, `/\`) {
 		return "", errors.New("classical file format must not contain a directory separator")
 	}
-	return r.fillClassicalSegment(format, classicalValues(track))
+	return r.fillClassicalSegment(format, classicalValues(track), maxFileName)
 }
 
 // checkClassicalExisting reports nil when the file at path was written for

@@ -83,3 +83,51 @@ func TestClassicalFolderRejectsPerTrackPlaceholders(t *testing.T) {
 		}
 	}
 }
+
+func TestClassicalFolderNamesAreSafeOnDisk(t *testing.T) {
+	cases := []struct {
+		title string
+		want  string // "" means an error is expected
+	}{
+		{"Sonata. . .", "Sonata"},
+		{"...", ""}, // would become ".." and climb out of the Composer folder
+		{"Op. 1\t2", "Op. 1_2"},
+		{"CON", "_CON"},
+		{"nul.txt", "_nul.txt"},
+		{"Com1", "_Com1"},
+		{"Console", "Console"},
+		{"COM10", "COM10"},
+		{strings.Repeat("a", 255), strings.Repeat("a", 255)},
+		{strings.Repeat("a", 256), ""},
+	}
+	for _, tc := range cases {
+		r := NewRunner(config.ConfigSet{LimitMax: 300, ClassicalFolderFormat: "{Composer}/{WorkTitle}"})
+		track := classicalTestTrack()
+		track.Classical.WorkTitle = tc.title
+		dir, err := r.classicalFolder("root", track)
+		if tc.want == "" {
+			if err == nil {
+				t.Errorf("work title %q: got folder %q, want an error", tc.title, dir)
+			}
+			continue
+		}
+		if err != nil || dir != filepath.Join("root", "Ludwig van Beethoven", tc.want) {
+			t.Errorf("work title %q: got %q, %v; want last folder %q", tc.title, dir, err, tc.want)
+		}
+	}
+}
+
+func TestClassicalFileNameLeavesRoomForSuffixes(t *testing.T) {
+	// Downloads first write "<name>.m4a.part"; converters and lyrics use
+	// other extensions, so the name must stay 20 units below 255.
+	r := NewRunner(config.ConfigSet{LimitMax: 300, ClassicalFileFormat: "{MovementTitle}"})
+	track := classicalTestTrack()
+	track.Classical.MovementTitle = strings.Repeat("a", 235)
+	if _, err := r.classicalFileName(track); err != nil {
+		t.Fatalf("235 characters: %v", err)
+	}
+	track.Classical.MovementTitle = strings.Repeat("a", 236)
+	if name, err := r.classicalFileName(track); err == nil {
+		t.Fatalf("236 characters: got %d-character name, want an error", len(name))
+	}
+}
