@@ -69,3 +69,23 @@ func TestRipTrackClassicalSkipKeepsAlbumProgress(t *testing.T) {
 		})
 	}
 }
+
+func TestRipTrackClassicalDiscardsUnfinishedFile(t *testing.T) {
+	orig := downloadAacLc
+	t.Cleanup(func() { downloadAacLc = orig })
+	downloadAacLc = func(_, path, _ string, _ bool, _ string) (string, error) {
+		return "", os.WriteFile(path, []byte("not an mp4"), 0o644)
+	}
+	r := NewRunner(config.ConfigSet{LimitMax: 200, LiteServer: "127.0.0.1:1"})
+	track := classicalRipTrack(t)
+
+	r.ripTrack(track, "", "")
+
+	if r.State.Counter.Error != 1 {
+		t.Fatalf("errors = %d, want 1", r.State.Counter.Error)
+	}
+	// An untagged file left behind makes every later run report a conflict.
+	if _, err := os.Stat(filepath.Join(track.SaveDir, "1-5 - I. Allegro vivace.m4a")); !os.IsNotExist(err) {
+		t.Fatalf("unfinished file is still there (stat error %v)", err)
+	}
+}

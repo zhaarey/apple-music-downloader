@@ -16,6 +16,10 @@ import (
 	"strings"
 )
 
+// downloadAacLc fetches an AAC-LC track through the lite server; tests
+// replace it to run offline.
+var downloadAacLc = runv5.Run
+
 // markDone records the track's position so a retry pass skips it. Classical
 // tracks are left out: their TaskNum is a Recording position, not an album
 // position, and later runs find their files by the identity tag.
@@ -232,7 +236,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 			r.State.Counter.Error++
 			return
 		}
-		_, err := runv5.Run(track.ID, trackPath, token, false, r.Config.LiteServer)
+		_, err := downloadAacLc(track.ID, trackPath, token, false, r.Config.LiteServer)
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc via lite-server:", err)
 			if err.Error() == "Unavailable" {
@@ -272,9 +276,20 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 	}
 
+	// A Classical file that cannot be finished lacks its identity tag and
+	// would block every later run, so drop it and let the next run retry.
+	discardClassical := func() {
+		if track.Classical == nil {
+			return
+		}
+		if err := os.Remove(trackPath); err != nil && !os.IsNotExist(err) {
+			fmt.Println("Failed to remove unfinished file:", err)
+		}
+	}
 	if err := defrag.DefragmentMP4(trackPath); err != nil {
 		fmt.Printf("Defragment failed: %v\n", err)
 		r.State.Counter.Error++
+		discardClassical()
 		return
 	}
 	track.SavePath = trackPath
@@ -284,6 +299,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		if err != nil {
 			fmt.Println("\u26A0 Failed to fix ALAC:", err)
 			r.State.Counter.Unavailable++
+			discardClassical()
 			return
 		}
 	}
@@ -292,6 +308,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	if err != nil {
 		fmt.Println("\u26A0 Failed to write tags in media:", err)
 		r.State.Counter.Unavailable++
+		discardClassical()
 		return
 	}
 	if removeCoverAfterWrite {
