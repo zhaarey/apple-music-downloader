@@ -98,8 +98,9 @@ func isClassicalWorkURL(raw string) bool {
 // links. It returns false for every other URL.
 func (r *Runner) handleClassicalURL(raw, token string) bool {
 	if isClassicalWorkURL(raw) {
+		// Not counted as an error, like an unknown link type: retrying the
+		// queue cannot make it succeed.
 		fmt.Println("Classical Work links are not supported yet; use a Recording link.")
-		r.State.Counter.Error++
 		return true
 	}
 	req, ok, err := classical.ParseRecordingURL(raw, r.Config.Language)

@@ -49,7 +49,8 @@ func TestClassicalWorkURLIsRejected(t *testing.T) {
 	if !r.handleClassicalURL("https://classical.music.apple.com/us/work/some-work", "token") {
 		t.Fatal("work URL not handled")
 	}
-	if r.State.Counter.Error != 1 || fetched.RecordingID != "" {
-		t.Fatalf("errors = %d, fetched = %+v", r.State.Counter.Error, *fetched)
+	// Like an unknown link type it is not an error: a retry cannot fix it.
+	if r.State.Counter != (config.Counter{}) || fetched.RecordingID != "" {
+		t.Fatalf("counter = %+v, fetched = %+v", r.State.Counter, *fetched)
 	}
 }
