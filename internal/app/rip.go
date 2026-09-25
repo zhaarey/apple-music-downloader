@@ -16,6 +16,16 @@ import (
 	"strings"
 )
 
+// markDone records the track's position so a retry pass skips it. Classical
+// tracks are left out: their TaskNum is a Recording position, not an album
+// position, and later runs find their files by the identity tag.
+func (r *Runner) markDone(track *model.Track) {
+	if track.Classical != nil {
+		return
+	}
+	r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+}
+
 func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken string) {
 	var err error
 	r.State.Counter.Total++
@@ -151,7 +161,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	if existsOriginal {
 		fmt.Println("Track already exists locally.")
 		r.State.Counter.Success++
-		r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+		r.markDone(track)
 
 		tArtistId := ""
 		if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -171,7 +181,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		if err2 == nil && existsConverted {
 			fmt.Println("Converted track already exists locally.")
 			r.State.Counter.Success++
-			r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+			r.markDone(track)
 
 			tArtistId := ""
 			if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -308,7 +318,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	})
 
 	r.State.Counter.Success++
-	r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+	r.markDone(track)
 }
 
 func releaseYear(date string) string {
