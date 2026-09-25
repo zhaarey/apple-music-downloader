@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"amdl/internal/classical"
@@ -76,5 +77,34 @@ func TestRipRecordingChecksFileTemplateBeforeWriting(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(root); len(entries) != 0 {
 		t.Fatalf("save folder has %d entries, want none", len(entries))
+	}
+}
+
+func TestRipRecordingDebugOnlyInspects(t *testing.T) {
+	album := beethovenAlbum(t)
+	album.Resp.Data[0].Attributes.Artwork.URL = "" // no cover request
+	stubAlbum(t, album)
+	var inspected []string
+	origShow := showTrackQuality
+	t.Cleanup(func() { showTrackQuality = origShow })
+	showTrackQuality = func(_ *Runner, _ int, storefront, songID string, _ []string, language, _ string) {
+		inspected = append(inspected, storefront+"/"+songID+"/"+language)
+	}
+	root := t.TempDir()
+	r := NewRunner(config.ConfigSet{LimitMax: 200, AlacSaveFolder: root})
+	r.Flags.Debug = true
+
+	if err := r.ripRecording(beethovenRecording("1873004590", "1873004347"), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	// Only the Recording's songs, in Recording order, with its language.
+	if got := strings.Join(inspected, ","); got != "us/1873004590/en-US,us/1873004347/en-US" {
+		t.Fatalf("inspected = %s", got)
+	}
+	if entries, _ := os.ReadDir(root); len(entries) != 0 {
+		t.Fatalf("save folder has %d entries, want none", len(entries))
+	}
+	if r.State.Counter != (config.Counter{}) {
+		t.Fatalf("counter = %+v, want nothing counted", r.State.Counter)
 	}
 }

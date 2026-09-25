@@ -74,6 +74,7 @@ var (
 	fetchRecording = func(req classical.Request) (*classical.Recording, error) {
 		return classical.NewClient(download.Client).Fetch(context.Background(), req)
 	}
+	showTrackQuality   = (*Runner).printTrackQuality
 	loadRecordingAlbum = func(storefront, albumID, token, language string) (*model.Album, error) {
 		album := model.NewAlbum(storefront, albumID)
 		if err := album.GetResp(token, language); err != nil {
@@ -143,6 +144,18 @@ func (r *Runner) ripRecording(rec *classical.Recording, token, mediaUserToken st
 	fmt.Printf("%s - %s (%d tracks, source %s)\n", rec.Composer, rec.WorkTitle, len(tracks), rec.Source)
 	for _, warning := range rec.Warnings {
 		fmt.Println("Warning:", warning)
+	}
+	if r.Flags.Select {
+		fmt.Println("--select does not apply to classical recordings; all their tracks are used.")
+	}
+	if r.Flags.Debug {
+		// Debug mode only inspects: nothing is written or counted.
+		for i := range tracks {
+			fmt.Printf("\nTrack %d of %d:\n", i+1, len(tracks))
+			fmt.Printf("%02d. %s\n", i+1, tracks[i].Classical.MovementTitle)
+			showTrackQuality(r, i+1, rec.Request.Storefront, tracks[i].ID, tracks[i].Resp.Attributes.AudioTraits, rec.Request.Language, token)
+		}
+		return nil
 	}
 
 	codec, root := "ALAC", r.Config.AlacSaveFolder

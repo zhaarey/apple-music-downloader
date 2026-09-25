@@ -540,6 +540,38 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 	return nil
 }
 
+// printTrackQuality prints the audio variants of one song for --debug.
+func (r *Runner) printTrackQuality(trackNum int, storefront, songID string, audioTraits []string, language, token string) {
+	manifest, err := ampapi.GetSongResp(storefront, songID, language, token)
+	if err != nil {
+		fmt.Printf("Failed to get manifest for track %d: %v\n", trackNum, err)
+		return
+	}
+
+	var m3u8Url string
+	if manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls != "" {
+		m3u8Url = manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls
+	}
+	needCheck := false
+	if r.Config.GetM3u8Mode == "all" {
+		needCheck = true
+	} else if r.Config.GetM3u8Mode == "hires" && contains(audioTraits, "hi-res-lossless") {
+		needCheck = true
+	}
+	if needCheck {
+		fullM3u8Url, err := r.checkM3u8(songID, "song")
+		if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8") {
+			m3u8Url = fullM3u8Url
+		} else {
+			fmt.Println("Failed to get best quality m3u8 from lite-server, will use m3u8 from Web API")
+		}
+	}
+
+	if _, _, err := r.extractMedia(m3u8Url, true); err != nil {
+		fmt.Printf("Failed to extract quality info for track %d: %v\n", trackNum, err)
+	}
+}
+
 func (r *Runner) ripAlbum(albumId string, token string, storefront string, mediaUserToken string, urlArg_i string) error {
 	album := model.NewAlbum(storefront, albumId)
 	err := album.GetResp(token, r.Config.Language)
@@ -556,37 +588,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 			trackNum++
 			fmt.Printf("\nTrack %d of %d:\n", trackNum, len(meta.Data[0].Relationships.Tracks.Data))
 			fmt.Printf("%02d. %s\n", trackNum, track.Attributes.Name)
-
-			manifest, err := ampapi.GetSongResp(storefront, track.ID, album.Language, token)
-			if err != nil {
-				fmt.Printf("Failed to get manifest for track %d: %v\n", trackNum, err)
-				continue
-			}
-
-			var m3u8Url string
-			if manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls != "" {
-				m3u8Url = manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls
-			}
-			needCheck := false
-			if r.Config.GetM3u8Mode == "all" {
-				needCheck = true
-			} else if r.Config.GetM3u8Mode == "hires" && contains(track.Attributes.AudioTraits, "hi-res-lossless") {
-				needCheck = true
-			}
-			if needCheck {
-				fullM3u8Url, err := r.checkM3u8(track.ID, "song")
-				if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8") {
-					m3u8Url = fullM3u8Url
-				} else {
-					fmt.Println("Failed to get best quality m3u8 from lite-server, will use m3u8 from Web API")
-				}
-			}
-
-			_, _, err = r.extractMedia(m3u8Url, true)
-			if err != nil {
-				fmt.Printf("Failed to extract quality info for track %d: %v\n", trackNum, err)
-				continue
-			}
+			r.printTrackQuality(trackNum, storefront, track.ID, track.Attributes.AudioTraits, album.Language, token)
 		}
 		return nil
 	}
