@@ -5,13 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
-// conductorRoles lists the role labels observed for conductors. Roles are
-// localized display strings, so unknown labels are left unclassified.
+// conductorRoles lists the role labels the Classical API serves for a
+// conductor. Roles are localized display strings with no language-independent
+// id, so labels in other languages are left unclassified.
 var conductorRoles = map[string]bool{
-	"Conductor": true,
-	"指挥":        true,
+	"Conductor":             true, // en
+	"指揮者":                   true, // ja
+	"指挥":                    true, // zh-Hans
+	"指揮":                    true, // zh-Hant
+	"Dirigent:in":           true, // de
+	"Direction d’orchestre": true, // fr
+	"지휘자":                   true, // ko
+	"Dirección":             true, // es
+	"Direzione":             true, // it
+	"Regência":              true, // pt-BR
+}
+
+// conductorLanguages holds the primary language subtags of conductorRoles.
+var conductorLanguages = map[string]bool{
+	"en": true, "ja": true, "zh": true, "de": true, "fr": true,
+	"ko": true, "es": true, "it": true, "pt": true,
 }
 
 type trackMetadata struct {
@@ -36,7 +52,7 @@ func (c *Client) addMetadata(ctx context.Context, rec *Recording) error {
 	if err := json.Unmarshal(body, &meta); err != nil {
 		return fmt.Errorf("decode track metadata: %w", err)
 	}
-	var missing int
+	var missing, conductors int
 	for i := range rec.Tracks {
 		track := &rec.Tracks[i]
 		entry, ok := meta.TrackMetadataMap[track.SongID]
@@ -47,8 +63,13 @@ func (c *Client) addMetadata(ctx context.Context, rec *Recording) error {
 		for _, artist := range entry.Artists {
 			if conductorRoles[artist.Role] && artist.Title != "" {
 				track.Conductors = append(track.Conductors, artist.Title)
+				conductors++
 			}
 		}
+	}
+	language, _, _ := strings.Cut(strings.ToLower(req.Language), "-")
+	if conductors == 0 && language != "" && !conductorLanguages[language] {
+		rec.Warnings = append(rec.Warnings, fmt.Sprintf("conductor role names in language %q are unknown; a conductor would not be tagged", req.Language))
 	}
 	if missing > 0 {
 		return fmt.Errorf("%d of %d tracks have no matching metadata", missing, len(rec.Tracks))
