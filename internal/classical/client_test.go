@@ -227,3 +227,25 @@ func TestFetchMetadataFailureKeepsCoreData(t *testing.T) {
 		t.Fatalf("recording = %#v", rec)
 	}
 }
+
+func TestRedirectPolicy(t *testing.T) {
+	page := "https://classical.music.apple.com" + pagePath("jp", pachelbelID)
+	cases := []struct {
+		target string
+		allow  bool
+	}{
+		{page + "?l=ja", true},
+		{"http://classical.music.apple.com" + pagePath("jp", pachelbelID) + "?l=ja", false},
+		{"https://classical.music.apple.com:8443" + pagePath("jp", pachelbelID), false},
+		{"https://classical.music.apple.com/cn", false},
+		{"https://music.apple.com" + pagePath("jp", pachelbelID), false},
+	}
+	check := NewClient(&http.Client{}).http.CheckRedirect
+	for _, tc := range cases {
+		first, _ := http.NewRequest(http.MethodGet, page+"?l=ja-JP", nil)
+		next, _ := http.NewRequest(http.MethodGet, tc.target, nil)
+		if err := check(next, []*http.Request{first}); (err == nil) != tc.allow {
+			t.Errorf("redirect to %s: err = %v, want allowed = %v", tc.target, err, tc.allow)
+		}
+	}
+}

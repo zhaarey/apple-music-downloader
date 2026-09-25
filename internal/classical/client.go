@@ -28,7 +28,7 @@ type Client struct {
 }
 
 // NewClient copies hc so the shared download client keeps its own settings.
-// Cookies are never sent and redirects are limited to the same page.
+// Cookies are never sent and redirects must stay on the same HTTPS page.
 func NewClient(hc *http.Client) *Client {
 	c := *hc
 	c.Jar = nil
@@ -39,7 +39,7 @@ func NewClient(hc *http.Client) *Client {
 		if len(via) >= 10 {
 			return errors.New("too many redirects")
 		}
-		if !strings.EqualFold(req.URL.Hostname(), Host) || req.URL.Path != via[0].URL.Path {
+		if req.URL.Scheme != "https" || !strings.EqualFold(req.URL.Host, Host) || req.URL.Path != via[0].URL.Path {
 			return fmt.Errorf("refusing redirect to %s", req.URL.Redacted())
 		}
 		return nil
