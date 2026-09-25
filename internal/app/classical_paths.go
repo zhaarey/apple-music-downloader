@@ -24,6 +24,10 @@ const (
 
 var classicalPlaceholder = regexp.MustCompile(`\{[^{}]*\}`)
 
+// perTrackPlaceholders differ between the tracks of one Recording. The folder
+// is shared by all of them, so these belong in the file name only.
+var perTrackPlaceholders = []string{"{MovementTitle}", "{SongId}", "{DiscNumber}", "{TrackNumber}", "{MovementIndex}"}
+
 func classicalIdentity(track *model.Track) string {
 	return track.Classical.RecordingID + "/" + track.ID
 }
@@ -75,6 +79,11 @@ func (r *Runner) classicalFolder(root string, track *model.Track) (string, error
 	format := r.Config.ClassicalFolderFormat
 	if format == "" {
 		format = defaultClassicalFolderFormat
+	}
+	for _, p := range perTrackPlaceholders {
+		if strings.Contains(format, p) {
+			return "", fmt.Errorf("%s differs per track; use it in classical-file-format", p)
+		}
 	}
 	values := classicalValues(track)
 	parts := []string{root}

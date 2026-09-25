@@ -45,8 +45,8 @@ song-file-format: "{SongNumer}. {SongName}"
 
 #Classical Recording links (classical.music.apple.com/.../recording/...)
 #"/" separates folders; a "/" inside a title never adds a folder. Empty uses the default below.
-#{Composer} {WorkTitle} {MovementTitle} {RecordingId} {Conductor} {AlbumName} {AlbumId} {Artists} {ReleaseYear}
-#{SongId} {DiscNumber} {TrackNumber} {MovementIndex} {MovementCount}
+#folder and file: {Composer} {WorkTitle} {RecordingId} {Conductor} {AlbumName} {AlbumId} {Artists} {ReleaseYear} {MovementCount}
+#file only (they differ per track): {MovementTitle} {SongId} {DiscNumber} {TrackNumber} {MovementIndex}
 classical-folder-format: "{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle} [{RecordingId}]"
 classical-file-format: "{DiscNumber}-{TrackNumber} - {MovementTitle}"
 

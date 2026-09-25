@@ -72,3 +72,14 @@ func TestClassicalTemplateRejectsUnknownPlaceholder(t *testing.T) {
 		t.Fatal("expected error for a directory separator in the file template")
 	}
 }
+
+func TestClassicalFolderRejectsPerTrackPlaceholders(t *testing.T) {
+	// The folder is shared by the whole Recording, so a value that differs
+	// between its tracks would put every track in the first track's folder.
+	for _, p := range []string{"{MovementTitle}", "{SongId}", "{DiscNumber}", "{TrackNumber}", "{MovementIndex}"} {
+		r := NewRunner(config.ConfigSet{LimitMax: 200, ClassicalFolderFormat: "{Composer}/Part " + p})
+		if dir, err := r.classicalFolder("root", classicalTestTrack()); err == nil {
+			t.Errorf("%s in the folder template: got folder %q, want an error", p, dir)
+		}
+	}
+}
