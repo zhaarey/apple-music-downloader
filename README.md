@@ -275,7 +275,7 @@ Apple Music Classical recording links download only the tracks of that recording
 ./amdl "https://classical.music.apple.com/us/recording/ludwig-van-beethoven-1770-pp193-1873004116"
 ```
 
-- The `l` query parameter (for example `?l=en-US`) sets the language for that recording only; otherwise `language` from the config is used.
+- The `l` query parameter (for example `?l=en-US`) sets the language for that recording only; otherwise `language` from the config is used, and when that is empty too, the storefront's default language (for example `ja` for `jp`). Classical titles and album or artist names then share one language, so pick one the storefront offers (`jp` offers `ja` and `en-US`, `cn` offers `zh-Hans-CN` and `en-GB`).
 - Files are saved under `classical-folder-format` / `classical-file-format` (default `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle}/{DiscNumber}-{TrackNumber} - {MovementTitle}`). Placeholders that differ per track (`{MovementTitle}`, `{SongId}`, `{DiscNumber}`, `{TrackNumber}`, `{MovementIndex}`) belong in the file name only.
 - Running the same link again skips finished tracks. An existing file from another recording is reported as a conflict and not overwritten.
 - Classical work links (`/work/...`) are not supported yet.

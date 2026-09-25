@@ -275,7 +275,7 @@ Apple Music Classical 的录音（recording）链接只下载该录音包含的�
 ./amdl "https://classical.music.apple.com/us/recording/ludwig-van-beethoven-1770-pp193-1873004116"
 ```
 
-- 链接中的 `l` 参数（例如 `?l=en-US`）只对这个录音生效；没有时使用配置中的 `language`。
+- 链接中的 `l` 参数（例如 `?l=en-US`）只对这个录音生效；没有时使用配置中的 `language`；两者都为空时使用该商店的默认语言（例如 `jp` 为 `ja`）。古典乐标题与专辑名、艺人名因此使用同一种语言，请选择该商店提供的语言（`jp` 提供 `ja` 与 `en-US`，`cn` 提供 `zh-Hans-CN` 与 `en-GB`）。
 - 保存路径由 `classical-folder-format` / `classical-file-format` 决定（默认 `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle}/{DiscNumber}-{TrackNumber} - {MovementTitle}`）。每首曲目各不相同的占位符（`{MovementTitle}`、`{SongId}`、`{DiscNumber}`、`{TrackNumber}`、`{MovementIndex}`）只能用在文件名里。
 - 重复运行同一链接会跳过已完成的曲目；若同名文件属于其他录音，会报告冲突且不覆盖。
 - 暂不支持古典乐作品（`/work/...`）链接。

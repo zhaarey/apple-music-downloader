@@ -108,3 +108,75 @@ func TestRipRecordingDebugOnlyInspects(t *testing.T) {
 		t.Fatalf("counter = %+v, want nothing counted", r.State.Counter)
 	}
 }
+
+// stubStorefrontLanguage makes the storefront lookup return language and err,
+// and counts the lookups.
+func stubStorefrontLanguage(t *testing.T, language string, err error) *int {
+	t.Helper()
+	calls := new(int)
+	orig := storefrontLanguage
+	t.Cleanup(func() { storefrontLanguage = orig })
+	storefrontLanguage = func(string, string) (string, error) {
+		*calls++
+		return language, err
+	}
+	return calls
+}
+
+func TestRecordingLanguageFallsBackToStorefront(t *testing.T) {
+	const link = "https://classical.music.apple.com/jp/recording/abc-1873004116"
+	cases := []struct {
+		name, url, config string
+		lookup            string
+		lookupErr         error
+		want              string
+		lookups           int
+	}{
+		{"link language", link + "?l=de-DE", "en-US", "ja", nil, "de-DE", 0},
+		{"config language", link, "en-US", "ja", nil, "en-US", 0},
+		{"storefront default", link, "", "ja", nil, "ja", 1},
+		{"lookup failed", link, "", "", errors.New("offline"), "", 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fetched, loaded := stubRecording(t)
+			lookups := stubStorefrontLanguage(t, tc.lookup, tc.lookupErr)
+			r := NewRunner(config.ConfigSet{Language: tc.config})
+
+			r.handleClassicalURL(tc.url, "token")
+
+			if fetched.Language != tc.want || *loaded != tc.want || *lookups != tc.lookups {
+				t.Fatalf("classical %q, catalog %q, %d lookups; want %q and %d lookups",
+					fetched.Language, *loaded, *lookups, tc.want, tc.lookups)
+			}
+		})
+	}
+}
+
+func TestRipRecordingWarnsWhenCatalogUsesAnotherLanguage(t *testing.T) {
+	stubAlbum(t, beethovenAlbum(t)) // its href records l=en-US
+	origShow := showTrackQuality
+	t.Cleanup(func() { showTrackQuality = origShow })
+	showTrackQuality = func(*Runner, int, string, string, []string, string, string) {}
+	cases := []struct {
+		requested string
+		warn      bool
+	}{
+		{"de-DE", true},  // the storefront does not offer German
+		{"en-GB", false}, // same language, other region
+		{"", false},      // nothing was requested
+	}
+	for _, tc := range cases {
+		r := NewRunner(config.ConfigSet{LimitMax: 200, AlacSaveFolder: t.TempDir()})
+		r.Flags.Debug = true
+		rec := beethovenRecording("1873004347")
+		rec.Request.Language = tc.requested
+
+		if err := r.ripRecording(rec, "", ""); err != nil {
+			t.Fatal(err)
+		}
+		if got := len(rec.Warnings) > 0; got != tc.warn {
+			t.Errorf("requested %q: warnings = %v, want a warning = %v", tc.requested, rec.Warnings, tc.warn)
+		}
+	}
+}

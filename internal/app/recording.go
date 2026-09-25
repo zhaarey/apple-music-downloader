@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	ampapi "amdl/internal/amp-api"
 	"amdl/internal/classical"
 	"amdl/internal/download"
 	"amdl/internal/model"
@@ -56,6 +57,26 @@ func buildRecordingTracks(rec *classical.Recording, album *model.Album) ([]model
 	return tracks, nil
 }
 
+// catalogLanguage returns the language the Catalog used for album, which its
+// href records, or "" when that is unknown.
+func catalogLanguage(album *model.Album) string {
+	if len(album.Resp.Data) == 0 {
+		return ""
+	}
+	u, err := url.Parse(album.Resp.Data[0].Href)
+	if err != nil {
+		return ""
+	}
+	return u.Query().Get("l")
+}
+
+// primaryLanguage returns the lower-case language subtag of a tag, such as
+// "zh" for "zh-Hans-CN".
+func primaryLanguage(tag string) string {
+	language, _, _ := strings.Cut(strings.ToLower(tag), "-")
+	return language
+}
+
 // joinUnique joins non-empty names in first-seen order without duplicates.
 func joinUnique(names []string) string {
 	seen := make(map[string]bool, len(names))
@@ -75,6 +96,7 @@ var (
 		return classical.NewClient(download.Client).Fetch(context.Background(), req)
 	}
 	showTrackQuality   = (*Runner).printTrackQuality
+	storefrontLanguage = ampapi.GetDefaultLanguage
 	loadRecordingAlbum = func(storefront, albumID, token, language string) (*model.Album, error) {
 		album := model.NewAlbum(storefront, albumID)
 		if err := album.GetResp(token, language); err != nil {
@@ -114,6 +136,15 @@ func (r *Runner) handleClassicalURL(raw, token string) bool {
 		r.State.Counter.Error++
 		return true
 	}
+	if req.Language == "" {
+		// Without l the Classical API answers in English but the Catalog in
+		// the storefront's language, so ask both for the latter.
+		language, err := storefrontLanguage(req.Storefront, token)
+		if err != nil {
+			fmt.Println("Warning: storefront language unknown, classical titles may be in English:", err)
+		}
+		req.Language = language
+	}
 	rec, err := fetchRecording(req)
 	if err != nil {
 		fmt.Println("Failed to get classical recording:", err)
@@ -136,6 +167,9 @@ func (r *Runner) ripRecording(rec *classical.Recording, token, mediaUserToken st
 	album, err := loadRecordingAlbum(rec.Request.Storefront, rec.AlbumID, token, rec.Request.Language)
 	if err != nil {
 		return fmt.Errorf("load album %s: %w", rec.AlbumID, err)
+	}
+	if served := catalogLanguage(album); rec.Request.Language != "" && served != "" && primaryLanguage(served) != primaryLanguage(rec.Request.Language) {
+		rec.Warnings = append(rec.Warnings, fmt.Sprintf("the Catalog answered in %s, not %s: album and artist names will not match the classical titles; use a language the storefront offers", served, rec.Request.Language))
 	}
 	tracks, err := buildRecordingTracks(rec, album)
 	if err != nil {
