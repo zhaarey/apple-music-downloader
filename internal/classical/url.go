@@ -45,9 +45,11 @@ func ParseRecordingURL(raw, configLanguage string) (Request, bool, error) {
 	if len(query["l"]) > 1 {
 		return Request{}, true, errors.New("duplicate l parameter")
 	}
+	// The config language wins, as it does for other links; the link's l
+	// applies only when the config sets none.
 	language := configLanguage
-	if l := query.Get("l"); l != "" {
-		language = l
+	if language == "" {
+		language = query.Get("l")
 	}
 	return Request{Storefront: storefront, Language: language, RecordingID: slug, PublicURL: raw}, true, nil
 }

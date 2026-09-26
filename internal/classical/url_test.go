@@ -12,11 +12,17 @@ func TestParseRecordingURL(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name:       "url language wins",
-			raw:        "https://classical.music.apple.com/jp/recording/johann-pachelbel-1653-pp429-1452536848?l=en-US",
-			configLang: "zh-CN",
+			name:       "config language wins",
+			raw:        "https://classical.music.apple.com/jp/recording/johann-pachelbel-1653-pp429-1452536848?l=ja",
+			configLang: "en-US",
 			want:       Request{Storefront: "jp", Language: "en-US", RecordingID: "johann-pachelbel-1653-pp429-1452536848"},
 			isRec:      true,
+		},
+		{
+			name:  "url language without config",
+			raw:   "https://classical.music.apple.com/jp/recording/johann-pachelbel-1653-pp429-1452536848?l=en-US",
+			want:  Request{Storefront: "jp", Language: "en-US", RecordingID: "johann-pachelbel-1653-pp429-1452536848"},
+			isRec: true,
 		},
 		{
 			name:  "uppercase storefront normalized",

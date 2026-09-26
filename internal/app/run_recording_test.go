@@ -29,7 +29,7 @@ func stubRecording(t *testing.T) (fetched *classical.Request, loadedLanguage *st
 
 func TestRecordingLanguageIsIsolated(t *testing.T) {
 	fetched, loaded := stubRecording(t)
-	r := NewRunner(config.ConfigSet{Language: "zh-CN"})
+	r := NewRunner(config.ConfigSet{})
 	raw := "https://classical.music.apple.com/us/recording/abc-1873004116?l=en-US"
 	if !r.handleClassicalURL(raw, "token") {
 		t.Fatal("recording URL not handled")
@@ -37,8 +37,8 @@ func TestRecordingLanguageIsIsolated(t *testing.T) {
 	if fetched.Language != "en-US" || *loaded != "en-US" {
 		t.Fatalf("recording language = %q / %q, want en-US", fetched.Language, *loaded)
 	}
-	if r.Config.Language != "zh-CN" {
-		t.Fatalf("config language after recording = %q, want zh-CN", r.Config.Language)
+	if r.Config.Language != "" {
+		t.Fatalf("config language after recording = %q, want it empty again", r.Config.Language)
 	}
 	if r.handleClassicalURL("https://music.apple.com/us/album/x/1873004116", "token") {
 		t.Fatal("a normal album URL must not be handled as classical")
@@ -132,7 +132,8 @@ func TestRecordingLanguageFallsBackToStorefront(t *testing.T) {
 		want              string
 		lookups           int
 	}{
-		{"link language", link + "?l=de-DE", "en-US", "ja", nil, "de-DE", 0},
+		{"config language over the link", link + "?l=ja", "en-US", "ja", nil, "en-US", 0},
+		{"link language without config", link + "?l=de-DE", "", "ja", nil, "de-DE", 0},
 		{"config language", link, "en-US", "ja", nil, "en-US", 0},
 		{"storefront default", link, "", "ja", nil, "ja", 1},
 		{"lookup failed", link, "", "", errors.New("offline"), "", 1},
