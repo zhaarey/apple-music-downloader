@@ -118,16 +118,16 @@ func TestClassicalFolderNamesAreSafeOnDisk(t *testing.T) {
 }
 
 func TestClassicalFileNameLeavesRoomForSuffixes(t *testing.T) {
-	// Downloads first write "<name>.m4a.part"; converters and lyrics use
-	// other extensions, so the name must stay 20 units below 255.
+	// The longest name built from a track's is go-mp4tag's temporary copy
+	// "<name>.m4a_tmp_<13-digit milliseconds>", 22 units longer.
 	r := NewRunner(config.ConfigSet{LimitMax: 300, ClassicalFileFormat: "{MovementTitle}"})
 	track := classicalTestTrack()
-	track.Classical.MovementTitle = strings.Repeat("a", 235)
+	track.Classical.MovementTitle = strings.Repeat("a", 233)
 	if _, err := r.classicalFileName(track); err != nil {
-		t.Fatalf("235 characters: %v", err)
+		t.Fatalf("233 characters: %v", err)
 	}
-	track.Classical.MovementTitle = strings.Repeat("a", 236)
+	track.Classical.MovementTitle = strings.Repeat("a", 234)
 	if name, err := r.classicalFileName(track); err == nil {
-		t.Fatalf("236 characters: got %d-character name, want an error", len(name))
+		t.Fatalf("234 characters: got %d-character name, want an error", len(name))
 	}
 }

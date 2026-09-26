@@ -26,9 +26,11 @@ const (
 
 	// maxFolderName is the longest path component common file systems accept.
 	maxFolderName = 255
-	// maxFileName leaves room for the extension and the suffixes the download
-	// and conversion steps add, such as ".m4a.part".
-	maxFileName = maxFolderName - 20
+	// maxFileName leaves room for the extension and the longest suffix added
+	// to a track's name: go-mp4tag writes tags through a copy named
+	// "<name>.m4a_tmp_<13-digit milliseconds>". Downloads use ".m4a.part" and
+	// ".m4a.tmp-<up to 10 digits>".
+	maxFileName = maxFolderName - 22
 )
 
 var classicalPlaceholder = regexp.MustCompile(`\{[^{}]*\}`)
