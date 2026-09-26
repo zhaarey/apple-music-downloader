@@ -267,6 +267,19 @@ Or use the built binary:
 ./amdl "https://music.apple.com/us/song/you-move-me-2022-remaster/1624945520"
 ```
 
+### Classical recording
+
+Apple Music Classical recording links download only the tracks of that recording, tagged with work, movement, composer and conductor.
+
+```bash
+./amdl "https://classical.music.apple.com/us/recording/ludwig-van-beethoven-1770-pp193-1873004116"
+```
+
+- As for other links, the language is `language` from the config. When that is empty, the link's `l` query parameter (for example `?l=en-US`) is used, and when the link has none either, the storefront's default language (for example `ja` for `jp`). Classical titles and album or artist names then share one language, so pick one the storefront offers (`jp` offers `ja` and `en-US`, `cn` offers `zh-Hans-CN` and `en-GB`).
+- Files are saved under `classical-folder-format` / `classical-file-format` (default `{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle}/{DiscNumber}-{TrackNumber} - {MovementTitle}`). Placeholders that differ per track (`{MovementTitle}`, `{SongId}`, `{DiscNumber}`, `{TrackNumber}`, `{MovementIndex}`) belong in the file name only. `{Conductor}` is empty for recordings without a conductor, so do not make it a folder level on its own.
+- Running the same link again skips finished tracks. An existing file from another recording is reported as a conflict and not overwritten.
+- Classical work links (`/work/...`) are not supported yet.
+
 ### Artist albums
 
 ```bash

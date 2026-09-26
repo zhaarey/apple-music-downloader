@@ -26,6 +26,8 @@ type ConfigSet struct {
 	PlaylistFolderFormat       string `yaml:"playlist-folder-format"`
 	ArtistFolderFormat         string `yaml:"artist-folder-format"`
 	SongFileFormat             string `yaml:"song-file-format"`
+	ClassicalFolderFormat      string `yaml:"classical-folder-format"`
+	ClassicalFileFormat        string `yaml:"classical-file-format"`
 	ExplicitChoice             string `yaml:"explicit-choice"`
 	CleanChoice                string `yaml:"clean-choice"`
 	AppleMasterChoice          string `yaml:"apple-master-choice"`

@@ -16,6 +16,20 @@ import (
 	"strings"
 )
 
+// downloadAacLc fetches an AAC-LC track through the lite server; tests
+// replace it to run offline.
+var downloadAacLc = runv5.Run
+
+// markDone records the track's position so a retry pass skips it. Classical
+// tracks are left out: their TaskNum is a Recording position, not an album
+// position, and later runs find their files by the identity tag.
+func (r *Runner) markDone(track *model.Track) {
+	if track.Classical != nil {
+		return
+	}
+	r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+}
+
 func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken string) {
 	var err error
 	r.State.Counter.Total++
@@ -112,6 +126,14 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		"{Tag}", Tag_string,
 		"{Codec}", track.Codec,
 	).Replace(r.Config.SongFileFormat)
+	if track.Classical != nil {
+		songName, err = r.classicalFileName(track)
+		if err != nil {
+			fmt.Println("Failed to build classical file name:", err)
+			r.State.Counter.Error++
+			return
+		}
+	}
 	fmt.Println(songName)
 	filename := fmt.Sprintf("%s.m4a", forbiddenNames.ReplaceAllString(songName, "_"))
 	track.SaveName = filename
@@ -132,11 +154,24 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	existsOriginal, err := fileExists(trackPath)
 	if err != nil {
 		fmt.Println("Failed to check if track exists.")
+		if track.Classical != nil {
+			// Classical tracks discard what they cannot finish, so they
+			// must know that no file was there before.
+			r.State.Counter.Error++
+			return
+		}
+	}
+	if existsOriginal && track.Classical != nil {
+		if err := checkClassicalExisting(trackPath, track); err != nil {
+			fmt.Println("Classical track conflict, not overwriting:", err)
+			r.State.Counter.Error++
+			return
+		}
 	}
 	if existsOriginal {
 		fmt.Println("Track already exists locally.")
 		r.State.Counter.Success++
-		r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+		r.markDone(track)
 
 		tArtistId := ""
 		if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -156,7 +191,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		if err2 == nil && existsConverted {
 			fmt.Println("Converted track already exists locally.")
 			r.State.Counter.Success++
-			r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+			r.markDone(track)
 
 			tArtistId := ""
 			if len(track.Resp.Relationships.Artists.Data) > 0 {
@@ -201,15 +236,27 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 	}
 
+	// A Classical file that cannot be finished lacks its identity tag and
+	// would block every later run, so drop it and let the next run retry.
+	// The check above found no file, so whatever is there now is this run's.
+	discardClassical := func() {
+		if track.Classical == nil {
+			return
+		}
+		if err := os.Remove(trackPath); err != nil && !os.IsNotExist(err) {
+			fmt.Println("Failed to remove unfinished file:", err)
+		}
+	}
 	if needDlAacLc {
 		if r.Config.LiteServer == "" {
 			fmt.Println("aac-lc download requires lite-server, but it is not configured")
 			r.State.Counter.Error++
 			return
 		}
-		_, err := runv5.Run(track.ID, trackPath, token, false, r.Config.LiteServer)
+		_, err := downloadAacLc(track.ID, trackPath, token, false, r.Config.LiteServer)
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc via lite-server:", err)
+			discardClassical()
 			if err.Error() == "Unavailable" {
 				r.State.Counter.Unavailable++
 				return
@@ -230,6 +277,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		if err != nil {
 			fmt.Println("Failed to run v4:", err)
 			r.State.Counter.Error++
+			discardClassical()
 			return
 		}
 
@@ -250,6 +298,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	if err := defrag.DefragmentMP4(trackPath); err != nil {
 		fmt.Printf("Defragment failed: %v\n", err)
 		r.State.Counter.Error++
+		discardClassical()
 		return
 	}
 	track.SavePath = trackPath
@@ -259,6 +308,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		if err != nil {
 			fmt.Println("\u26A0 Failed to fix ALAC:", err)
 			r.State.Counter.Unavailable++
+			discardClassical()
 			return
 		}
 	}
@@ -267,6 +317,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	if err != nil {
 		fmt.Println("\u26A0 Failed to write tags in media:", err)
 		r.State.Counter.Unavailable++
+		discardClassical()
 		return
 	}
 	if removeCoverAfterWrite {
@@ -293,7 +344,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	})
 
 	r.State.Counter.Success++
-	r.State.OKDict[track.PreID] = append(r.State.OKDict[track.PreID], track.TaskNum)
+	r.markDone(track)
 }
 
 func releaseYear(date string) string {
@@ -515,6 +566,38 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 	return nil
 }
 
+// printTrackQuality prints the audio variants of one song for --debug.
+func (r *Runner) printTrackQuality(trackNum int, storefront, songID string, audioTraits []string, language, token string) {
+	manifest, err := ampapi.GetSongResp(storefront, songID, language, token)
+	if err != nil {
+		fmt.Printf("Failed to get manifest for track %d: %v\n", trackNum, err)
+		return
+	}
+
+	var m3u8Url string
+	if manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls != "" {
+		m3u8Url = manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls
+	}
+	needCheck := false
+	if r.Config.GetM3u8Mode == "all" {
+		needCheck = true
+	} else if r.Config.GetM3u8Mode == "hires" && contains(audioTraits, "hi-res-lossless") {
+		needCheck = true
+	}
+	if needCheck {
+		fullM3u8Url, err := r.checkM3u8(songID, "song")
+		if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8") {
+			m3u8Url = fullM3u8Url
+		} else {
+			fmt.Println("Failed to get best quality m3u8 from lite-server, will use m3u8 from Web API")
+		}
+	}
+
+	if _, _, err := r.extractMedia(m3u8Url, true); err != nil {
+		fmt.Printf("Failed to extract quality info for track %d: %v\n", trackNum, err)
+	}
+}
+
 func (r *Runner) ripAlbum(albumId string, token string, storefront string, mediaUserToken string, urlArg_i string) error {
 	album := model.NewAlbum(storefront, albumId)
 	err := album.GetResp(token, r.Config.Language)
@@ -531,37 +614,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 			trackNum++
 			fmt.Printf("\nTrack %d of %d:\n", trackNum, len(meta.Data[0].Relationships.Tracks.Data))
 			fmt.Printf("%02d. %s\n", trackNum, track.Attributes.Name)
-
-			manifest, err := ampapi.GetSongResp(storefront, track.ID, album.Language, token)
-			if err != nil {
-				fmt.Printf("Failed to get manifest for track %d: %v\n", trackNum, err)
-				continue
-			}
-
-			var m3u8Url string
-			if manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls != "" {
-				m3u8Url = manifest.Data[0].Attributes.ExtendedAssetUrls.EnhancedHls
-			}
-			needCheck := false
-			if r.Config.GetM3u8Mode == "all" {
-				needCheck = true
-			} else if r.Config.GetM3u8Mode == "hires" && contains(track.Attributes.AudioTraits, "hi-res-lossless") {
-				needCheck = true
-			}
-			if needCheck {
-				fullM3u8Url, err := r.checkM3u8(track.ID, "song")
-				if err == nil && strings.HasSuffix(fullM3u8Url, ".m3u8") {
-					m3u8Url = fullM3u8Url
-				} else {
-					fmt.Println("Failed to get best quality m3u8 from lite-server, will use m3u8 from Web API")
-				}
-			}
-
-			_, _, err = r.extractMedia(m3u8Url, true)
-			if err != nil {
-				fmt.Printf("Failed to extract quality info for track %d: %v\n", trackNum, err)
-				continue
-			}
+			r.printTrackQuality(trackNum, storefront, track.ID, track.Attributes.AudioTraits, album.Language, token)
 		}
 		return nil
 	}

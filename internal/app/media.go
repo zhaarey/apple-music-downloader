@@ -231,6 +231,24 @@ func (r *Runner) writeMP4Tags(track *model.Track, lrc string) error {
 		}
 	}
 
+	if c := track.Classical; c != nil {
+		t.Title = c.MovementTitle
+		t.Work = c.WorkTitle
+		t.Movement = c.MovementTitle
+		t.MovementIndex = int16(c.Position)
+		t.MovementCount = int16(c.Count)
+		t.ShowWorkAndMovement = true
+		t.Composer = c.Composer
+		t.Conductor = c.Conductor
+		t.Album = track.AlbumData.Attributes.Name
+		t.Custom[classicalIdentityTag] = classicalIdentity(track)
+		if r.Config.TagSortOrder {
+			t.TitleSort = c.MovementTitle
+			t.ComposerSort = c.Composer
+			t.AlbumSort = track.AlbumData.Attributes.Name
+		}
+	}
+
 	if track.Resp.Attributes.ContentRating == "explicit" {
 		t.ItunesAdvisory = mp4tag.ItunesAdvisoryExplicit
 	} else if track.Resp.Attributes.ContentRating == "clean" {

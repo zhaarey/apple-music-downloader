@@ -29,6 +29,23 @@ type Track struct {
 	DiscTotal    int
 	AlbumData    ampapi.AlbumRespData
 	PlaylistData ampapi.PlaylistRespData
+
+	// Classical is set only for tracks selected from a Classical Recording.
+	Classical *ClassicalContext
+}
+
+// ClassicalContext carries the Recording data used for Classical tags and paths.
+type ClassicalContext struct {
+	RecordingID   string
+	WorkTitle     string
+	Composer      string
+	MovementTitle string
+	Position      int
+	Count         int
+	Conductor     string
+	// RecordingConductor joins the conductors of every track, so paths name
+	// the same conductors for all of them.
+	RecordingConductor string
 }
 
 func (t *Track) GetAlbumData(token string) error {

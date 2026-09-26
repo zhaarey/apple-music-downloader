@@ -137,6 +137,10 @@ func Main() {
 			fmt.Printf("Queue %d of %d: ", albumNum+1, albumTotal)
 			var storefront, albumId string
 
+			if r.handleClassicalURL(urlRaw, token) {
+				continue
+			}
+
 			if strings.Contains(urlRaw, "/music-video/") {
 				fmt.Println("Music Video")
 				if r.Flags.Debug {

@@ -50,6 +50,9 @@ func GetAlbumResp(storefront string, id string, language string, token string) (
 	if err != nil {
 		return nil, err
 	}
+	if len(obj.Data) == 0 {
+		return nil, errors.New("album response has no data")
+	}
 	if len(obj.Data[0].Relationships.Tracks.Next) > 0 {
 		next := obj.Data[0].Relationships.Tracks.Next
 		for {
