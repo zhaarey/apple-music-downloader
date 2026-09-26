@@ -70,11 +70,24 @@ func catalogLanguage(album *model.Album) string {
 	return u.Query().Get("l")
 }
 
-// primaryLanguage returns the lower-case language subtag of a tag, such as
-// "zh" for "zh-Hans-CN".
-func primaryLanguage(tag string) string {
-	language, _, _ := strings.Cut(strings.ToLower(tag), "-")
-	return language
+// languageKey returns the lower-case language subtag of a tag, such as "de"
+// for "de-DE". Chinese keeps its script, since Simplified and Traditional
+// names differ: "zh-hans" for zh-Hans-CN or zh-CN, "zh-hant" for zh-Hant-HK
+// or zh-TW.
+func languageKey(tag string) string {
+	subtags := strings.Split(strings.ToLower(tag), "-")
+	if subtags[0] != "zh" {
+		return subtags[0]
+	}
+	for _, subtag := range subtags[1:] {
+		switch subtag {
+		case "hans", "cn", "sg":
+			return "zh-hans"
+		case "hant", "tw", "hk", "mo":
+			return "zh-hant"
+		}
+	}
+	return "zh"
 }
 
 // joinUnique joins non-empty names in first-seen order without duplicates.
@@ -168,7 +181,7 @@ func (r *Runner) ripRecording(rec *classical.Recording, token, mediaUserToken st
 	if err != nil {
 		return fmt.Errorf("load album %s: %w", rec.AlbumID, err)
 	}
-	if served := catalogLanguage(album); rec.Request.Language != "" && served != "" && primaryLanguage(served) != primaryLanguage(rec.Request.Language) {
+	if served := catalogLanguage(album); rec.Request.Language != "" && served != "" && languageKey(served) != languageKey(rec.Request.Language) {
 		rec.Warnings = append(rec.Warnings, fmt.Sprintf("the Catalog answered in %s, not %s: album and artist names will not match the classical titles; use a language the storefront offers", served, rec.Request.Language))
 	}
 	tracks, err := buildRecordingTracks(rec, album)

@@ -181,6 +181,8 @@ func TestRipRecordingWarnsWhenCatalogUsesAnotherLanguage(t *testing.T) {
 		{"nothing requested", beethovenAlbum(t), beethoven(""), false},
 		{"cn normalized zh-CN", catalogAlbum(t, "cn_pachelbel_zh-CN.json", "cn", "1452536848", "zh-CN"), pachelbel("zh-CN"), false},
 		{"cn served zh-Hans-CN for en-US", catalogAlbum(t, "cn_pachelbel_zh-CN.json", "cn", "1452536848", "en-US"), pachelbel("en-US"), true},
+		{"cn served Simplified for zh-TW", catalogAlbum(t, "cn_pachelbel_zh-CN.json", "cn", "1452536848", "zh-TW"), pachelbel("zh-TW"), true},
+		{"cn served zh-Hans-CN for zh-Hans", catalogAlbum(t, "cn_pachelbel_zh-CN.json", "cn", "1452536848", "zh-Hans"), pachelbel("zh-Hans"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
