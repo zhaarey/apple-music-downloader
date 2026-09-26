@@ -29,6 +29,21 @@ func classicalTestTrack() *model.Track {
 	return track
 }
 
+func TestClassicalConductorPlaceholderNamesTheRecording(t *testing.T) {
+	r := NewRunner(config.ConfigSet{LimitMax: 200, ClassicalFolderFormat: "{Composer}/{Conductor}", ClassicalFileFormat: "{TrackNumber} {Conductor}"})
+	track := classicalTestTrack()
+	// This track lacks the conductor credit that others of the Recording have.
+	track.Classical.RecordingConductor = "Herbert von Karajan"
+
+	dir, err := r.classicalFolder("root", track)
+	if err != nil || dir != filepath.Join("root", "Ludwig van Beethoven", "Herbert von Karajan") {
+		t.Fatalf("folder = %q, %v", dir, err)
+	}
+	if name, err := r.classicalFileName(track); err != nil || name != "5 Herbert von Karajan" {
+		t.Fatalf("file name = %q, %v", name, err)
+	}
+}
+
 func TestClassicalFolderKeepsSlashInsideComponent(t *testing.T) {
 	r := NewRunner(config.ConfigSet{LimitMax: 200})
 	root := filepath.Join("root", "ALAC")

@@ -37,6 +37,11 @@ func buildRecordingTracks(rec *classical.Recording, album *model.Album) ([]model
 	}
 
 	tracks := make([]model.Track, len(rec.Tracks))
+	var conductors []string
+	for _, movement := range rec.Tracks {
+		conductors = append(conductors, movement.Conductors...)
+	}
+	recordingConductor := joinUnique(conductors)
 	for i, movement := range rec.Tracks {
 		track := *catalog[movement.SongID]
 		track.TaskNum = i + 1
@@ -44,13 +49,14 @@ func buildRecordingTracks(rec *classical.Recording, album *model.Album) ([]model
 		track.PreType = "albums"
 		track.PreID = rec.AlbumID
 		track.Classical = &model.ClassicalContext{
-			RecordingID:   rec.Request.RecordingID,
-			WorkTitle:     rec.WorkTitle,
-			Composer:      rec.Composer,
-			MovementTitle: movement.Title,
-			Position:      movement.Position,
-			Count:         movement.Count,
-			Conductor:     joinUnique(movement.Conductors),
+			RecordingID:        rec.Request.RecordingID,
+			WorkTitle:          rec.WorkTitle,
+			Composer:           rec.Composer,
+			MovementTitle:      movement.Title,
+			Position:           movement.Position,
+			Count:              movement.Count,
+			Conductor:          joinUnique(movement.Conductors),
+			RecordingConductor: recordingConductor,
 		}
 		tracks[i] = track
 	}

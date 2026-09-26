@@ -43,6 +43,9 @@ type ClassicalContext struct {
 	Position      int
 	Count         int
 	Conductor     string
+	// RecordingConductor joins the conductors of every track, so paths name
+	// the same conductors for all of them.
+	RecordingConductor string
 }
 
 func (t *Track) GetAlbumData(token string) error {

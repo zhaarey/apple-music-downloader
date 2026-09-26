@@ -88,6 +88,23 @@ func TestBuildRecordingTracksSelectsInRecordingOrder(t *testing.T) {
 	}
 }
 
+func TestBuildRecordingTracksNamesEveryConductorOfTheRecording(t *testing.T) {
+	rec := beethovenRecording("1873004347", "1873004590")
+	// One performance, but only some tracks carry the conductor credit.
+	rec.Tracks[0].Conductors = nil
+	rec.Tracks[1].Conductors = []string{"B", "A"}
+
+	tracks, err := buildRecordingTracks(rec, beethovenAlbum(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{"", "B; A"} {
+		if c := tracks[i].Classical; c.Conductor != want || c.RecordingConductor != "B; A" {
+			t.Fatalf("track %d: conductor %q, recording conductor %q; want %q, %q", i, c.Conductor, c.RecordingConductor, want, "B; A")
+		}
+	}
+}
+
 func TestBuildRecordingTracksReportsMissingSongs(t *testing.T) {
 	_, err := buildRecordingTracks(beethovenRecording("1873004347", "111", "222"), beethovenAlbum(t))
 	if err == nil || !strings.Contains(err.Error(), "111") || !strings.Contains(err.Error(), "222") {

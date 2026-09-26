@@ -47,6 +47,7 @@ song-file-format: "{SongNumer}. {SongName}"
 #"/" separates folders; a "/" inside a title never adds a folder. Empty uses the default below.
 #folder and file: {Composer} {WorkTitle} {RecordingId} {Conductor} {AlbumName} {AlbumId} {Artists} {ReleaseYear} {MovementCount}
 #file only (they differ per track): {MovementTitle} {SongId} {DiscNumber} {TrackNumber} {MovementIndex}
+#{Conductor} is empty for recordings without a conductor, so a folder made of it alone fails for them.
 classical-folder-format: "{Composer}/{AlbumName} ({ReleaseYear}) [{Artists}] [{AlbumId}]/{WorkTitle}"
 classical-file-format: "{DiscNumber}-{TrackNumber} - {MovementTitle}"
 

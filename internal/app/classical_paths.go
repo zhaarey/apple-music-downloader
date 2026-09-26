@@ -55,7 +55,7 @@ func classicalValues(track *model.Track) map[string]string {
 		"{WorkTitle}":     c.WorkTitle,
 		"{MovementTitle}": c.MovementTitle,
 		"{RecordingId}":   c.RecordingID,
-		"{Conductor}":     c.Conductor,
+		"{Conductor}":     c.RecordingConductor,
 		"{AlbumName}":     album.Name,
 		"{AlbumId}":       track.AlbumData.ID,
 		"{Artists}":       album.ArtistName,
