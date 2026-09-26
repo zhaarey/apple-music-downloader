@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,6 +89,49 @@ func TestRipTrackClassicalDiscardsUnfinishedFile(t *testing.T) {
 	// An untagged file left behind makes every later run report a conflict.
 	if _, err := os.Stat(filepath.Join(track.SaveDir, "1-5 - I. Allegro vivace.m4a")); !os.IsNotExist(err) {
 		t.Fatalf("unfinished file is still there (stat error %v)", err)
+	}
+}
+
+func TestRipTrackClassicalDiscardsPartialDownload(t *testing.T) {
+	orig := downloadAacLc
+	t.Cleanup(func() { downloadAacLc = orig })
+	downloadAacLc = func(_, path, _ string, _ bool, _ string) (string, error) {
+		if err := os.WriteFile(path, []byte("half a"), 0o644); err != nil {
+			return "", err
+		}
+		return "", errors.New("connection reset")
+	}
+	r := NewRunner(config.ConfigSet{LimitMax: 200, LiteServer: "127.0.0.1:1"})
+	track := classicalRipTrack(t)
+
+	r.ripTrack(track, "", "")
+
+	if r.State.Counter.Error != 1 {
+		t.Fatalf("errors = %d, want 1", r.State.Counter.Error)
+	}
+	if _, err := os.Stat(filepath.Join(track.SaveDir, "1-5 - I. Allegro vivace.m4a")); !os.IsNotExist(err) {
+		t.Fatalf("partial file is still there (stat error %v)", err)
+	}
+}
+
+func TestRipTrackClassicalStopsWhenExistenceUnknown(t *testing.T) {
+	orig := downloadAacLc
+	t.Cleanup(func() { downloadAacLc = orig })
+	downloaded := false
+	downloadAacLc = func(_, _, _ string, _ bool, _ string) (string, error) {
+		downloaded = true
+		return "", nil
+	}
+	r := NewRunner(config.ConfigSet{LimitMax: 200, LiteServer: "127.0.0.1:1"})
+	track := classicalRipTrack(t)
+	// A NUL byte makes the existence check fail with something other than
+	// "not found" on every platform.
+	track.SaveDir += "\x00"
+
+	r.ripTrack(track, "", "")
+
+	if downloaded || r.State.Counter.Error != 1 {
+		t.Fatalf("downloaded = %v, errors = %d; want no download and 1 error", downloaded, r.State.Counter.Error)
 	}
 }
 

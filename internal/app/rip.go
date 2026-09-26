@@ -154,6 +154,12 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 	existsOriginal, err := fileExists(trackPath)
 	if err != nil {
 		fmt.Println("Failed to check if track exists.")
+		if track.Classical != nil {
+			// Classical tracks discard what they cannot finish, so they
+			// must know that no file was there before.
+			r.State.Counter.Error++
+			return
+		}
 	}
 	if existsOriginal && track.Classical != nil {
 		if err := checkClassicalExisting(trackPath, track); err != nil {
@@ -230,6 +236,17 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 	}
 
+	// A Classical file that cannot be finished lacks its identity tag and
+	// would block every later run, so drop it and let the next run retry.
+	// The check above found no file, so whatever is there now is this run's.
+	discardClassical := func() {
+		if track.Classical == nil {
+			return
+		}
+		if err := os.Remove(trackPath); err != nil && !os.IsNotExist(err) {
+			fmt.Println("Failed to remove unfinished file:", err)
+		}
+	}
 	if needDlAacLc {
 		if r.Config.LiteServer == "" {
 			fmt.Println("aac-lc download requires lite-server, but it is not configured")
@@ -239,6 +256,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		_, err := downloadAacLc(track.ID, trackPath, token, false, r.Config.LiteServer)
 		if err != nil {
 			fmt.Println("Failed to dl aac-lc via lite-server:", err)
+			discardClassical()
 			if err.Error() == "Unavailable" {
 				r.State.Counter.Unavailable++
 				return
@@ -259,6 +277,7 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		if err != nil {
 			fmt.Println("Failed to run v4:", err)
 			r.State.Counter.Error++
+			discardClassical()
 			return
 		}
 
@@ -276,16 +295,6 @@ func (r *Runner) ripTrack(track *model.Track, token string, mediaUserToken strin
 		}
 	}
 
-	// A Classical file that cannot be finished lacks its identity tag and
-	// would block every later run, so drop it and let the next run retry.
-	discardClassical := func() {
-		if track.Classical == nil {
-			return
-		}
-		if err := os.Remove(trackPath); err != nil && !os.IsNotExist(err) {
-			fmt.Println("Failed to remove unfinished file:", err)
-		}
-	}
 	if err := defrag.DefragmentMP4(trackPath); err != nil {
 		fmt.Printf("Defragment failed: %v\n", err)
 		r.State.Counter.Error++
