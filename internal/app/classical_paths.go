@@ -36,8 +36,9 @@ const (
 var classicalPlaceholder = regexp.MustCompile(`\{[^{}]*\}`)
 
 // windowsDeviceName matches names Windows reserves for devices, which it
-// refuses as file names even with an extension.
-var windowsDeviceName = regexp.MustCompile(`(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]) *$`)
+// refuses as file names even with an extension. It follows Go's own list,
+// which counts superscript digits and the console names.
+var windowsDeviceName = regexp.MustCompile(`(?i)^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$) *$`)
 
 // perTrackPlaceholders differ between the tracks of one Recording. The folder
 // is shared by all of them, so these belong in the file name only.
