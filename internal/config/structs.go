@@ -98,6 +98,8 @@ type ConvertConfig struct {
 	SkipIfSourceMatch   bool   `koanf:"skip-if-source-matches"`
 	FFmpegPath          string `koanf:"ffmpeg-path"`
 	ExtraArgs           string `koanf:"extra-args"`
+	Mp3Quality          string `koanf:"mp3-quality"`
+	OpusBitrate         string `koanf:"opus-bitrate"`
 	WithMetadata        bool   `koanf:"with-metadata"`
 	WarnLossyToLossless bool   `koanf:"warn-lossy-to-lossless"`
 	SkipLossyToLossless bool   `koanf:"skip-lossy-to-lossless"`

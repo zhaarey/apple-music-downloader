@@ -430,3 +430,50 @@ func TestCustomConfigMissingDoesNotAutoCreate(t *testing.T) {
 	}
 }
 
+func TestConvertEncodingOptions(t *testing.T) {
+	def := Default()
+	if def.Convert.Mp3Quality != "2" {
+		t.Errorf("Default().Convert.Mp3Quality = %q, want '2'", def.Convert.Mp3Quality)
+	}
+	if def.Convert.OpusBitrate != "192k" {
+		t.Errorf("Default().Convert.OpusBitrate = %q, want '192k'", def.Convert.OpusBitrate)
+	}
+
+	dir := t.TempDir()
+	exampleFile := filepath.Join(dir, "config.yaml.example")
+	userFile := filepath.Join(dir, "config.yaml")
+
+	exampleContent := `
+convert:
+  format: flac
+  mp3-quality: "2"
+  opus-bitrate: "192k"
+`
+	userContent := `
+convert:
+  format: mp3
+  mp3-quality: "320k"
+  opus-bitrate: "160k"
+`
+	if err := os.WriteFile(exampleFile, []byte(exampleContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(userFile, []byte(userContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(LoadOptions{
+		ConfigFile:             userFile,
+		ExampleFile:            exampleFile,
+		DisableMissingWarnings: true,
+	})
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+	if cfg.Convert.Mp3Quality != "320k" {
+		t.Errorf("Convert.Mp3Quality = %q, want '320k' from the user config", cfg.Convert.Mp3Quality)
+	}
+	if cfg.Convert.OpusBitrate != "160k" {
+		t.Errorf("Convert.OpusBitrate = %q, want '160k' from the user config", cfg.Convert.OpusBitrate)
+	}
+}
