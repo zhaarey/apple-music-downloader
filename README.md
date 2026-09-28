@@ -54,7 +54,7 @@ Install and prepare these before running the downloader:
 
 ## Quick Start
 
-Download the precompiled binary for your operating system and architecture from the [latest GitHub Releases](https://github.com/itouakirai/apple-music-downloader/releases/latest):
+Download the precompiled binary for your operating system and architecture from the [latest GitHub Releases](https://github.com/zhaarey/apple-music-downloader/releases/latest):
 
 | Platform | Architecture | Precompiled Binary |
 |---|---|---|
@@ -74,7 +74,7 @@ Download the precompiled binary for your operating system and architecture from 
 
 ```powershell
 # Download precompiled binary (example for 64-bit Windows)
-Invoke-WebRequest -Uri "https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_windows_amd64.exe" -OutFile "amdl.exe"
+Invoke-WebRequest -Uri "https://github.com/zhaarey/apple-music-downloader/releases/latest/download/amdl_windows_amd64.exe" -OutFile "amdl.exe"
 ```
 
 2. Run `amdl.exe` once to automatically generate the default `config.yaml`:
@@ -104,10 +104,10 @@ Example:
 
 ```bash
 # For Apple Silicon (M-series):
-curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_darwin_arm64
+curl -L -o amdl https://github.com/zhaarey/apple-music-downloader/releases/latest/download/amdl_darwin_arm64
 
 # For Intel Macs:
-# curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_darwin_amd64
+# curl -L -o amdl https://github.com/zhaarey/apple-music-downloader/releases/latest/download/amdl_darwin_amd64
 
 # Grant execution permission
 chmod +x amdl
@@ -139,10 +139,10 @@ chmod +x amdl
 
 ```bash
 # For x86_64 / amd64:
-curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_linux_amd64
+curl -L -o amdl https://github.com/zhaarey/apple-music-downloader/releases/latest/download/amdl_linux_amd64
 
 # For ARM64:
-# curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_linux_arm64
+# curl -L -o amdl https://github.com/zhaarey/apple-music-downloader/releases/latest/download/amdl_linux_arm64
 
 # Grant execution permission
 chmod +x amdl
@@ -183,7 +183,7 @@ termux-setup-storage
 3. Download precompiled binary:
 
 ```bash
-curl -L -o amdl https://github.com/itouakirai/apple-music-downloader/releases/latest/download/amdl_android_arm64
+curl -L -o amdl https://github.com/zhaarey/apple-music-downloader/releases/latest/download/amdl_android_arm64
 chmod +x amdl
 ```
 
@@ -385,7 +385,7 @@ On Windows PowerShell:
 
 ### Manual Binary Update
 
-Download the latest precompiled executable from [GitHub Releases](https://github.com/itouakirai/apple-music-downloader/releases/latest) and replace your current `amdl` / `amdl.exe` binary.
+Download the latest precompiled executable from [GitHub Releases](https://github.com/zhaarey/apple-music-downloader/releases/latest) and replace your current `amdl` / `amdl.exe` binary.
 
 > For developers building from source, see [For Developers](#for-developers).
 
@@ -404,7 +404,7 @@ If you want to contribute, modify the code, or build the downloader from source:
 **macOS / Linux**:
 
 ```bash
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 cp config.yaml.example config.yaml
 go build -o amdl .
@@ -414,7 +414,7 @@ go build -o amdl .
 **Windows (PowerShell)**:
 
 ```powershell
-git clone https://github.com/itouakirai/apple-music-downloader.git
+git clone https://github.com/zhaarey/apple-music-downloader.git
 cd apple-music-downloader
 copy config.yaml.example config.yaml
 go build -o amdl.exe .
@@ -440,6 +440,12 @@ On Windows (PowerShell):
 git pull
 go build -o amdl.exe .
 ```
+
+### Releasing
+
+Releases are driven by the `VERSION` file. When a push to `main` carries a `VERSION` whose `v<VERSION>` tag does not exist yet, the Release workflow builds every platform and publishes a GitHub Release with that tag. To cut a release, bump `VERSION` (e.g. `0.1.0` → `0.1.1`) and merge it into `main`. A version with a suffix such as `0.2.0-beta.1` is published as a pre-release.
+
+Release binaries self-update from the repository that built them, so a fork's releases update from the fork.
 
 ## Credits
 

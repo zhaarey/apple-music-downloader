@@ -7,6 +7,7 @@
 !/go.mod
 !/go.sum
 !/main.go
+!/VERSION
 !/embed_assets.go
 !/README.md
 !/README-CN.md
