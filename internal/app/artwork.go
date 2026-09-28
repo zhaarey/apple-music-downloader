@@ -13,7 +13,7 @@ func (r *Runner) saveAnimatedArtwork(dir string, squareVideoURL string, tallVide
 		if err := r.downloadAnimatedArtwork(dir, "square", squareVideoURL); err != nil {
 			fmt.Printf("no motion video square: %v\n", err)
 		}
-		if r.Config.EmbyAnimatedArtwork {
+		if r.Config.Metadata.Artwork.EmbyAnimated {
 			cmd := exec.Command("ffmpeg", "-i", filepath.Join(dir, "square_animated_artwork.mp4"), "-vf", "scale=440:-1", "-r", "24", "-f", "gif", filepath.Join(dir, "folder.jpg"))
 			if err := cmd.Run(); err != nil {
 				fmt.Printf("animated artwork square to gif err: %v\n", err)
@@ -72,11 +72,15 @@ func (r *Runner) prepareCollectionFolder(base string, displayName string) (strin
 	return folderPath, nil
 }
 
-func (r *Runner) saveM3UPlaylist(dir string, name string) {
-	startIdx := len(r.State.AddedTracks)
+func (r *Runner) saveM3UPlaylist(dir string, name string, startIdx int) {
+	if !r.Flags.SaveM3U8 {
+		return
+	}
 	if len(r.State.AddedTracks) > startIdx {
 		if err := r.writeM3UPlaylist(dir, name, r.State.AddedTracks[startIdx:]); err != nil {
 			fmt.Printf("Failed to write M3U8 playlist: %v\n", err)
+		} else {
+			fmt.Println("M3U8 playlist saved.")
 		}
 	}
 }

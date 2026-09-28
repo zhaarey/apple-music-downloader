@@ -30,7 +30,10 @@ type KeyTemplate struct {
 
 // LyricsData represents data returned by /lyrics.
 type LyricsData struct {
-	Lyrics string `json:"lyrics"`
+	Code     int    `json:"code,omitempty"`
+	AdamId   string `json:"adamId,omitempty"`
+	Syllable string `json:"syllable,omitempty"`
+	Lyrics   string `json:"lyrics"`
 }
 
 // WebplaybackData represents data returned by /webplayback.

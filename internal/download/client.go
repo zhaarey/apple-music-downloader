@@ -33,6 +33,10 @@ func GetWithHeaders(url string, headers map[string]string) (*http.Response, erro
 	return Client.Do(req)
 }
 
+// responseHeaderTimeout bounds how long a request waits for the server to
+// start responding when a proxy is configured.
+const responseHeaderTimeout = 60 * time.Second
+
 // Init configures the shared Client.
 // proxyURL may be empty (no proxy), or any of:
 //
@@ -72,23 +76,27 @@ func Init(proxyURL string) error {
 			return fmt.Errorf("failed to create SOCKS5 dialer: %w", err)
 		}
 		transport = &http.Transport{
-			Dial:                dialer.Dial,
-			TLSHandshakeTimeout: 30 * time.Second,
+			Dial:                  dialer.Dial,
+			TLSHandshakeTimeout:   30 * time.Second,
+			ResponseHeaderTimeout: responseHeaderTimeout,
+			ForceAttemptHTTP2:     true,
 		}
 
 	case "http", "https":
 		transport = &http.Transport{
-			Proxy:               http.ProxyURL(parsed),
-			TLSHandshakeTimeout: 30 * time.Second,
+			Proxy:                 http.ProxyURL(parsed),
+			TLSHandshakeTimeout:   30 * time.Second,
+			ResponseHeaderTimeout: responseHeaderTimeout,
+			ForceAttemptHTTP2:     true,
 		}
 
 	default:
 		return fmt.Errorf("unsupported proxy scheme %q (supported: socks5, http, https)", parsed.Scheme)
 	}
 
-	Client = &http.Client{
-		Transport: transport,
-		Timeout:   60 * time.Second,
-	}
+	// No http.Client.Timeout: it would also cap reading the response body and
+	// abort large track downloads after 60s. Streaming downloads detect stalls
+	// themselves (see fairplayrip idle timeout).
+	Client = &http.Client{Transport: transport}
 	return nil
 }

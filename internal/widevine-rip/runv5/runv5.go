@@ -1,104 +1,55 @@
+// Package runv5 is the wrapper-lite backend of the Widevine pipeline: web
+// playback and license requests go through a wrapper-lite server instead of
+// Apple directly, so no media user token is required.
 package runv5
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"fmt"
+	"encoding/base64"
 
-	widevine "amdl/internal/widevine-rip"
-	wv "amdl/internal/widevine-rip/key"
+	widevinerip "amdl/internal/widevine-rip"
+	"amdl/internal/widevine-rip/key"
 	"amdl/internal/wrapper"
-
-	"github.com/go-resty/resty/v2"
 )
 
-// PlaybackLicense is the wrapper-lite /license response envelope.
-type PlaybackLicense = wrapper.PlaybackLicense
-
-// BeforeRequest posts the license challenge to wrapper-lite /license. The
-// server fills in the extra fields expected by Apple before forwarding.
-func BeforeRequest(cl *resty.Client, ctx context.Context, url string, body []byte) (*resty.Response, error) {
-	return wrapper.WidevineBeforeRequest(cl, ctx, url, body)
+// LicenseExchange returns a key.ExchangeFunc that posts challenges for
+// adamID to the wrapper-lite /license endpoint.
+func LicenseExchange(liteServerURL string, adamID string, keyURI string) key.ExchangeFunc {
+	client := wrapper.New(liteServerURL)
+	return func(_ context.Context, challenge []byte) ([]byte, error) {
+		return client.WidevineLicense(adamID, keyURI, base64.StdEncoding.EncodeToString(challenge))
+	}
 }
 
-// AfterRequest unwraps the lite-server license response.
-func AfterRequest(response *resty.Response) ([]byte, error) {
-	return wrapper.WidevineAfterRequest(response)
+// FetchStream prepares an encrypted segmented stream (a music video video
+// or audio track) for DownloadAndDecryptStream.
+func FetchStream(ctx context.Context, adamID string, playlistURL string, liteServerURL string) (widevinerip.EncryptedStream, error) {
+	if liteServerURL == "" {
+		return widevinerip.EncryptedStream{}, wrapper.ErrNotConfigured
+	}
+	playlist, err := widevinerip.FetchMediaPlaylist(ctx, playlistURL, widevinerip.DefaultKeyFormat)
+	if err != nil {
+		return widevinerip.EncryptedStream{}, err
+	}
+	exchange := LicenseExchange(liteServerURL, adamID, playlist.KeyURI())
+	return widevinerip.PrepareEncryptedStream(ctx, playlist, exchange)
 }
 
-// GetWebplayback obtains playback from wrapper-lite instead of Apple's web
-// playback endpoint, so it does not require a media user token.
-func GetWebplayback(adamId string, liteServer string, mvmode bool) (string, string, string, error) {
-	m3u8, err := wrapper.GetWebplayback(liteServer, adamId)
+// DownloadSong downloads a song's AAC-LC stream and writes it decrypted to
+// outputPath. Errors from wrapper-lite (including "Unavailable") are
+// returned unwrapped so callers can classify them.
+func DownloadSong(ctx context.Context, adamID string, outputPath string, liteServerURL string) error {
+	if liteServerURL == "" {
+		return wrapper.ErrNotConfigured
+	}
+	playlistURL, err := wrapper.GetWebplayback(liteServerURL, adamID)
 	if err != nil {
-		return "", "", "", err
+		return err
 	}
-	if mvmode {
-		return m3u8, "", "", nil
-	}
-	kidBase64, fileurl, uriPrefix, err := widevine.ExtractKidBase64(m3u8, false)
+	playlist, err := widevinerip.FetchMediaPlaylist(ctx, playlistURL, widevinerip.DefaultKeyFormat)
 	if err != nil {
-		return "", "", "", err
+		return err
 	}
-	return fileurl, kidBase64, uriPrefix, nil
-}
-
-// Run keeps the signature used by the catalog orchestrators. authtoken and
-// mutoken are ignored by the lite-server backend but retained for callers.
-func Run(adamId string, trackpath string, authtoken string, mvmode bool, liteServerUrl string) (string, error) {
-	if liteServerUrl == "" {
-		return "", errors.New("lite-server is not configured")
-	}
-
-	var keystr string
-	var fileurl, kidBase64, uriPrefix string
-	var err error
-	if mvmode {
-		kidBase64, fileurl, uriPrefix, err = widevine.ExtractKidBase64(trackpath, true)
-	} else {
-		fileurl, kidBase64, uriPrefix, err = GetWebplayback(adamId, liteServerUrl, false)
-	}
-	if err != nil {
-		return "", err
-	}
-
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, "pssh", kidBase64)
-	ctx = context.WithValue(ctx, "adamId", adamId)
-	ctx = context.WithValue(ctx, "uriPrefix", uriPrefix)
-
-	pssh, err := widevine.GetPSSH("", kidBase64)
-	if err != nil {
-		return "", err
-	}
-
-	key := wv.NewKey(BeforeRequest, AfterRequest)
-	keystr, keybt, err := key.GetKey(ctx, liteServerUrl+"/license", pssh, nil)
-	if err != nil {
-		return "", err
-	}
-	if mvmode {
-		return "1:" + keystr + ";" + fileurl, nil
-	}
-
-	body, err := widevine.Extsong(fileurl)
-	if err != nil {
-		return "", err
-	}
-	fmt.Print("Downloaded\n")
-	var buffer bytes.Buffer
-	if err := widevine.DecryptMP4(body, keybt, &buffer); err != nil {
-		fmt.Print("Decryption failed\n")
-		return "", err
-	}
-	fmt.Print("Decrypted\n")
-	if err := widevine.WriteDecryptedMP4(bytes.NewReader(buffer.Bytes()), keybt, trackpath); err != nil {
-		return "", err
-	}
-	return "", nil
-}
-
-func ExtMvData(keyAndUrls string, savePath string) error {
-	return widevine.ExtMvData(keyAndUrls, savePath)
+	exchange := LicenseExchange(liteServerURL, adamID, playlist.KeyURI())
+	return widevinerip.DownloadDecryptedFile(ctx, playlist, exchange, outputPath)
 }

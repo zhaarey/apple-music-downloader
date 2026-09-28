@@ -69,6 +69,20 @@ func (c *Client) get(endpoint string) ([]byte, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		trimmed := strings.TrimSpace(string(body))
+		if resp.StatusCode == http.StatusNotFound && strings.HasPrefix(endpoint, "/lyrics") {
+			var check struct {
+				Code any `json:"code"`
+				Data any `json:"data"`
+			}
+			if json.Unmarshal(body, &check) == nil {
+				if isCode404(check.Code) || isCode404(check.Data) {
+					return body, nil
+				}
+				if m, ok := check.Data.(map[string]any); ok && isCode404(m["code"]) {
+					return body, nil
+				}
+			}
+		}
 		if trimmed != "" {
 			return nil, fmt.Errorf("lite-server %s returned %s: %s", endpointPath(endpoint), resp.Status, trimmed)
 		}
@@ -146,4 +160,17 @@ func decodeEnvelope[T any](body []byte, endpoint string) (T, error) {
 		return zero, fmt.Errorf("lite-server %s returned code=%d msg=%s", endpointPath(endpoint), envelope.Code, envelope.Msg)
 	}
 	return envelope.Data, nil
+}
+
+func isCode404(v any) bool {
+	switch val := v.(type) {
+	case float64:
+		return int(val) == 404
+	case int:
+		return val == 404
+	case string:
+		return strings.TrimSpace(val) == "404"
+	default:
+		return false
+	}
 }

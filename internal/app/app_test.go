@@ -110,8 +110,8 @@ func TestWriteCoverFailurePreservesExisting(t *testing.T) {
 		download.Client = originalClient
 	})
 	r := NewRunner(config.ConfigSet{})
-	r.Config.CoverFormat = "jpg"
-	r.Config.CoverSize = "600x600"
+	r.Config.Metadata.Artwork.Format = "jpg"
+	r.Config.Metadata.Artwork.Size = "600x600"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -130,3 +130,35 @@ func TestWriteCoverFailurePreservesExisting(t *testing.T) {
 		t.Fatalf("existing cover changed to %q", string(data))
 	}
 }
+
+func TestGetProgName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"amdl_windows_amd64.exe", "amdl_windows_amd64.exe"},
+		{`C:\tools\amdl_windows_amd64.exe`, "amdl_windows_amd64.exe"},
+		{`.\amdl.exe`, "amdl.exe"},
+		{"/usr/local/bin/amdl", "amdl"},
+		{"./amdl_linux_arm64", "amdl_linux_arm64"},
+		{`C:\Users\qwer\AppData\Local\Temp\go-build3482394\b001\exe\main.exe`, "go run main.go"},
+		{"/tmp/go-build123/b001/exe/main", "go run main.go"},
+		{"", "amdl"},
+		{".", "amdl"},
+		{"/", "amdl"},
+		{`\`, "amdl"},
+		{`C:\`, "amdl"},
+		{"C:amdl.exe", "amdl.exe"},
+		{`\\server\share\amdl.exe`, "amdl.exe"},
+		{"main.exe", "main.exe"},
+		{"main", "main"},
+	}
+
+	for _, tt := range tests {
+		got := getProgName(tt.input)
+		if got != tt.want {
+			t.Errorf("getProgName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+

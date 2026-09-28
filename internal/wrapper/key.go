@@ -29,7 +29,7 @@ func (c *Client) Key(adamID, uri string) (*KeyTemplate, error) {
 }
 
 // KeyJSON queries the wrapper-lite /key endpoint and returns the JSON-serialized template bytes
-// expected by Temari FromJSON.
+// expected by temari.FromJSON.
 // If adamID is "0" and uri matches PrefetchKey, the embedded prefetch template bytes are returned.
 func (c *Client) KeyJSON(adamID, uri string) ([]byte, error) {
 	if adamID == "0" && uri == PrefetchKey {

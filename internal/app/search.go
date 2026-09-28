@@ -34,7 +34,7 @@ func (r *Runner) setDlFlags(quality string) {
 		fmt.Println("Quality set to: Dolby Atmos")
 	case "aac":
 		r.Flags.AAC = true
-		r.Config.AacType = "aac"
+		r.Config.Media.AacType = "aac"
 		fmt.Println("Quality set to: High-Quality (AAC)")
 	case "alac":
 		fmt.Println("Quality set to: Lossless (ALAC)")
@@ -86,7 +86,7 @@ func (r *Runner) handleSearch(searchType string, queryParts []string, token stri
 		return "", fmt.Errorf("invalid search type: %s. Use 'album', 'song', or 'artist'", searchType)
 	}
 
-	fmt.Printf("Searching for %ss: \"%s\" in storefront \"%s\"\n", searchType, query, r.Config.Storefront)
+	fmt.Printf("Searching for %ss: \"%s\" in storefront \"%s\"\n", searchType, query, r.Config.General.Storefront)
 
 	offset := 0
 	limit := 15 // Increased limit for better navigation
@@ -94,7 +94,7 @@ func (r *Runner) handleSearch(searchType string, queryParts []string, token stri
 	apiSearchType := searchType + "s"
 
 	for {
-		searchResp, err := ampapi.Search(r.Config.Storefront, query, apiSearchType, r.Config.Language, token, limit, offset)
+		searchResp, err := ampapi.Search(r.Config.General.Storefront, query, apiSearchType, r.Config.General.Language, token, limit, offset)
 		if err != nil {
 			return "", fmt.Errorf("error fetching search results: %w", err)
 		}

@@ -4,7 +4,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"math/bits"
 	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
 )
 
 // alacfix.go — Patch malformed ALAC packets in an .m4a/.mp4 file in place.
@@ -40,28 +45,42 @@ func newBitReader(buf []byte) *bitReader {
 
 func (b *bitReader) left() int { return b.nbits - b.pos }
 
-func (b *bitReader) read(n int) (uint32, error) {
+// peek returns the next n (0..32) bits without consuming them; the caller
+// must have checked that n bits are available.
+func (b *bitReader) peek(n int) uint32 {
 	if n == 0 {
-		return 0, nil
+		return 0
 	}
+	i := b.pos >> 3
+	var w uint64
+	if i+8 <= len(b.buf) {
+		w = binary.BigEndian.Uint64(b.buf[i:])
+	} else {
+		for j := 0; j < 8; j++ {
+			w <<= 8
+			if i+j < len(b.buf) {
+				w |= uint64(b.buf[i+j])
+			}
+		}
+	}
+	// at most 7 + 32 = 39 bits are needed, all within the 64-bit window
+	return uint32((w << uint(b.pos&7)) >> uint(64-n))
+}
+
+func (b *bitReader) read(n int) (uint32, error) {
 	if b.pos+n > b.nbits {
 		return 0, errEOF
 	}
-	var v uint32
-	p := b.pos
-	for i := 0; i < n; i++ {
-		v = (v << 1) | uint32((b.buf[p>>3]>>(7-uint(p&7)))&1)
-		p++
-	}
-	b.pos = p
+	v := b.peek(n)
+	b.pos += n
 	return v, nil
 }
 
 func (b *bitReader) show(n int) (uint32, error) {
-	save := b.pos
-	v, err := b.read(n)
-	b.pos = save
-	return v, err
+	if b.pos+n > b.nbits {
+		return 0, errEOF
+	}
+	return b.peek(n), nil
 }
 
 func (b *bitReader) skip(n int) error {
@@ -83,31 +102,34 @@ func (b *bitReader) readSigned(n int) (int32, error) {
 	return int32(v), nil
 }
 
+// unary09 counts leading 1 bits (up to 9), consuming them plus the
+// terminating 0 bit if one is found within the 9.
 func (b *bitReader) unary09() (uint32, error) {
-	cnt := uint32(0)
-	for cnt < 9 {
-		v, err := b.read(1)
-		if err != nil {
-			return 0, err
-		}
-		if v == 0 {
-			return cnt, nil
-		}
-		cnt++
+	avail := b.left()
+	if avail > 9 {
+		avail = 9
 	}
-	return 9, nil
+	ones := bits.LeadingZeros32(^(b.peek(avail) << uint(32-avail)))
+	if ones > avail {
+		ones = avail
+	}
+	if ones < avail {
+		b.pos += ones + 1
+		return uint32(ones), nil
+	}
+	if ones == 9 {
+		b.pos += 9
+		return 9, nil
+	}
+	b.pos += ones // ran out of bits before a terminating 0
+	return 0, errEOF
 }
 
 func avLog2(x uint32) int {
 	if x == 0 {
 		return 0
 	}
-	r := 0
-	for x > 1 {
-		x >>= 1
-		r++
-	}
-	return r
+	return bits.Len32(x) - 1
 }
 
 // ---------- ALAC element body scanner --------------------------------------
@@ -265,7 +287,7 @@ func scanOneElement(br *bitReader, p *alacParams) (int, bool, error) {
 		if _, err := br.read(8); err != nil { // decorr_left_weight
 			return 0, false, err
 		}
-		rhms := make([]uint32, channels)
+		var rhms [2]uint32
 		for c := 0; c < channels; c++ {
 			if _, err := br.read(4); err != nil { // pred_type
 				return 0, false, err
@@ -561,7 +583,8 @@ func readPacketLocations(data []byte, stbl atom) ([]packetLoc, error) {
 
 // findAlacTracks returns one entry per audio track whose first sample entry
 // in stsd has format == 'alac'. All other tracks (video, AAC audio, etc.)
-// are silently skipped.
+// are silently skipped. data only needs to hold the moov atom; packet
+// offsets come from stco/co64 and are absolute file offsets either way.
 func findAlacTracks(data []byte) ([]trackData, error) {
 	if len(data) < 8 {
 		return nil, errors.New("file too small")
@@ -695,63 +718,247 @@ type Result struct {
 	Report      []BadPacket
 }
 
-func fixFile(path string, force bool, verbose bool, outPath ...string) (Result, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return Result{}, err
-	}
-	dst := path
-	if len(outPath) > 0 && outPath[0] != "" {
-		dst = outPath[0]
-	}
-	tracks, err := findAlacTracks(data)
-	if err != nil {
-		return Result{}, err
-	}
-	if len(tracks) == 0 {
-		return Result{}, nil
-	}
+// scanWindow caps how much packet data is held in memory at once. Only the
+// moov atom and one window of sample data are ever resident, so memory use
+// does not grow with the size of the file.
+const scanWindow = 8 << 20
 
-	res := Result{TracksCount: len(tracks)}
+// readMoov walks the top-level boxes of f and returns the moov atom (header
+// included). Sample payloads are left on disk.
+func readMoov(f *os.File) ([]byte, error) {
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	size := st.Size()
+	if size < 8 {
+		return nil, errors.New("file too small")
+	}
+	var hdr [16]byte
+	for pos := int64(0); pos+8 <= size; {
+		if _, err := f.ReadAt(hdr[:8], pos); err != nil {
+			return nil, err
+		}
+		boxSize := int64(binary.BigEndian.Uint32(hdr[0:4]))
+		boxType := string(hdr[4:8])
+		hdrLen := int64(8)
+		switch boxSize {
+		case 1:
+			if _, err := f.ReadAt(hdr[8:16], pos+8); err != nil {
+				return nil, err
+			}
+			largeSize := binary.BigEndian.Uint64(hdr[8:16])
+			if largeSize > uint64(size) {
+				return nil, fmt.Errorf("%s atom at %d exceeds file size", boxType, pos)
+			}
+			boxSize = int64(largeSize)
+			hdrLen = 16
+		case 0:
+			boxSize = size - pos
+		}
+		if boxSize < hdrLen || boxSize > size-pos {
+			return nil, fmt.Errorf("%s atom at %d has invalid size %d", boxType, pos, boxSize)
+		}
+		if boxType == "moov" {
+			moov := make([]byte, boxSize)
+			if _, err := f.ReadAt(moov, pos); err != nil {
+				return nil, err
+			}
+			return moov, nil
+		}
+		pos += boxSize
+	}
+	return nil, errors.New("no moov atom (not an MP4/M4A?)")
+}
 
-	for _, td := range tracks {
-		params := td.params
-		if verbose {
-			fmt.Printf("Track #%d: %d packets, max_samples_per_frame=%d sample_size=%d channels=%d\n",
-				td.trackID, len(td.locs), params.maxSamplesPerFrame, params.sampleSize, params.channels)
+// scanBodyEnds runs findBodyEndBit for every packet. Packets are
+// independent and only read their own bytes, so the scan is spread across
+// all CPUs; the result slice is indexed like locs. data holds the file bytes
+// starting at file offset base.
+func scanBodyEnds(data []byte, base int64, locs []packetLoc, params *alacParams) []int {
+	out := make([]int, len(locs))
+	workers := runtime.NumCPU()
+	chunk := (len(locs) + workers - 1) / workers
+	if chunk < 64 {
+		chunk = 64
+	}
+	var wg sync.WaitGroup
+	for start := 0; start < len(locs); start += chunk {
+		end := min(start+chunk, len(locs))
+		wg.Add(1)
+		go func(start, end int) {
+			defer wg.Done()
+			p := *params
+			for i := start; i < end; i++ {
+				loc := locs[i]
+				off := loc.offset - base
+				out[i] = findBodyEndBit(data[off:off+int64(loc.size)], &p)
+			}
+		}(start, end)
+	}
+	wg.Wait()
+	return out
+}
+
+// scanTrack reads the track's packets window by window and appends every
+// packet that needs patching to res. Back-to-back packets are read together
+// so each window costs a single read.
+func scanTrack(f *os.File, td *trackData, res *Result) error {
+	locs := td.locs
+	var buf []byte
+	for start := 0; start < len(locs); {
+		base := locs[start].offset
+		span := int64(locs[start].size)
+		end := start + 1
+		for end < len(locs) &&
+			locs[end].offset == base+span &&
+			span+int64(locs[end].size) <= scanWindow {
+			span += int64(locs[end].size)
+			end++
+		}
+		if int64(cap(buf)) < span {
+			buf = make([]byte, span)
+		}
+		window := buf[:span]
+		if _, err := f.ReadAt(window, base); err != nil {
+			return fmt.Errorf("track %d: read packets at %d: %w", td.trackID, base, err)
 		}
 
-		for idx, loc := range td.locs {
-			pkt := data[loc.offset : loc.offset+int64(loc.size)]
-			bodyEnd := findBodyEndBit(pkt, &params)
+		bodyEnds := scanBodyEnds(window, base, locs[start:end], &td.params)
+		for i, bodyEnd := range bodyEnds {
+			loc := locs[start+i]
 			if bodyEnd < 0 {
 				continue
 			}
 			if bodyEnd == loc.size*8 {
 				continue
 			}
-			br := newBitReader(pkt)
+			off := loc.offset - base
+			br := newBitReader(window[off : off+int64(loc.size)])
 			_ = br.skip(bodyEnd)
 			if br.left() >= 3 {
 				if tag, _ := br.show(3); tag == 7 {
 					continue
 				}
 			}
-			if patchInPlace(data, loc.offset, loc.size, bodyEnd) {
+			// The window is scratch space; applyPatches writes the file.
+			if patchInPlace(window, off, loc.size, bodyEnd) {
 				res.Patched++
 				res.Report = append(res.Report, BadPacket{
 					TrackID:    td.trackID,
-					Idx:        idx,
+					Idx:        start + i,
 					Off:        loc.offset,
 					Size:       loc.size,
 					BodyEndBit: bodyEnd,
 				})
 			}
 		}
+		start = end
+	}
+	return nil
+}
+
+// applyPatches rewrites only the patched packets in dst. When dst is a
+// different file, src is streamed to it first and patched there.
+func applyPatches(src, dst string, patches []BadPacket) error {
+	if !sameFile(src, dst) {
+		if err := copyFile(src, dst); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(dst, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	var buf []byte
+	for _, p := range patches {
+		if cap(buf) < p.Size {
+			buf = make([]byte, p.Size)
+		}
+		pkt := buf[:p.Size]
+		if _, err := f.ReadAt(pkt, p.Off); err != nil {
+			_ = f.Close()
+			return err
+		}
+		patchInPlace(pkt, 0, p.Size, p.BodyEndBit)
+		if _, err := f.WriteAt(pkt, p.Off); err != nil {
+			_ = f.Close()
+			return err
+		}
+	}
+	return f.Close()
+}
+
+func sameFile(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ai, errA := os.Stat(a)
+	bi, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(ai, bi)
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func fixFile(path string, force bool, verbose bool, outPath ...string) (Result, error) {
+	dst := path
+	if len(outPath) > 0 && outPath[0] != "" {
+		dst = outPath[0]
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return Result{}, err
+	}
+	moov, err := readMoov(f)
+	if err != nil {
+		_ = f.Close()
+		return Result{}, err
+	}
+	tracks, err := findAlacTracks(moov)
+	if err != nil {
+		_ = f.Close()
+		return Result{}, err
+	}
+	if len(tracks) == 0 {
+		return Result{}, f.Close()
+	}
+
+	res := Result{TracksCount: len(tracks)}
+
+	for i := range tracks {
+		td := &tracks[i]
+		if verbose {
+			fmt.Printf("Track #%d: %d packets, max_samples_per_frame=%d sample_size=%d channels=%d\n",
+				td.trackID, len(td.locs), td.params.maxSamplesPerFrame, td.params.sampleSize, td.params.channels)
+		}
+		if err := scanTrack(f, td, &res); err != nil {
+			_ = f.Close()
+			return res, err
+		}
+	}
+	// Close before writing so the file can be reopened for writing on Windows.
+	if err := f.Close(); err != nil {
+		return res, err
 	}
 
 	if res.Patched > 0 || force {
-		if err := os.WriteFile(dst, data, 0644); err != nil {
+		if err := applyPatches(path, dst, res.Report); err != nil {
 			return res, err
 		}
 		if verbose {

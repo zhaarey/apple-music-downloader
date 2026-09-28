@@ -8,11 +8,6 @@ import (
 
 var (
 	forbiddenNames = regexp.MustCompile(`[/\\<>:"|?*]`)
-	alac_max       *int
-	atmos_max      *int
-	mv_max         *int
-	mv_audio_type  *string
-	aac_type       *string
 )
 
 type Flags struct {
@@ -24,10 +19,16 @@ type Flags struct {
 	PrintJSON      bool
 	SaveM3U8       bool
 	LiteServerFlag string
+	Version        bool
+	Update         bool
+	CheckUpdate    bool
+	Yes            bool
+	ForceUpdate    bool
+	MigrateConfig  bool
 }
 
 type State struct {
-	Counter     config.Counter
+	Counter     Counter
 	OKDict      map[string][]int
 	AddedTracks []AddedTrack
 }
@@ -63,8 +64,8 @@ func contains[T comparable](slice []T, item T) bool {
 }
 
 func (r *Runner) LimitString(s string) string {
-	if len([]rune(s)) > r.Config.LimitMax {
-		return string([]rune(s)[:r.Config.LimitMax])
+	if len([]rune(s)) > r.Config.Paths.LimitMax {
+		return string([]rune(s)[:r.Config.Paths.LimitMax])
 	}
 	return s
 }

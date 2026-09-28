@@ -1,13 +1,16 @@
 *
 !.gitignore
 !.gitattributes
-!.dockerignore
 !/.github/
+!/.github/**
 !/config.yaml.example
 !/go.mod
 !/go.sum
 !/main.go
+!/VERSION
+!/embed_assets.go
 !/README.md
+!/README-CN.md
 !/PROXY-SETUP.md
 !/utils/
 !/utils/**

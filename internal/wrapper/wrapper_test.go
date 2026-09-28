@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
@@ -155,6 +156,116 @@ func TestLyrics(t *testing.T) {
 	}
 	if lyrics != "[00:01.00]test lyrics" {
 		t.Fatalf("unexpected lyrics: %q", lyrics)
+	}
+}
+
+func TestLyricsNotFound(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		response   map[string]any
+		wantErr    error
+	}{
+		{
+			name:       "top-level code 404",
+			statusCode: http.StatusOK,
+			response: map[string]any{
+				"code": 404,
+				"msg":  "lyrics not found",
+			},
+			wantErr: ErrLyricsNotFound,
+		},
+		{
+			name:       "data code 404",
+			statusCode: http.StatusOK,
+			response: map[string]any{
+				"code": 0,
+				"msg":  "ok",
+				"data": map[string]any{
+					"code": 404,
+					"msg":  "song not found",
+				},
+			},
+			wantErr: ErrLyricsNotFound,
+		},
+		{
+			name:       "data code 404 string",
+			statusCode: http.StatusOK,
+			response: map[string]any{
+				"code": 0,
+				"msg":  "ok",
+				"data": map[string]any{
+					"code": "404",
+				},
+			},
+			wantErr: ErrLyricsNotFound,
+		},
+		{
+			name:       "data code 404 with lyrics struct",
+			statusCode: http.StatusOK,
+			response: map[string]any{
+				"code": 404,
+				"data": map[string]any{
+					"code":   404,
+					"lyrics": "",
+				},
+			},
+			wantErr: ErrLyricsNotFound,
+		},
+		{
+			name:       "http status 404 with json code 404",
+			statusCode: http.StatusNotFound,
+			response: map[string]any{
+				"code": 404,
+				"msg":  "not found",
+			},
+			wantErr: ErrLyricsNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				_ = json.NewEncoder(w).Encode(tt.response)
+			}))
+			defer server.Close()
+
+			lyrics, err := GetLyrics(server.URL, "123", "en-US", false)
+			if lyrics != "" {
+				t.Errorf("expected empty lyrics, got %q", lyrics)
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("GetLyrics() error = %v, want %v", err, tt.wantErr)
+			}
+			if !errors.Is(err, ErrNoLyrics) {
+				t.Fatalf("expected errors.Is(err, ErrNoLyrics) to be true, got %v", err)
+			}
+			if err.Error() != "no lyrics available for this song" {
+				t.Fatalf("expected error message 'no lyrics available for this song', got %q", err.Error())
+			}
+		})
+	}
+}
+
+func TestLyricsOtherError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 500,
+			"msg":  "missing music/dev token, run --login first",
+		})
+	}))
+	defer server.Close()
+
+	_, err := GetLyrics(server.URL, "123", "en-US", false)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if errors.Is(err, ErrLyricsNotFound) {
+		t.Fatalf("expected non-404 error, got ErrLyricsNotFound: %v", err)
+	}
+	if !strings.Contains(err.Error(), "code=500") {
+		t.Fatalf("unexpected error format: %v", err)
 	}
 }
 

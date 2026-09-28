@@ -1,0 +1,158 @@
+name: Release
+
+# Releases are driven by the VERSION file: whenever main is pushed and the tag
+# v<VERSION> does not exist yet, binaries are built and a release is published.
+# Bumping VERSION in a commit (or merged PR) is all it takes to cut a release.
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check VERSION
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      release: ${{ steps.version.outputs.release }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error file=VERSION::'$VERSION' is not a valid semantic version (expected e.g. 0.1.0)"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
+            echo "Tag ${TAG} already exists; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag ${TAG} not found; releasing."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            target: amdl_windows_amd64.exe
+          - goos: windows
+            goarch: arm64
+            target: amdl_windows_arm64.exe
+          - goos: linux
+            goarch: amd64
+            target: amdl_linux_amd64
+          - goos: linux
+            goarch: arm64
+            target: amdl_linux_arm64
+          - goos: android
+            goarch: arm64
+            target: amdl_android_arm64
+            # Android needs cgo so DNS goes through bionic's resolver; the pure-Go
+            # resolver reads /etc/resolv.conf, which Android does not have.
+            cgo: 1
+            cc: aarch64-linux-android24-clang
+          - goos: darwin
+            goarch: amd64
+            target: amdl_darwin_amd64
+          - goos: darwin
+            goarch: arm64
+            target: amdl_darwin_arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.1'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.cgo || 0 }}
+          RELEASE_TAG: ${{ needs.check.outputs.tag }}
+          # Self-update follows whichever repository built the binary.
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          if [ -n "${{ matrix.cc }}" ]; then
+            export CC="${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ matrix.cc }}"
+          fi
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          OUTPUT_NAME="${{ matrix.target }}"
+          go build -trimpath -ldflags="-s -w \
+            -X 'amdl/internal/version.Version=${RELEASE_TAG}' \
+            -X 'amdl/internal/version.Commit=${{ github.sha }}' \
+            -X 'amdl/internal/version.BuildDate=${BUILD_DATE}' \
+            -X 'amdl/internal/updater.RepoOwner=${REPO_OWNER}' \
+            -X 'amdl/internal/updater.RepoName=${REPO_NAME}'" \
+            -o "${OUTPUT_NAME}" .
+          echo "BUILT_FILE=${OUTPUT_NAME}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUILT_FILE }}
+          path: ${{ env.BUILT_FILE }}
+
+  publish:
+    name: Publish Release
+    needs: [ check, build ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate Checksums
+        working-directory: release-assets
+        run: |
+          sha256sum amdl_* > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # The tag is created at the built commit; tags made with GITHUB_TOKEN
+          # do not trigger other workflows, so building happens here instead.
+          tag_name: ${{ needs.check.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: release-assets/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ needs.check.outputs.prerelease == 'true' }}
