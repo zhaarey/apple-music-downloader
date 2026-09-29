@@ -88,6 +88,8 @@ convert:
   skip-if-source-matches: true            # Skip conversion if downloaded source matches target format
   ffmpeg-path: "ffmpeg"                   # Path to ffmpeg executable (override if not in system PATH)
   extra-args: ""                          # Additional raw command-line arguments passed directly to ffmpeg
+  mp3-quality: "2"                        # MP3 quality: LAME VBR level 0-9 (e.g. "2") or CBR like "320k"
+  opus-bitrate: "192k"                    # Opus target bitrate (e.g. "192k", "160k")
   with-metadata: true                     # Preserve original metadata and tags in converted files
   warn-lossy-to-lossless: true            # Print a warning when converting a detected lossy source to lossless
   skip-lossy-to-lossless: true            # Skip converting detected lossy sources to lossless formats (e.g. flac/wav)

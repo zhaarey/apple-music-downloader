@@ -69,6 +69,8 @@ func Default() Config {
 			SkipIfSourceMatch:   true,
 			FFmpegPath:          "ffmpeg",
 			ExtraArgs:           "",
+			Mp3Quality:          "2",
+			OpusBitrate:         "192k",
 			WithMetadata:        true,
 			WarnLossyToLossless: true,
 			SkipLossyToLossless: true,
