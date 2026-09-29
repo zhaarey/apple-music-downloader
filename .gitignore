@@ -9,6 +9,8 @@
 !/main.go
 !/VERSION
 !/embed_assets.go
+!/Dockerfile
+!/.dockerignore
 !/README.md
 !/README-CN.md
 !/PROXY-SETUP.md

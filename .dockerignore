@@ -1,0 +1,9 @@
+*
+!/go.mod
+!/go.sum
+!/main.go
+!/embed_assets.go
+!/config.yaml.example
+!/internal/
+!/cmd/
+**/*_test.go
