@@ -2040,7 +2040,7 @@ func replaceFile(tmpName, outputPath string) error {
 				restoreErr,
 			)
 		}
-
+		
 		return fmt.Errorf("move replacement into place: %w", err)
 	}
 	if err := os.Chmod(outputPath, 0644); err != nil {
