@@ -97,7 +97,7 @@ func Load(opts LoadOptions) (*Config, error) {
 			if err := os.WriteFile(configFile, []byte(exampleContent), 0644); err == nil {
 				userFileExists = true
 				if !opts.DisableMissingWarnings {
-					fmt.Printf("No Template Using\n", configFile)
+					fmt.Printf("No Template Using\n %s \n", configFile)
 				}
 			}
 		}
