@@ -479,6 +479,9 @@ func writeProgressive(video *streamInput, fragments []*fragmentRef, outputPath s
 	if err := defrag.DefragmentMP4WithFtyp(tmpPath, baseMediaMajorBrand, baseMediaMinorVersion, baseMediaCompatibleBrands); err != nil {
 		return fmt.Errorf("defragment merged MP4: %w", err)
 	}
+    if err := os.Chmod(tmpPath, 0644); err != nil {
+       return fmt.Errorf("chmod temporary output: %w", err)
+    }
 	if err := os.Rename(tmpPath, outputPath); err != nil {
 		return fmt.Errorf("move output into place: %w", err)
 	}
