@@ -2043,7 +2043,9 @@ func replaceFile(tmpName, outputPath string) error {
 
 		return fmt.Errorf("move replacement into place: %w", err)
 	}
-
+	if err := os.Chmod(outputPath, 0644); err != nil {
+        return fmt.Errorf("chmod replacement output: %w", err)
+    }
 	if err := os.Remove(backupName); err != nil {
 		return fmt.Errorf(
 			"converted file is in place but backup %s could not be removed: %w",
