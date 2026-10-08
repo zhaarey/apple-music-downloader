@@ -72,7 +72,7 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 		return "", err
 	}
 	if err := os.Chmod(tmpPath, 0644); err != nil {
-		return "", fmt.Errorf("chmod artwork", err)
+		return "", fmt.Errorf("chmod artwork: %w", err)
 	}
 	if err := os.Rename(tmpPath, covPath); err != nil {
 		return "", err
