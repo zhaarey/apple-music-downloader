@@ -132,7 +132,7 @@ func Load(opts LoadOptions) (*Config, error) {
 			return nil, fmt.Errorf("load example config: %w", err)
 		}
 	} else if userFileExists && !opts.DisableMissingWarnings {
-		fmt.Printf("Warning: no default config template available, using %s only\n", configFile)
+		fmt.Printf("No Template: Using %s\n", configFile)
 	}
 
 	// Layer 3: User configuration file
