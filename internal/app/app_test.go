@@ -72,6 +72,44 @@ func TestReleaseYear(t *testing.T) {
 	}
 }
 
+func TestRenderFolderTemplate(t *testing.T) {
+	tests := []struct {
+		name, template, want string
+		replacements         []string
+	}{
+		{"album nested", "{ArtistName}/{AlbumName}", filepath.Join("Artist_Name", "Album"), []string{"{ArtistName}", "Artist/Name", "{AlbumName}", "Album"}},
+		{"playlist nested", "Playlists/{PlaylistName}", filepath.Join("Playlists", "Mix_2026"), []string{"{PlaylistName}", "Mix/2026"}},
+		{"artist nested", "Library/{UrlArtistName}", filepath.Join("Library", "A_B"), []string{"{UrlArtistName}", "A/B"}},
+		{"empty value", "{UrlArtistName}", "", []string{"{UrlArtistName}", ""}},
+		{"traversal", "../{AlbumName}", filepath.Join("_", ".._Outside"), []string{"{AlbumName}", "../Outside"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderFolderTemplate(tt.template, tt.replacements...)
+			if got != tt.want {
+				t.Fatalf("renderFolderTemplate() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrepareCollectionFolderNested(t *testing.T) {
+	base := t.TempDir()
+	name := renderFolderTemplate("{ArtistName}/{AlbumName}", "{ArtistName}", "A/B", "{AlbumName}", "Record")
+	r := NewRunner(config.ConfigSet{})
+	got, err := r.prepareCollectionFolder(base, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(base, "A_B", "Record")
+	if got != want {
+		t.Fatalf("folder = %q, want %q", got, want)
+	}
+	if info, err := os.Stat(want); err != nil || !info.IsDir() {
+		t.Fatalf("nested folder missing: %v", err)
+	}
+}
+
 func TestFirstGenre(t *testing.T) {
 	if got := firstGenre([]string{"Pop", "Rock"}); got != "Pop" {
 		t.Fatalf("firstGenre = %q, want %q", got, "Pop")
@@ -161,4 +199,3 @@ func TestGetProgName(t *testing.T) {
 		}
 	}
 }
-

@@ -349,37 +349,37 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 	station.Codec = Codec
 	var singerFoldername string
 	if r.Config.Paths.ArtistFolder != "" {
-		singerFoldername = strings.NewReplacer(
+		singerFoldername = renderFolderTemplate(r.Config.Paths.ArtistFolder,
 			"{ArtistName}", "Apple Music Station",
 			"{ArtistId}", "",
 			"{UrlArtistName}", "Apple Music Station",
-		).Replace(r.Config.Paths.ArtistFolder)
+		)
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 		}
 		singerFoldername = strings.TrimSpace(singerFoldername)
 		fmt.Println(singerFoldername)
 	}
-	singerFolder := filepath.Join(r.Config.Paths.Alac, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	singerFolder := filepath.Join(r.Config.Paths.Alac, singerFoldername)
 	if r.Flags.Atmos {
-		singerFolder = filepath.Join(r.Config.Paths.Atmos, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+		singerFolder = filepath.Join(r.Config.Paths.Atmos, singerFoldername)
 	}
 	if r.Flags.AAC {
-		singerFolder = filepath.Join(r.Config.Paths.Aac, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+		singerFolder = filepath.Join(r.Config.Paths.Aac, singerFoldername)
 	}
 	if err := createDirectory(singerFolder); err != nil {
 		return err
 	}
 	station.SaveDir = singerFolder
 
-	playlistFolder := strings.NewReplacer(
+	playlistFolder := renderFolderTemplate(r.Config.Paths.PlaylistFolder,
 		"{ArtistName}", "Apple Music Station",
 		"{PlaylistName}", r.LimitString(station.Name),
 		"{PlaylistId}", station.ID,
 		"{Quality}", "",
 		"{Codec}", Codec,
 		"{Tag}", "",
-	).Replace(r.Config.Paths.PlaylistFolder)
+	)
 	playlistFolderPath, err := r.prepareCollectionFolder(singerFolder, playlistFolder)
 	if err != nil {
 		return err
@@ -609,17 +609,17 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	var singerFoldername string
 	if r.Config.Paths.ArtistFolder != "" {
 		if len(meta.Data[0].Relationships.Artists.Data) > 0 {
-			singerFoldername = strings.NewReplacer(
+			singerFoldername = renderFolderTemplate(r.Config.Paths.ArtistFolder,
 				"{UrlArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistId}", meta.Data[0].Relationships.Artists.Data[0].ID,
-			).Replace(r.Config.Paths.ArtistFolder)
+			)
 		} else {
-			singerFoldername = strings.NewReplacer(
+			singerFoldername = renderFolderTemplate(r.Config.Paths.ArtistFolder,
 				"{UrlArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
 				"{ArtistId}", "",
-			).Replace(r.Config.Paths.ArtistFolder)
+			)
 		}
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
@@ -627,12 +627,12 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 		singerFoldername = strings.TrimSpace(singerFoldername)
 		fmt.Println(singerFoldername)
 	}
-	singerFolder := filepath.Join(r.Config.Paths.Alac, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	singerFolder := filepath.Join(r.Config.Paths.Alac, singerFoldername)
 	if r.Flags.Atmos {
-		singerFolder = filepath.Join(r.Config.Paths.Atmos, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+		singerFolder = filepath.Join(r.Config.Paths.Atmos, singerFoldername)
 	}
 	if r.Flags.AAC {
-		singerFolder = filepath.Join(r.Config.Paths.Aac, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+		singerFolder = filepath.Join(r.Config.Paths.Aac, singerFoldername)
 	}
 	if err := createDirectory(singerFolder); err != nil {
 		return err
@@ -693,7 +693,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
 	var albumFolderName string
-	albumFolderName = strings.NewReplacer(
+	albumFolderName = renderFolderTemplate(r.Config.Paths.AlbumFolder,
 		"{ReleaseDate}", meta.Data[0].Attributes.ReleaseDate,
 		"{ReleaseYear}", releaseYear(meta.Data[0].Attributes.ReleaseDate),
 		"{ArtistName}", r.LimitString(meta.Data[0].Attributes.ArtistName),
@@ -705,7 +705,7 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 		"{Quality}", Quality,
 		"{Codec}", Codec,
 		"{Tag}", Tag_string,
-	).Replace(r.Config.Paths.AlbumFolder)
+	)
 
 	albumFolderPath, err := r.prepareCollectionFolder(singerFolder, albumFolderName)
 	if err != nil {
@@ -836,23 +836,23 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 	playlist.Codec = Codec
 	var singerFoldername string
 	if r.Config.Paths.ArtistFolder != "" {
-		singerFoldername = strings.NewReplacer(
+		singerFoldername = renderFolderTemplate(r.Config.Paths.ArtistFolder,
 			"{ArtistName}", "Apple Music",
 			"{ArtistId}", "",
 			"{UrlArtistName}", "Apple Music",
-		).Replace(r.Config.Paths.ArtistFolder)
+		)
 		if strings.HasSuffix(singerFoldername, ".") {
 			singerFoldername = strings.ReplaceAll(singerFoldername, ".", "")
 		}
 		singerFoldername = strings.TrimSpace(singerFoldername)
 		fmt.Println(singerFoldername)
 	}
-	singerFolder := filepath.Join(r.Config.Paths.Alac, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+	singerFolder := filepath.Join(r.Config.Paths.Alac, singerFoldername)
 	if r.Flags.Atmos {
-		singerFolder = filepath.Join(r.Config.Paths.Atmos, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+		singerFolder = filepath.Join(r.Config.Paths.Atmos, singerFoldername)
 	}
 	if r.Flags.AAC {
-		singerFolder = filepath.Join(r.Config.Paths.Aac, forbiddenNames.ReplaceAllString(singerFoldername, "_"))
+		singerFolder = filepath.Join(r.Config.Paths.Aac, singerFoldername)
 	}
 	if err := createDirectory(singerFolder); err != nil {
 		return err
@@ -913,14 +913,14 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 		}
 	}
 	Tag_string := strings.Join(stringsToJoin, " ")
-	playlistFolder := strings.NewReplacer(
+	playlistFolder := renderFolderTemplate(r.Config.Paths.PlaylistFolder,
 		"{ArtistName}", "Apple Music",
 		"{PlaylistName}", r.LimitString(meta.Data[0].Attributes.Name),
 		"{PlaylistId}", playlistId,
 		"{Quality}", Quality,
 		"{Codec}", Codec,
 		"{Tag}", Tag_string,
-	).Replace(r.Config.Paths.PlaylistFolder)
+	)
 	playlistFolderPath, err := r.prepareCollectionFolder(singerFolder, playlistFolder)
 	if err != nil {
 		return err
