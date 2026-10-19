@@ -161,10 +161,10 @@ func Main() {
 			fmt.Println("Failed to get artistname.")
 			return
 		}
-		r.Config.Paths.ArtistFolder = strings.NewReplacer(
+		r.Config.Paths.ArtistFolder = renderFolderTemplate(r.Config.Paths.ArtistFolder,
 			"{UrlArtistName}", r.LimitString(urlArtistName),
 			"{ArtistId}", urlArtistID,
-		).Replace(r.Config.Paths.ArtistFolder)
+		)
 		albumArgs, err := r.checkArtist(os.Args[0], token, "albums")
 		if err != nil {
 			fmt.Println("Failed to get artist albums.")
@@ -193,13 +193,13 @@ func Main() {
 					r.State.Counter.Success++
 					continue
 				}
-				mvSaveDir := strings.NewReplacer(
+				mvSaveDir := renderFolderTemplate(r.Config.Paths.ArtistFolder,
 					"{ArtistName}", "",
 					"{UrlArtistName}", "",
 					"{ArtistId}", "",
-				).Replace(r.Config.Paths.ArtistFolder)
+				)
 				if mvSaveDir != "" {
-					mvSaveDir = filepath.Join(r.Config.Paths.MV, forbiddenNames.ReplaceAllString(mvSaveDir, "_"))
+					mvSaveDir = filepath.Join(r.Config.Paths.MV, mvSaveDir)
 				} else {
 					mvSaveDir = r.Config.Paths.MV
 				}
@@ -318,4 +318,3 @@ func progName() string {
 	}
 	return "amdl"
 }
-

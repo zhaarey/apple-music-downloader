@@ -60,12 +60,29 @@ func sanitizeFolderName(name string) string {
 	return forbiddenNames.ReplaceAllString(name, "_")
 }
 
-func (r *Runner) prepareCollectionFolder(base string, displayName string) (string, error) {
-	if strings.HasSuffix(displayName, ".") {
-		displayName = displayName[:len(displayName)-1]
+func renderFolderTemplate(template string, replacements ...string) string {
+	replacer := strings.NewReplacer(replacements...)
+	var parts []string
+	for _, part := range strings.Split(template, "/") {
+		if part == "" {
+			continue
+		}
+		name := strings.TrimSpace(replacer.Replace(part))
+		name = sanitizeFolderName(name)
+		if name == "" {
+			continue
+		}
+		//avoid ../ or ./
+		if name == "." || name == ".." {
+			name = "_"
+		}
+		parts = append(parts, name)
 	}
-	displayName = strings.TrimSpace(displayName)
-	folderPath := filepath.Join(base, sanitizeFolderName(displayName))
+	return filepath.Join(parts...)
+}
+
+func (r *Runner) prepareCollectionFolder(base string, relativeName string) (string, error) {
+	folderPath := filepath.Join(base, relativeName)
 	if err := createDirectory(folderPath); err != nil {
 		return "", err
 	}
