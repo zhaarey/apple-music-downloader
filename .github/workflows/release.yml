@@ -156,3 +156,13 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ needs.check.outputs.prerelease == 'true' }}
+
+  docker:
+    name: Docker Image
+    needs: [ check, publish ]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker.yml
+    with:
+      tag: ${{ needs.check.outputs.tag }}
