@@ -35,7 +35,9 @@ func muxTestMV(t *testing.T) string {
 	testdata := filepath.Join("..", "mv", "testdata")
 	video := concat(t, filepath.Join(testdata, "V300", "init.mp4"), filepath.Join(testdata, "V300", "1.m4s"))
 	audio := concat(t, filepath.Join(testdata, "A48", "init.mp4"), filepath.Join(testdata, "A48", "1.m4s"))
-	out := filepath.Join(t.TempDir(), "mv.mp4")
+	// go-mp4tag stages tag writes in the shared os.TempDir() as <name>_tmp_<ms>;
+	// keep this name distinct from the mv package tests, which run in parallel.
+	out := filepath.Join(t.TempDir(), "mv-split.mp4")
 	if err := mvmedia.Mux(video, audio, out); err != nil {
 		t.Fatal(err)
 	}
