@@ -18,10 +18,10 @@ func TestTrackGetAlbumDataError(t *testing.T) {
 	}
 }
 
-func TestDownloadAndDecryptStreamRejectsEmptyStream(t *testing.T) {
-	err := widevinerip.DownloadAndDecryptStream(context.Background(), widevinerip.EncryptedStream{}, filepath.Join(t.TempDir(), "missing.mp4"))
+func TestDownloadStreamRejectsEmptyStream(t *testing.T) {
+	err := widevinerip.DownloadStream(context.Background(), widevinerip.Stream{}, filepath.Join(t.TempDir(), "missing.mp4"))
 	if err == nil {
-		t.Fatal("DownloadAndDecryptStream() error = nil, want empty stream failure")
+		t.Fatal("DownloadStream() error = nil, want empty stream failure")
 	}
 }
 

@@ -16,23 +16,26 @@ const playReadyKeyFormat = "com.microsoft.playready"
 
 // FetchStream obtains a PlayReady content key from wrapper-lite and returns
 // the stream in the same form as the Widevine backends, ready for
-// widevinerip.DownloadAndDecryptStream.
-func FetchStream(ctx context.Context, adamID string, playlistURL string, liteServerURL string) (widevine.EncryptedStream, error) {
+// widevinerip.DownloadStream. A clear playlist yields a stream without key.
+func FetchStream(ctx context.Context, adamID string, playlistURL string, liteServerURL string) (widevine.Stream, error) {
 	if liteServerURL == "" {
-		return widevine.EncryptedStream{}, errors.New("lite-server is not configured")
+		return widevine.Stream{}, errors.New("lite-server is not configured")
 	}
 
 	playlist, err := widevine.FetchMediaPlaylist(ctx, playlistURL, playReadyKeyFormat)
 	if err != nil {
-		return widevine.EncryptedStream{}, err
+		return widevine.Stream{}, err
+	}
+	if !playlist.Encrypted() {
+		return widevine.Stream{URLs: playlist.StreamURLs()}, nil
 	}
 
 	key, err := getContentKey(adamID, playlist.KeyPayload, playlist.KeyURIPrefix, liteServerURL)
 	if err != nil {
-		return widevine.EncryptedStream{}, err
+		return widevine.Stream{}, err
 	}
 
-	return widevine.EncryptedStream{Key: key, URLs: playlist.StreamURLs()}, nil
+	return widevine.Stream{Key: key, URLs: playlist.StreamURLs()}, nil
 }
 
 func getContentKey(adamID string, keyPayload string, uriPrefix string, liteServerURL string) ([]byte, error) {

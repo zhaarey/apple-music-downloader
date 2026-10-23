@@ -6,7 +6,7 @@
 //	MediaPlaylist ──BuildPSSH──▶ key.AcquireContentKey(ExchangeFunc) ──▶ content key
 //	                                                                     │
 //	               DownloadDecryptedFile (songs) ◀──────────────────────┤
-//	               EncryptedStream → DownloadAndDecryptStream (MV, station)
+//	               Stream → DownloadStream (MV, station)
 //
 // A license backend only has to provide a key.ExchangeFunc. This package
 // ships the Apple web playback backend (AppleLicenseExchange); the runv5
@@ -15,6 +15,7 @@ package widevinerip
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"amdl/internal/widevine-rip/key"
@@ -23,6 +24,9 @@ import (
 // AcquireContentKey requests a license for playlist's key ID through
 // exchange and returns the content key.
 func AcquireContentKey(ctx context.Context, playlist *MediaPlaylist, exchange key.ExchangeFunc) ([]byte, error) {
+	if !playlist.Encrypted() {
+		return nil, errors.New("playlist is not encrypted")
+	}
 	pssh, err := BuildPSSH(playlist.KeyPayload, "")
 	if err != nil {
 		return nil, err
@@ -34,14 +38,18 @@ func AcquireContentKey(ctx context.Context, playlist *MediaPlaylist, exchange ke
 	return contentKey, nil
 }
 
-// PrepareEncryptedStream acquires the content key of a segmented playlist
-// and pairs it with the playlist's URLs, ready for DownloadAndDecryptStream.
-func PrepareEncryptedStream(ctx context.Context, playlist *MediaPlaylist, exchange key.ExchangeFunc) (EncryptedStream, error) {
+// PrepareStream pairs a segmented playlist's URLs with its content key,
+// ready for DownloadStream. A clear playlist needs no license, so exchange
+// is not called and the stream carries no key.
+func PrepareStream(ctx context.Context, playlist *MediaPlaylist, exchange key.ExchangeFunc) (Stream, error) {
+	if !playlist.Encrypted() {
+		return Stream{URLs: playlist.StreamURLs()}, nil
+	}
 	contentKey, err := AcquireContentKey(ctx, playlist, exchange)
 	if err != nil {
-		return EncryptedStream{}, err
+		return Stream{}, err
 	}
-	return EncryptedStream{Key: contentKey, URLs: playlist.StreamURLs()}, nil
+	return Stream{Key: contentKey, URLs: playlist.StreamURLs()}, nil
 }
 
 // DownloadDecryptedFile acquires the content key of a single-file playlist
@@ -66,13 +74,13 @@ func DownloadDecryptedFile(ctx context.Context, playlist *MediaPlaylist, exchang
 
 // FetchStationStream prepares a station stream using Apple's license
 // endpoint. licenseURL may be empty to use AppleLicenseURL.
-func FetchStationStream(ctx context.Context, adamID string, playlistURL string, creds Credentials, licenseURL string) (EncryptedStream, error) {
+func FetchStationStream(ctx context.Context, adamID string, playlistURL string, creds Credentials, licenseURL string) (Stream, error) {
 	playlist, err := FetchMediaPlaylist(ctx, playlistURL, DefaultKeyFormat)
 	if err != nil {
-		return EncryptedStream{}, err
+		return Stream{}, err
 	}
 	exchange := AppleLicenseExchange(creds, licenseURL, adamID, playlist.KeyURI())
-	return PrepareEncryptedStream(ctx, playlist, exchange)
+	return PrepareStream(ctx, playlist, exchange)
 }
 
 // DownloadSong downloads a 256 kbps AAC song through Apple's web playback
