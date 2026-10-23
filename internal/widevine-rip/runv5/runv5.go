@@ -21,18 +21,18 @@ func LicenseExchange(liteServerURL string, adamID string, keyURI string) key.Exc
 	}
 }
 
-// FetchStream prepares an encrypted segmented stream (a music video video
-// or audio track) for DownloadAndDecryptStream.
-func FetchStream(ctx context.Context, adamID string, playlistURL string, liteServerURL string) (widevinerip.EncryptedStream, error) {
+// FetchStream prepares a segmented stream (a music video video or audio
+// track, encrypted or clear) for DownloadStream.
+func FetchStream(ctx context.Context, adamID string, playlistURL string, liteServerURL string) (widevinerip.Stream, error) {
 	if liteServerURL == "" {
-		return widevinerip.EncryptedStream{}, wrapper.ErrNotConfigured
+		return widevinerip.Stream{}, wrapper.ErrNotConfigured
 	}
 	playlist, err := widevinerip.FetchMediaPlaylist(ctx, playlistURL, widevinerip.DefaultKeyFormat)
 	if err != nil {
-		return widevinerip.EncryptedStream{}, err
+		return widevinerip.Stream{}, err
 	}
 	exchange := LicenseExchange(liteServerURL, adamID, playlist.KeyURI())
-	return widevinerip.PrepareEncryptedStream(ctx, playlist, exchange)
+	return widevinerip.PrepareStream(ctx, playlist, exchange)
 }
 
 // DownloadSong downloads a song's AAC-LC stream and writes it decrypted to

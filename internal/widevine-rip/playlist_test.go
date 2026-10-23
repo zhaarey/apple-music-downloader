@@ -69,6 +69,45 @@ https://cdn.example.com/abs/seg1.m4s
 	}
 }
 
+func TestParseMediaPlaylistClear(t *testing.T) {
+	for name, keyLine := range map[string]string{
+		"no key":      "",
+		"method none": "#EXT-X-KEY:METHOD=NONE\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			playlist := "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:6\n" + keyLine +
+				"#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:6.0,\nseg0.m4s\n#EXT-X-ENDLIST\n"
+			for _, keyFormat := range []string{DefaultKeyFormat, "com.microsoft.playready"} {
+				got, err := ParseMediaPlaylist("https://example.com/path/media.m3u8", []byte(playlist), keyFormat)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.Encrypted() {
+					t.Fatalf("Encrypted() = true for a clear playlist (key format %q)", keyFormat)
+				}
+				if urls := got.StreamURLs(); len(urls) != 2 || urls[0] != "https://example.com/path/init.mp4" {
+					t.Fatalf("StreamURLs() = %q", urls)
+				}
+			}
+		})
+	}
+}
+
+func TestParseMediaPlaylistRejectsUnmatchedKeyFormat(t *testing.T) {
+	const playlist = `#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:6
+#EXT-X-MAP:URI="init.mp4"
+#EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:text/plain;base64,a2lk",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",KEYFORMATVERSIONS="1"
+#EXTINF:6.0,
+seg0.m4s
+#EXT-X-ENDLIST
+`
+	if _, err := ParseMediaPlaylist("https://example.com/path/media.m3u8", []byte(playlist), "com.microsoft.playready"); err == nil {
+		t.Fatal("expected an encrypted playlist without the requested key format to be rejected, not treated as clear")
+	}
+}
+
 func TestParseMediaPlaylistRejectsMasterPlaylist(t *testing.T) {
 	const playlist = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=256000

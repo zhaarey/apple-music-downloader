@@ -451,7 +451,7 @@ func (r *Runner) ripStation(albumId string, token string, storefront string, med
 			r.State.Counter.Error++
 			return err
 		}
-		err = widevinerip.DownloadAndDecryptStream(ctx, stream, trackPath)
+		err = widevinerip.DownloadStream(ctx, stream, trackPath)
 		if err != nil {
 			_ = os.Remove(trackPath)
 			fmt.Println("Failed to download station stream.", err)

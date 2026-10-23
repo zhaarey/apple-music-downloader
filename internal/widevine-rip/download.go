@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/schollz/progressbar/v3"
 
 	"amdl/internal/download"
+	"amdl/internal/fsutil"
 )
 
 const (
@@ -19,19 +21,18 @@ const (
 	streamDownloadMaxRetries  = 3
 )
 
-// EncryptedStream is everything needed to download and decrypt one
-// segmented stream: its content key and its URLs (init segment first).
-type EncryptedStream struct {
+// Stream is everything needed to download one segmented stream: its URLs
+// (init segment first) and, unless it is served in the clear, its content key.
+type Stream struct {
+	// Key is the content key; empty for a clear stream.
 	Key  []byte
 	URLs []string
 }
 
-// DownloadAndDecryptStream downloads every segment of stream concurrently,
-// then decrypts the concatenated fragmented MP4 into outputPath.
-func DownloadAndDecryptStream(ctx context.Context, stream EncryptedStream, outputPath string) error {
-	if len(stream.Key) == 0 {
-		return errors.New("empty decryption key")
-	}
+// DownloadStream downloads every segment of stream concurrently into
+// outputPath as one fragmented MP4, decrypting it first when the stream has
+// a key.
+func DownloadStream(ctx context.Context, stream Stream, outputPath string) error {
 	if len(stream.URLs) == 0 {
 		return errors.New("no download URLs")
 	}
@@ -60,10 +61,43 @@ func DownloadAndDecryptStream(ctx context.Context, stream EncryptedStream, outpu
 	}
 	fmt.Println("\nDownloaded.")
 
+	if len(stream.Key) == 0 {
+		fmt.Println("Stream is not encrypted.")
+		return copyToFile(tempFile, outputPath)
+	}
 	if err := DecryptMP4ToFile(tempFile, stream.Key, outputPath); err != nil {
 		return fmt.Errorf("decrypt stream: %w", err)
 	}
 	fmt.Println("Decrypted.")
+	return nil
+}
+
+// copyToFile writes r to outputPath through a temporary file that is renamed
+// into place on success, like DecryptMP4ToFile.
+func copyToFile(r io.Reader, outputPath string) error {
+	tempFile, err := fsutil.CreateOutputTemp(filepath.Dir(outputPath), filepath.Base(outputPath)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temporary output: %w", err)
+	}
+	tempPath := tempFile.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tempFile.Close()
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	if _, err := io.Copy(tempFile, r); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("close temporary output: %w", err)
+	}
+	if err := os.Rename(tempPath, outputPath); err != nil {
+		return fmt.Errorf("replace output: %w", err)
+	}
+	committed = true
 	return nil
 }
 

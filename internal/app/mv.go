@@ -48,22 +48,7 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 	exists, _ := fileExists(mvOutPath)
 	if exists {
 		fmt.Println("MV already exists locally.")
-
-		mvArtistName := MVInfo.Data[0].Attributes.ArtistName
-		mvAlbumName := MVInfo.Data[0].Attributes.AlbumName
-		mvName := MVInfo.Data[0].Attributes.Name
-		mvArtistId := ""
-		if len(MVInfo.Data[0].Relationships.Artists.Data) > 0 {
-			mvArtistId = MVInfo.Data[0].Relationships.Artists.Data[0].ID
-		}
-
-		r.State.AddedTracks = append(r.State.AddedTracks, AddedTrack{
-			Path:     mvOutPath,
-			Artist:   mvArtistName,
-			ArtistID: mvArtistId,
-			Album:    mvAlbumName,
-			Song:     mvName,
-		})
+		r.recordAddedMV(mvOutPath, MVInfo)
 		return nil
 	}
 
@@ -76,38 +61,11 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 		return err
 	}
 
-	videom3u8url, usePlayReady, err := r.extractVideoVariant(mvm3u8url)
-	if err != nil {
-		return fmt.Errorf("extract video manifest: %w", err)
-	}
-	ctx := context.Background()
-	var videoStream widevinerip.EncryptedStream
-	if usePlayReady {
-		fmt.Println("Video DRM: PlayReady")
-		videoStream, err = playreadyrip.FetchStream(ctx, adamID, videom3u8url, r.Config.General.LiteServer)
-	} else {
-		videoStream, err = runv5.FetchStream(ctx, adamID, videom3u8url, r.Config.General.LiteServer)
-	}
-	if err != nil {
-		return fmt.Errorf("download video stream: %w", err)
-	}
-	if err := widevinerip.DownloadAndDecryptStream(ctx, videoStream, vidPath); err != nil {
-		return fmt.Errorf("write video stream: %w", err)
-	}
 	defer os.Remove(vidPath)
-
-	audiom3u8url, err := r.extractMvAudio(mvm3u8url)
-	if err != nil {
-		return fmt.Errorf("extract audio manifest: %w", err)
-	}
-	audioStream, err := runv5.FetchStream(ctx, adamID, audiom3u8url, r.Config.General.LiteServer)
-	if err != nil {
-		return fmt.Errorf("download audio stream: %w", err)
-	}
-	if err := widevinerip.DownloadAndDecryptStream(ctx, audioStream, audPath); err != nil {
-		return fmt.Errorf("write audio stream: %w", err)
-	}
 	defer os.Remove(audPath)
+	if err := r.downloadMVTracks(context.Background(), adamID, mvm3u8url, vidPath, audPath); err != nil {
+		return err
+	}
 
 	var covPath string
 	if r.Config.Metadata.Artwork.Embed {
@@ -135,22 +93,71 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 		return err
 	}
 
-	mvArtistName := MVInfo.Data[0].Attributes.ArtistName
-	mvAlbumName := MVInfo.Data[0].Attributes.AlbumName
-	mvName := MVInfo.Data[0].Attributes.Name
-	mvArtistId := ""
-	if len(MVInfo.Data[0].Relationships.Artists.Data) > 0 {
-		mvArtistId = MVInfo.Data[0].Relationships.Artists.Data[0].ID
+	r.recordAddedMV(mvOutPath, MVInfo)
+	return nil
+}
+
+// recordAddedMV registers the finished (or already present) MV at path so
+// post-processing, such as the artist and playlist steps, sees it.
+func (r *Runner) recordAddedMV(path string, mvInfo *ampapi.MusicVideoResp) {
+	data := mvInfo.Data[0]
+	artistID := ""
+	if len(data.Relationships.Artists.Data) > 0 {
+		artistID = data.Relationships.Artists.Data[0].ID
+	}
+	r.State.AddedTracks = append(r.State.AddedTracks, AddedTrack{
+		Path:     path,
+		Artist:   data.Attributes.ArtistName,
+		ArtistID: artistID,
+		Album:    data.Attributes.AlbumName,
+		Song:     data.Attributes.Name,
+	})
+}
+
+// downloadMVTracks picks the best video and audio variants from the master
+// playlist at masterURL and writes each as a clear fragmented MP4 to
+// videoPath and audioPath.
+func (r *Runner) downloadMVTracks(ctx context.Context, adamID, masterURL, videoPath, audioPath string) error {
+	videoURL, usePlayReady, err := r.extractVideoVariant(masterURL)
+	if err != nil {
+		return fmt.Errorf("extract video manifest: %w", err)
+	}
+	if usePlayReady {
+		fmt.Println("Video DRM: PlayReady")
+	}
+	if err := r.downloadMVTrack(ctx, adamID, videoURL, usePlayReady, videoPath); err != nil {
+		return fmt.Errorf("video stream: %w", err)
 	}
 
-	r.State.AddedTracks = append(r.State.AddedTracks, AddedTrack{
-		Path:     mvOutPath,
-		Artist:   mvArtistName,
-		ArtistID: mvArtistId,
-		Album:    mvAlbumName,
-		Song:     mvName,
-	})
+	audioURL, err := r.extractMvAudio(masterURL)
+	if err != nil {
+		return fmt.Errorf("extract audio manifest: %w", err)
+	}
+	if err := r.downloadMVTrack(ctx, adamID, audioURL, false, audioPath); err != nil {
+		return fmt.Errorf("audio stream: %w", err)
+	}
+	return nil
+}
 
+// downloadMVTrack downloads one MV track playlist to outputPath. The
+// playlist may be Widevine- or PlayReady-encrypted, or clear (some music
+// videos are served unprotected), in which case no license is requested.
+func (r *Runner) downloadMVTrack(ctx context.Context, adamID, playlistURL string, usePlayReady bool, outputPath string) error {
+	var (
+		stream widevinerip.Stream
+		err    error
+	)
+	if usePlayReady {
+		stream, err = playreadyrip.FetchStream(ctx, adamID, playlistURL, r.Config.General.LiteServer)
+	} else {
+		stream, err = runv5.FetchStream(ctx, adamID, playlistURL, r.Config.General.LiteServer)
+	}
+	if err != nil {
+		return fmt.Errorf("prepare: %w", err)
+	}
+	if err := widevinerip.DownloadStream(ctx, stream, outputPath); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
 	return nil
 }
 

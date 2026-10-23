@@ -18,18 +18,25 @@ import (
 // Music playlists.
 const DefaultKeyFormat = ""
 
-// MediaPlaylist is the DRM-relevant part of an encrypted HLS media playlist.
+// MediaPlaylist is the DRM-relevant part of an HLS media playlist. Some
+// Apple Music videos are served in the clear, in which case the key fields
+// are empty; see Encrypted.
 type MediaPlaylist struct {
 	// KeyURIPrefix is the part of the EXT-X-KEY URI before the first comma,
-	// e.g. "data:text/plain;base64".
+	// e.g. "data:text/plain;base64". Empty for a clear playlist.
 	KeyURIPrefix string
 	// KeyPayload is the part after the first comma: the base64 key ID for
-	// Widevine, a PSSH or key ID for PlayReady.
+	// Widevine, a PSSH or key ID for PlayReady. Empty for a clear playlist.
 	KeyPayload string
 	// InitSegmentURL is the EXT-X-MAP URI. For songs it is the whole file.
 	InitSegmentURL string
 	// SegmentURLs are the media segment URIs in playback order.
 	SegmentURLs []string
+}
+
+// Encrypted reports whether the playlist declares a content key.
+func (p *MediaPlaylist) Encrypted() bool {
+	return p.KeyPayload != ""
 }
 
 // KeyURI returns the full EXT-X-KEY URI, as license servers expect it.
@@ -55,7 +62,9 @@ func FetchMediaPlaylist(ctx context.Context, playlistURL string, keyFormat strin
 }
 
 // ParseMediaPlaylist parses an HLS media playlist. Relative URIs are
-// resolved against playlistURL.
+// resolved against playlistURL. A playlist without any EXT-X-KEY (or only
+// METHOD=NONE) is clear; one that has keys but none matching keyFormat is
+// an error, so a stream is never mistaken for clear.
 func ParseMediaPlaylist(playlistURL string, body []byte, keyFormat string) (*MediaPlaylist, error) {
 	decoded, listType, err := m3u8.DecodeFrom(strings.NewReader(string(body)), true)
 	if err != nil {
@@ -72,12 +81,14 @@ func ParseMediaPlaylist(playlistURL string, body []byte, keyFormat string) (*Med
 	} else if mediaPlaylist.Key != nil {
 		keyURI = mediaPlaylist.Key.URI
 	}
-	if keyURI == "" {
+	var keyURIPrefix, keyPayload string
+	if keyURI != "" {
+		keyURIPrefix, keyPayload, err = splitKeyURI(keyURI)
+		if err != nil {
+			return nil, err
+		}
+	} else if hasContentKey(string(body)) {
 		return nil, errors.New("no matching key information found")
-	}
-	keyURIPrefix, keyPayload, err := splitKeyURI(keyURI)
-	if err != nil {
-		return nil, err
 	}
 
 	if mediaPlaylist.Map == nil || mediaPlaylist.Map.URI == "" {
@@ -123,6 +134,22 @@ func findKeyURIByFormat(playlist string, keyFormat string) string {
 		}
 	}
 	return ""
+}
+
+// hasContentKey reports whether the playlist declares any EXT-X-KEY whose
+// METHOD is not NONE.
+func hasContentKey(playlist string) bool {
+	const keyTag = "#EXT-X-KEY:"
+	for _, rawLine := range strings.Split(playlist, "\n") {
+		line := strings.TrimSpace(rawLine)
+		if !strings.HasPrefix(line, keyTag) {
+			continue
+		}
+		if method := m3u8.DecodeAttributeList(strings.TrimPrefix(line, keyTag))["METHOD"]; method != "NONE" {
+			return true
+		}
+	}
+	return false
 }
 
 // splitKeyURI splits an EXT-X-KEY data URI into its prefix and payload.
