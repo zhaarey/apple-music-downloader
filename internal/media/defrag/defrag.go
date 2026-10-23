@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"amdl/internal/fsutil"
 	"github.com/Eyevinn/mp4ff/mp4"
 )
 
@@ -1834,7 +1835,7 @@ func writeProgressiveMP4(
 
 	dir := filepath.Dir(outputPath)
 
-	tmp, err := os.CreateTemp(
+	tmp, err := fsutil.CreateOutputTemp(
 		dir,
 		".fmp4-unfragment-*.tmp",
 	)

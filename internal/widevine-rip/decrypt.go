@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"amdl/internal/fsutil"
 	"github.com/itouakirai/mp4ff/mp4"
 )
 
@@ -129,7 +130,7 @@ func DecryptMP4(r io.Reader, key []byte, w io.Writer) error {
 // temporary file next to outputPath and renamed into place only on success,
 // so a failed run never leaves a partial file behind.
 func DecryptMP4ToFile(r io.Reader, key []byte, outputPath string) error {
-	tempFile, err := os.CreateTemp(filepath.Dir(outputPath), filepath.Base(outputPath)+".tmp-*")
+	tempFile, err := fsutil.CreateOutputTemp(filepath.Dir(outputPath), filepath.Base(outputPath)+".tmp-*")
 	if err != nil {
 		return fmt.Errorf("create temporary output: %w", err)
 	}

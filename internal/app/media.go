@@ -2,6 +2,7 @@ package app
 
 import (
 	"amdl/internal/download"
+	"amdl/internal/fsutil"
 	"amdl/internal/model"
 	"amdl/internal/wrapper"
 	"errors"
@@ -42,7 +43,7 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 		url = url[:strings.LastIndex(url, "/")]
 	}
 
-	tmpFile, err := os.CreateTemp(sanAlbumFolder, name+".tmp-*")
+	tmpFile, err := fsutil.CreateOutputTemp(sanAlbumFolder, name+".tmp-*")
 	if err != nil {
 		return "", err
 	}
