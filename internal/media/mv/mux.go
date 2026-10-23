@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"amdl/internal/fsutil"
 	defrag "amdl/internal/media/defrag"
 
 	"github.com/Eyevinn/mp4ff/mp4"
@@ -437,7 +438,7 @@ func scaleDuration(duration uint64, fromTimescale, toTimescale uint32) uint64 {
 func writeProgressive(video *streamInput, fragments []*fragmentRef, outputPath string) error {
 	dir := filepath.Dir(outputPath)
 	base := filepath.Base(outputPath)
-	tmp, err := os.CreateTemp(dir, "."+base+".mux-*.mp4")
+	tmp, err := fsutil.CreateOutputTemp(dir, "."+base+".mux-*.mp4")
 	if err != nil {
 		return fmt.Errorf("create temp output: %w", err)
 	}
