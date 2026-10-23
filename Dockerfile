@@ -8,7 +8,7 @@ ARG TARGETARCH
 ARG VERSION=dev
 ARG COMMIT=none
 ARG BUILD_DATE=unknown
-ARG REPO_OWNER=itouakirai
+ARG REPO_OWNER=zhaarey
 ARG REPO_NAME=apple-music-downloader
 WORKDIR /src
 RUN --mount=type=cache,target=/go/pkg/mod \

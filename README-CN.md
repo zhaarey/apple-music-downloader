@@ -230,7 +230,7 @@ paths:
 
 ## Docker
 
-每次发布 Release 时会向 GHCR 推送多架构镜像（`linux/amd64`、`linux/arm64`，已内置 ffmpeg）：`ghcr.io/itouakirai/apple-music-downloader`。标签：`latest`、`<主>.<次>` 以及精确版本号（预发布版本只有精确版本号标签）。
+每次发布 Release 时会向 GHCR 推送多架构镜像（`linux/amd64`、`linux/arm64`，已内置 ffmpeg）：`ghcr.io/zhaarey/apple-music-downloader`。标签：`latest`、`<主>.<次>` 以及精确版本号（预发布版本只有精确版本号标签）。
 
 容器内的工作目录是 `/data`：首次运行会在此生成 `config.yaml`，所有下载目录（`AM-Lossless` 等）也在这里。
 
@@ -257,7 +257,7 @@ docker compose run --rm amdl --atmos --select "https://music.apple.com/..."
 docker run --rm -it --user "$(id -u):$(id -g)" \
   -v "$PWD/data:/data" \
   -e AMDL_LITE_SERVER=http://192.168.1.10:12340 \
-  ghcr.io/itouakirai/apple-music-downloader:latest \
+  ghcr.io/zhaarey/apple-music-downloader:latest \
   "https://music.apple.com/us/album/..."
 ```
 

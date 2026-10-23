@@ -6,7 +6,7 @@
 
 services:
   amdl:
-    image: ${AMDL_IMAGE:-ghcr.io/itouakirai/apple-music-downloader:latest}
+    image: ${AMDL_IMAGE:-ghcr.io/zhaarey/apple-music-downloader:latest}
     build: .
     environment:
       # Default: wrapper-lite listening on the Docker host, port 12340.

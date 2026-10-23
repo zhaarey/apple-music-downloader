@@ -218,7 +218,7 @@ paths:
 
 ## Docker
 
-A multi-arch image (`linux/amd64`, `linux/arm64`, ffmpeg included) is published to GHCR on every release: `ghcr.io/itouakirai/apple-music-downloader`. Tags: `latest`, `<major>.<minor>`, and the exact version (prereleases only get the exact version).
+A multi-arch image (`linux/amd64`, `linux/arm64`, ffmpeg included) is published to GHCR on every release: `ghcr.io/zhaarey/apple-music-downloader`. Tags: `latest`, `<major>.<minor>`, and the exact version (prereleases only get the exact version).
 
 `/data` is the working directory inside the container: `config.yaml` is created there on first run and all download folders (`AM-Lossless`, ...) end up there too.
 
@@ -245,7 +245,7 @@ If wrapper-lite already runs somewhere else:
 docker run --rm -it --user "$(id -u):$(id -g)" \
   -v "$PWD/data:/data" \
   -e AMDL_LITE_SERVER=http://192.168.1.10:12340 \
-  ghcr.io/itouakirai/apple-music-downloader:latest \
+  ghcr.io/zhaarey/apple-music-downloader:latest \
   "https://music.apple.com/us/album/..."
 ```
 
