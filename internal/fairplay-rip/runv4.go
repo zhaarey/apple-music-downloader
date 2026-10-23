@@ -283,6 +283,8 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 		defer close(jobs)
 		seq := 0
 		var tmpl *temari.Template
+		var tmplURI string
+		tmplCache := map[string]*temari.Template{}
 
 		for i := 0; ; i++ {
 			if ctx.Err() != nil {
@@ -305,16 +307,24 @@ func downloadAndDecryptFile(liteServer string, in io.Reader, outfile string,
 				return errors.New("segment number out of sync")
 			}
 
+			// The key may switch at any segment (not only the first or second),
+			// so follow every EXT-X-KEY change and reuse templates already fetched.
 			key := segment.Key
-			if key != nil && (i < 2) {
-				if key.URI == wrapper.PrefetchKey {
-					tmpl, err = fetchTemplate(liteServer, "0", key.URI)
+			if key != nil && key.URI != tmplURI {
+				if cached, ok := tmplCache[key.URI]; ok {
+					tmpl = cached
 				} else {
-					tmpl, err = fetchTemplate(liteServer, adamId, key.URI)
+					if key.URI == wrapper.PrefetchKey {
+						tmpl, err = fetchTemplate(liteServer, "0", key.URI)
+					} else {
+						tmpl, err = fetchTemplate(liteServer, adamId, key.URI)
+					}
+					if err != nil {
+						return err
+					}
+					tmplCache[key.URI] = tmpl
 				}
-				if err != nil {
-					return err
-				}
+				tmplURI = key.URI
 			}
 
 			job := &decryptJob{
