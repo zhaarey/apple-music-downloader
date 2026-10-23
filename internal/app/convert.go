@@ -33,18 +33,20 @@ func (r *Runner) buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraAr
 	}
 	switch targetFmt {
 	case "flac":
-		// Map all streams and copy the embedded cover (attached_pic) so album
-		// art survives the ALAC(.m4a) -> FLAC transcode. Without -map 0 / -c:v copy
-		// ffmpeg only keeps the audio stream and the artwork is silently dropped.
-		args = append(args, "-map", "0", "-c:a", "flac", "-c:v", "copy", "-disposition:v", "attached_pic")
+		args = append(args, "-c:a", "flac")
+		args = append(args, coverArtArgs()...)
 	case "mp3":
 		// VBR quality 2 ~ high quality
 		args = append(args, "-c:a", "libmp3lame", "-qscale:a", "2")
+		args = append(args, coverArtArgs()...)
+		args = append(args, mp3TagArgs()...)
 	case "opus":
-		// Medium/high quality
-		args = append(args, "-c:a", "libopus", "-b:a", "192k", "-vbr", "on")
+		// Ogg Opus cannot carry an attached picture, so drop any video stream
+		// explicitly rather than relying on ffmpeg's stream auto-selection.
+		args = append(args, "-vn", "-c:a", "libopus", "-b:a", "192k", "-vbr", "on")
 	case "wav":
-		args = append(args, "-c:a", "pcm_s16le")
+		// WAV has no attached-picture support either; audio only.
+		args = append(args, "-vn", "-c:a", "pcm_s16le")
 	case "copy":
 		// Just container copy (probably pointless for same container)
 		args = append(args, "-c", "copy")
@@ -57,6 +59,29 @@ func (r *Runner) buildFFmpegArgs(ffmpegPath, inPath, outPath, targetFmt, extraAr
 	}
 	args = append(args, outPath)
 	return args, nil
+}
+
+// coverArtArgs maps every stream and copies the embedded cover (attached_pic)
+// over verbatim, so album art survives the conversion instead of being dropped
+// (no -map) or re-encoded (ffmpeg turns a jpg cover into a png on its own).
+//
+// Only formats whose muxer supports attached pictures may use this: the ogg
+// based muxers (opus) reject a picture stream with "Unsupported codec id in
+// stream N" and leave an empty file behind.
+func coverArtArgs() []string {
+	return []string{"-map", "0", "-c:v", "copy", "-disposition:v", "attached_pic"}
+}
+
+// mp3TagArgs makes the cover readable for players that are picky about ID3:
+// ffmpeg writes ID3v2.4 by default, which Windows Explorer will not read a
+// cover from, and leaves the APIC picture type at "Other". The stream comment
+// maps to the picture type and the title to the APIC description.
+func mp3TagArgs() []string {
+	return []string{
+		"-id3v2_version", "3",
+		"-metadata:s:v", "title=Album cover",
+		"-metadata:s:v", "comment=Cover (front)",
+	}
 }
 
 // CONVERSION FEATURE: Perform conversion if enabled.
