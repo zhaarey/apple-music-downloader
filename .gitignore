@@ -9,6 +9,11 @@
 !/main.go
 !/VERSION
 !/embed_assets.go
+!/Dockerfile
+!/.dockerignore
+!/docker-entrypoint.sh
+!/compose.yaml
+!/.env.example
 !/README.md
 !/README-CN.md
 !/PROXY-SETUP.md

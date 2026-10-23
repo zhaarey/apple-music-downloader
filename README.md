@@ -12,6 +12,7 @@ This command-line tool downloads albums, songs, playlists, stations and music vi
 - [Supported formats](#supported-formats)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [Docker](#docker)
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Upgrade](#upgrade)
@@ -214,6 +215,44 @@ paths:
 > - If wrapper-lite runs on another device on your network, point `lite-server` to that device's LAN IP, not `127.0.0.1`.
 > - These instructions target current Android arm64 Termux environments; 32-bit Android is not a documented target.
 > - If self-update on an older version fails with `lookup api.github.com on [::1]:53 ... connection refused`, re-download the binary once as in step 3; later versions update normally.
+
+## Docker
+
+A multi-arch image (`linux/amd64`, `linux/arm64`, ffmpeg included) is published to GHCR on every release: `ghcr.io/zhaarey/apple-music-downloader`. Tags: `latest`, `<major>.<minor>`, and the exact version (prereleases only get the exact version).
+
+`/data` is the working directory inside the container: `config.yaml` is created there on first run and all download folders (`AM-Lossless`, ...) end up there too.
+
+### Docker Compose
+
+wrapper-lite is not part of this image or compose file; run it separately (see [Requirements](#requirements)). By default the container looks for it on the Docker host at port `12340`.
+
+```bash
+cp .env.example .env              # set AMDL_LITE_SERVER if wrapper-lite is elsewhere; set PUID / PGID
+mkdir -p data                     # keep it user-owned instead of root-owned
+docker compose run --rm amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+docker compose run --rm amdl --atmos --select "https://music.apple.com/..."
+```
+
+Downloads and `config.yaml` appear in `./data`.
+
+> wrapper-lite listens on `127.0.0.1` by default, which a container cannot reach. Start it with `--host 0.0.0.0` (and keep the port firewalled) or point `AMDL_LITE_SERVER` at an address it does listen on.
+
+### Standalone image
+
+If wrapper-lite already runs somewhere else:
+
+```bash
+docker run --rm -it --user "$(id -u):$(id -g)" \
+  -v "$PWD/data:/data" \
+  -e AMDL_LITE_SERVER=http://192.168.1.10:12340 \
+  ghcr.io/zhaarey/apple-music-downloader:latest \
+  "https://music.apple.com/us/album/..."
+```
+
+- `AMDL_LITE_SERVER` overrides `lite-server` from `config.yaml` (the default `127.0.0.1` is the container itself). An explicit `--lite-server` flag still takes precedence.
+- Keep `-it` when you use `--select`, search, or anything else that prompts.
+- Update by pulling a newer image. `--update` would only modify the container's own filesystem.
+- To build locally: `docker build -t amdl .`
 
 ## Configuration
 

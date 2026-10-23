@@ -12,6 +12,7 @@
 - [支持的格式](#支持的格式)
 - [前置要求](#前置要求)
 - [快速开始](#快速开始)
+- [Docker](#docker)
 - [配置](#配置)
 - [使用方法](#使用方法)
 - [升级](#升级)
@@ -226,6 +227,44 @@ paths:
 > - 如果 wrapper-lite 运行在局域网内其他设备上，`lite-server` 需填写该设备的局域网 IP，不能填写 `127.0.0.1`。
 > - 本说明面向 Android arm64 环境；32 位 Android 不在文档支持范围内。
 > - 旧版本自更新若报错 `lookup api.github.com on [::1]:53 ... connection refused`，请按第 3 步重新下载一次，此后即可正常自更新。
+
+## Docker
+
+每次发布 Release 时会向 GHCR 推送多架构镜像（`linux/amd64`、`linux/arm64`，已内置 ffmpeg）：`ghcr.io/zhaarey/apple-music-downloader`。标签：`latest`、`<主>.<次>` 以及精确版本号（预发布版本只有精确版本号标签）。
+
+容器内的工作目录是 `/data`：首次运行会在此生成 `config.yaml`，所有下载目录（`AM-Lossless` 等）也在这里。
+
+### Docker Compose
+
+wrapper-lite 不包含在镜像和 compose 文件中，需要单独运行（见 [前置要求](#前置要求)）。容器默认访问 Docker 宿主机的 `12340` 端口。
+
+```bash
+cp .env.example .env              # wrapper-lite 不在本机时设置 AMDL_LITE_SERVER；设置 PUID / PGID
+mkdir -p data                     # 提前创建，避免被 Docker 创建成 root 所有
+docker compose run --rm amdl "https://music.apple.com/us/album/whenever-you-need-somebody-2022-remaster/1624945511"
+docker compose run --rm amdl --atmos --select "https://music.apple.com/..."
+```
+
+下载文件和 `config.yaml` 位于 `./data`。
+
+> wrapper-lite 默认只监听 `127.0.0.1`，容器无法访问。请用 `--host 0.0.0.0` 启动它（并用防火墙限制该端口），或把 `AMDL_LITE_SERVER` 指向它实际监听的地址。
+
+### 单独使用镜像
+
+如果 wrapper-lite 已在别处运行：
+
+```bash
+docker run --rm -it --user "$(id -u):$(id -g)" \
+  -v "$PWD/data:/data" \
+  -e AMDL_LITE_SERVER=http://192.168.1.10:12340 \
+  ghcr.io/zhaarey/apple-music-downloader:latest \
+  "https://music.apple.com/us/album/..."
+```
+
+- `AMDL_LITE_SERVER` 会覆盖 `config.yaml` 中的 `lite-server`（默认的 `127.0.0.1` 指向容器自身）；显式传入的 `--lite-server` 优先级更高。
+- 使用 `--select`、搜索等需要交互输入的功能时请保留 `-it`。
+- 升级请直接拉取新镜像；`--update` 只会修改容器自身的文件系统。
+- 本地构建：`docker build -t amdl .`
 
 ## 配置
 

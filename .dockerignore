@@ -1,0 +1,10 @@
+*
+!/go.mod
+!/go.sum
+!/main.go
+!/embed_assets.go
+!/config.yaml.example
+!/docker-entrypoint.sh
+!/internal/
+!/cmd/
+**/*_test.go

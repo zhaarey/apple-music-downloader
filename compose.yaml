@@ -1,0 +1,24 @@
+# amdl only: wrapper-lite is run separately (see README).
+#
+#   cp .env.example .env              # set AMDL_LITE_SERVER if wrapper-lite is not on this host
+#   mkdir -p data                     # so it is not created as root-owned
+#   docker compose run --rm amdl "https://music.apple.com/us/album/..."
+
+services:
+  amdl:
+    image: ${AMDL_IMAGE:-ghcr.io/zhaarey/apple-music-downloader:latest}
+    build: .
+    environment:
+      # Default: wrapper-lite listening on the Docker host, port 12340.
+      AMDL_LITE_SERVER: ${AMDL_LITE_SERVER:-http://host.docker.internal:12340}
+      TZ: ${TZ:-UTC}
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too (built in on Docker Desktop).
+      - "host.docker.internal:host-gateway"
+    # Match the host user so downloads are not root-owned.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    stdin_open: true
+    tty: true
+    volumes:
+      # config.yaml and every download folder live here.
+      - ./data:/data
