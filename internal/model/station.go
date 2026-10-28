@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"amdl/internal/amp-api"
+	"amdl/internal/display"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
-	"amdl/internal/amp-api"
 )
 
 type Station struct {
@@ -108,13 +109,13 @@ func (a *Station) ShowSelect() []int {
 		data = append(data, []string{
 			fmt.Sprint(trackNum + 1),
 			fmt.Sprintf("%02d. %s", track.Resp.Attributes.TrackNumber, track.Name),
-			track.Resp.Attributes.ContentRating,
+			display.Badges(track.Resp.Attributes.ContentRating, track.Resp.Attributes.IsAppleDigitalMaster, track.Resp.Attributes.IsMasteredForItunes),
 			track.Type,
 		})
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"", "Track Name", "Rating", "Type"})
+	table.SetHeader([]string{"", "Track Name", "Tags", "Type"})
 	table.SetRowLine(false)
 	table.SetCaption(true, fmt.Sprintf("Station: %d tracks", trackTotal))
 	table.SetHeaderColor(tablewriter.Colors{},
@@ -126,11 +127,7 @@ func (a *Station) ShowSelect() []int {
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
 	for _, row := range data {
-		if row[2] == "explicit" {
-			row[2] = "E"
-		} else if row[2] == "clean" {
-			row[2] = "C"
-		} else {
+		if row[2] == "" {
 			row[2] = "None"
 		}
 		if row[3] == "music-videos" {

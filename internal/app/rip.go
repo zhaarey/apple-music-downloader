@@ -2,6 +2,7 @@ package app
 
 import (
 	"amdl/internal/amp-api"
+	"amdl/internal/display"
 	fairplayrip "amdl/internal/fairplay-rip"
 	"amdl/internal/media/alacfix"
 	defrag "amdl/internal/media/defrag"
@@ -557,12 +558,12 @@ func (r *Runner) ripAlbum(albumId string, token string, storefront string, media
 	meta := album.Resp
 	if r.Flags.Debug {
 		fmt.Println(meta.Data[0].Attributes.ArtistName)
-		fmt.Println(meta.Data[0].Attributes.Name)
+		fmt.Println(display.Label(meta.Data[0].Attributes.Name, meta.Data[0].Attributes.ContentRating, meta.Data[0].Attributes.IsAppleDigitalMaster, meta.Data[0].Attributes.IsMasteredForItunes))
 
 		for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
 			trackNum++
 			fmt.Printf("\nTrack %d of %d:\n", trackNum, len(meta.Data[0].Relationships.Tracks.Data))
-			fmt.Printf("%02d. %s\n", trackNum, track.Attributes.Name)
+			fmt.Printf("%02d. %s\n", trackNum, display.Label(track.Attributes.Name, track.Attributes.ContentRating, track.Attributes.IsAppleDigitalMaster, track.Attributes.IsMasteredForItunes))
 
 			manifest, err := ampapi.GetSongResp(storefront, track.ID, album.Language, token)
 			if err != nil {
@@ -785,12 +786,12 @@ func (r *Runner) ripPlaylist(playlistId string, token string, storefront string,
 	meta := playlist.Resp
 	if r.Flags.Debug {
 		fmt.Println(meta.Data[0].Attributes.ArtistName)
-		fmt.Println(meta.Data[0].Attributes.Name)
+		fmt.Println(display.Label(meta.Data[0].Attributes.Name, meta.Data[0].Attributes.ContentRating, meta.Data[0].Attributes.IsAppleDigitalMaster, meta.Data[0].Attributes.IsMasteredForItunes))
 
 		for trackNum, track := range meta.Data[0].Relationships.Tracks.Data {
 			trackNum++
 			fmt.Printf("\nTrack %d of %d:\n", trackNum, len(meta.Data[0].Relationships.Tracks.Data))
-			fmt.Printf("%02d. %s\n", trackNum, track.Attributes.Name)
+			fmt.Printf("%02d. %s\n", trackNum, display.Label(track.Attributes.Name, track.Attributes.ContentRating, track.Attributes.IsAppleDigitalMaster, track.Attributes.IsMasteredForItunes))
 
 			manifest, err := ampapi.GetSongResp(storefront, track.ID, playlist.Language, token)
 			if err != nil {
