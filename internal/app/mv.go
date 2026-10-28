@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"amdl/internal/amp-api"
+	"amdl/internal/display"
 	mvmedia "amdl/internal/media/mv"
 	"amdl/internal/model"
 	playreadyrip "amdl/internal/playready-rip"
@@ -43,7 +44,7 @@ func (r *Runner) mvDownloader(adamID string, saveDir string, token string, store
 
 	mvOutPath := filepath.Join(saveDir, fmt.Sprintf("%s.mp4", forbiddenNames.ReplaceAllString(mvSaveName, "_")))
 
-	fmt.Println(MVInfo.Data[0].Attributes.Name)
+	fmt.Println(display.Label(MVInfo.Data[0].Attributes.Name, MVInfo.Data[0].Attributes.ContentRating, false, false))
 
 	exists, _ := fileExists(mvOutPath)
 	if exists {

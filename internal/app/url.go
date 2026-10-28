@@ -1,14 +1,15 @@
 package app
 
 import (
+	"amdl/internal/amp-api"
+	"amdl/internal/display"
+	"amdl/internal/download"
 	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
-	"amdl/internal/amp-api"
-	"amdl/internal/download"
 	"net/http"
 	"net/url"
 	"os"
@@ -94,7 +95,8 @@ func (r *Runner) readArtistPage(resp *http.Response, options *[][]string) (bool,
 		return false, err
 	}
 	for _, album := range obj.Data {
-		*options = append(*options, []string{album.Attributes.Name, album.Attributes.ReleaseDate, album.ID, album.Attributes.URL})
+		name := display.Label(album.Attributes.Name, album.Attributes.ContentRating, album.Attributes.IsAppleDigitalMaster, album.Attributes.IsMasteredForItunes)
+		*options = append(*options, []string{name, album.Attributes.ReleaseDate, album.ID, album.Attributes.URL})
 	}
 	return len(obj.Next) == 0, nil
 }

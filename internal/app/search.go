@@ -1,9 +1,10 @@
 package app
 
 import (
+	"amdl/internal/amp-api"
+	"amdl/internal/display"
 	"fmt"
 	"github.com/AlecAivazis/survey/v2"
-	"amdl/internal/amp-api"
 	"strings"
 )
 
@@ -122,8 +123,9 @@ func (r *Runner) handleSearch(searchType string, queryParts []string, token stri
 					}
 					trackInfo := fmt.Sprintf("%d tracks", item.Attributes.TrackCount)
 					detail := fmt.Sprintf("%s (%s, %s)", item.Attributes.ArtistName, year, trackInfo)
-					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", item.Attributes.Name, detail))
-					items = append(items, SearchResultItem{Type: "Album", URL: item.Attributes.URL, ID: item.ID})
+					label := display.Label(item.Attributes.Name, item.Attributes.ContentRating, item.Attributes.IsAppleDigitalMaster, item.Attributes.IsMasteredForItunes)
+					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", label, detail))
+					items = append(items, SearchResultItem{Type: "Album", Name: label, URL: item.Attributes.URL, ID: item.ID})
 				}
 				hasNext = searchResp.Results.Albums.Next != ""
 			}
@@ -131,8 +133,9 @@ func (r *Runner) handleSearch(searchType string, queryParts []string, token stri
 			if searchResp.Results.Songs != nil {
 				for _, item := range searchResp.Results.Songs.Data {
 					detail := fmt.Sprintf("%s (%s)", item.Attributes.ArtistName, item.Attributes.AlbumName)
-					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", item.Attributes.Name, detail))
-					items = append(items, SearchResultItem{Type: "Song", URL: item.Attributes.URL, ID: item.ID})
+					label := display.Label(item.Attributes.Name, item.Attributes.ContentRating, item.Attributes.IsAppleDigitalMaster, item.Attributes.IsMasteredForItunes)
+					displayOptions = append(displayOptions, fmt.Sprintf("%s - %s", label, detail))
+					items = append(items, SearchResultItem{Type: "Song", Name: label, URL: item.Attributes.URL, ID: item.ID})
 				}
 				hasNext = searchResp.Results.Songs.Next != ""
 			}
@@ -144,7 +147,7 @@ func (r *Runner) handleSearch(searchType string, queryParts []string, token stri
 						detail = strings.Join(item.Attributes.GenreNames, ", ")
 					}
 					displayOptions = append(displayOptions, fmt.Sprintf("%s (%s)", item.Attributes.Name, detail))
-					items = append(items, SearchResultItem{Type: "Artist", URL: item.Attributes.URL, ID: item.ID})
+					items = append(items, SearchResultItem{Type: "Artist", Name: item.Attributes.Name, URL: item.Attributes.URL, ID: item.ID})
 				}
 				hasNext = searchResp.Results.Artists.Next != ""
 			}

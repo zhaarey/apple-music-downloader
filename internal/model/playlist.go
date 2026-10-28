@@ -12,6 +12,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 
 	"amdl/internal/amp-api"
+	"amdl/internal/display"
 )
 
 type Playlist struct {
@@ -98,12 +99,12 @@ func (a *Playlist) ShowSelect() []int {
 		trackName := fmt.Sprintf("%s - %s", track.Attributes.Name, track.Attributes.ArtistName)
 		data = append(data, []string{fmt.Sprint(trackNum),
 			trackName,
-			track.Attributes.ContentRating,
+			display.Badges(track.Attributes.ContentRating, track.Attributes.IsAppleDigitalMaster, track.Attributes.IsMasteredForItunes),
 			track.Type})
 
 	}
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"", "Track Name", "Rating", "Type"})
+	table.SetHeader([]string{"", "Track Name", "Tags", "Type"})
 	//table.SetFooter([]string{"", "", "Footer", "Footer4"})
 	table.SetRowLine(false)
 	//table.SetAutoMergeCells(true)
@@ -118,11 +119,7 @@ func (a *Playlist) ShowSelect() []int {
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
 	for _, row := range data {
-		if row[2] == "explicit" {
-			row[2] = "E"
-		} else if row[2] == "clean" {
-			row[2] = "C"
-		} else {
+		if row[2] == "" {
 			row[2] = "None"
 		}
 		if row[3] == "music-videos" {
