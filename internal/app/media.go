@@ -28,6 +28,10 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 		url = strings.Replace(url, "bb.jpg", "-999.jpg", 1)
 	} else if strings.HasSuffix(url, "bb.png") {
 		url = strings.Replace(url, "bb.png", "-999.png", 1)
+	} else if strings.HasSuffix(url, "ac.jpg") {
+		url = strings.Replace(url, "ac.jpg", "-999.jpg", 1)
+	} else if strings.HasSuffix(url, "ac.png") {
+		url = strings.Replace(url, "ac.png", "-999.png", 1)
 	}
 
 	originalUrl := url
