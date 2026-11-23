@@ -7,9 +7,6 @@ import (
 	"amdl/internal/wrapper"
 	"errors"
 	"fmt"
-	"github.com/grafov/m3u8"
-	"github.com/itouakirai/go-mp4tag"
-	"github.com/olekukonko/tablewriter"
 	"io"
 	"net/http"
 	"net/url"
@@ -19,12 +16,28 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/grafov/m3u8"
+	"github.com/itouakirai/go-mp4tag"
+	"github.com/olekukonko/tablewriter"
 )
 
 func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, error) {
+	// Retrieve highest quality
+	if strings.HasSuffix(url, "bb.jpg") {
+		url = strings.Replace(url, "bb.jpg", "-999.jpg", 1)
+	} else if strings.HasSuffix(url, "bb.png") {
+		url = strings.Replace(url, "bb.png", "-999.png", 1)
+	} else if strings.HasSuffix(url, "ac.jpg") {
+		url = strings.Replace(url, "ac.jpg", "-999.jpg", 1)
+	} else if strings.HasSuffix(url, "ac.png") {
+		url = strings.Replace(url, "ac.png", "-999.png", 1)
+	}
+
 	originalUrl := url
 	var ext string
 	var covPath string
+
 	if r.Config.Metadata.Artwork.Format == "original" {
 		ext = strings.Split(url, "/")[len(strings.Split(url, "/"))-2]
 		ext = ext[strings.LastIndex(ext, ".")+1:]
@@ -37,7 +50,11 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 		parts := re.Split(url, 2)
 		url = parts[0] + "{w}x{h}" + strings.Replace(parts[1], ".jpg", ".png", 1)
 	}
-	url = strings.Replace(url, "{w}x{h}", r.Config.Metadata.Artwork.Size, 1)
+	if r.Config.Metadata.Artwork.Size == "original" {
+		url = strings.Replace(url, "{w}x{h}", "10000x0w", 1)
+	} else {
+		url = strings.Replace(url, "{w}x{h}", r.Config.Metadata.Artwork.Size, 1)
+	}
 	if r.Config.Metadata.Artwork.Format == "original" {
 		url = strings.Replace(url, "is1-ssl.mzstatic.com/image/thumb", "a5.mzstatic.com/us/r1000/0", 1)
 		url = url[:strings.LastIndex(url, "/")]
@@ -63,7 +80,11 @@ func (r *Runner) writeCover(sanAlbumFolder, name string, url string) (string, er
 		splitByDot := strings.Split(originalUrl, ".")
 		last := splitByDot[len(splitByDot)-1]
 		fallback := originalUrl[:len(originalUrl)-len(last)] + ext
-		fallback = strings.Replace(fallback, "{w}x{h}", r.Config.Metadata.Artwork.Size, 1)
+		if r.Config.Metadata.Artwork.Size == "original" {
+			fallback = strings.Replace(fallback, "{w}x{h}", "10000x0w", 1)
+		} else {
+			fallback = strings.Replace(fallback, "{w}x{h}", r.Config.Metadata.Artwork.Size, 1)
+		}
 		if err := r.getCover(fallback, tmpFile); err != nil {
 			return "", err
 		}
