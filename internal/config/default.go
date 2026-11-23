@@ -49,8 +49,8 @@ func Default() Config {
 			},
 			Artwork: ArtworkConfig{
 				Embed:         true,
-				Size:          "5000x5000",
-				Format:        "jpg",
+				Size:          "original",
+				Format:        "original",
 				SaveArtist:    false,
 				SaveAnimated:  false,
 				EmbyAnimated:  false,

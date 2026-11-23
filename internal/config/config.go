@@ -172,7 +172,6 @@ func Load(opts LoadOptions) (*Config, error) {
 		fmt.Printf("Warning: %s not found, using defaults\n", configFile)
 	}
 
-
 	// Layer 4: Command line flags (mapped to nested keys)
 	if opts.FlagSet != nil {
 		provider := posflag.ProviderWithFlag(opts.FlagSet, ".", k, func(f *pflag.Flag) (string, any) {
@@ -309,10 +308,10 @@ func (c *Config) Validate() error {
 
 	// Metadata
 	if c.Metadata.Artwork.Size == "" {
-		c.Metadata.Artwork.Size = "5000x5000"
+		c.Metadata.Artwork.Size = "original"
 	}
 	if c.Metadata.Artwork.Format == "" {
-		c.Metadata.Artwork.Format = "jpg"
+		c.Metadata.Artwork.Format = "original"
 	}
 
 	return nil
