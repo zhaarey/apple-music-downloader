@@ -171,7 +171,14 @@ func resolveRelativeURL(baseURL string, ref string) (string, error) {
 	if lastSlash == -1 {
 		return "", fmt.Errorf("invalid playlist URL %q", baseURL)
 	}
-	return baseURL[:lastSlash+1] + ref, nil
+	resolved := baseURL[:lastSlash+1] + ref
+	// Apple's video CDN signs media playlists with an accessKey query
+	// parameter and requires it on segment requests as well. Preserve the
+	// playlist's query string when the relative URI carries none.
+	if i := strings.Index(baseURL, "?"); i > lastSlash && !strings.Contains(ref, "?") {
+		resolved += baseURL[i:]
+	}
+	return resolved, nil
 }
 
 // fetch GETs url with optional headers and returns the body of a 200 reply.
